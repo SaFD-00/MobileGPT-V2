@@ -135,44 +135,71 @@ GOOGLESEARCH_KEY = "<Google Search API 키 (선택)>"
 
 ### 2. GPT 모델 설정
 
-`Server/main.py` 파일에서 각 에이전트가 사용할 GPT 모델을 설정할 수 있습니다:
+`Server/main.py` 파일에서 각 에이전트가 사용할 GPT 모델을 설정할 수 있습니다.
+
+#### 지원 모델
+
+| 모델 | 용도 | 특징 |
+|------|------|------|
+| `gpt-5.2` | 최신 추론 모델 | 최고 성능, 높은 비용 (기본값) |
+| `gpt-5` | 추론 모델 | 고성능, 복잡한 작업에 적합 |
+| `gpt-4.1` | 범용 모델 | 균형잡힌 성능/비용 |
+| `gpt-4.1-mini` | 경량 모델 | 빠른 응답, 저비용 |
+| `gpt-4.1-nano` | 초경량 모델 | 최저 비용, 단순 작업에 적합 |
+
+#### 에이전트별 모델 설정
 
 ```python
 # 에이전트별 GPT 모델 버전
-os.environ["TASK_AGENT_GPT_VERSION"] = "gpt-5-chat-latest"          # 사용자 명령 파싱
-os.environ["APP_AGENT_GPT_VERSION"] = "gpt-5-chat-latest"           # 대상 앱 예측
-os.environ["EXPLORE_AGENT_GPT_VERSION"] = "gpt-5-chat-latest"       # 화면 탐색/서브태스크 발견
-os.environ["SELECT_AGENT_GPT_VERSION"] = "gpt-5-chat-latest"        # 서브태스크 선택
-os.environ["SELECT_AGENT_HISTORY_GPT_VERSION"] = "gpt-5-chat-latest"# 히스토리 기반 선택
-os.environ["DERIVE_AGENT_GPT_VERSION"] = "gpt-5-chat-latest"        # UI 액션 도출
-os.environ["PARAMETER_FILLER_AGENT_GPT_VERSION"] = "gpt-5-chat-latest"  # 매개변수 채우기
-os.environ["ACTION_SUMMARIZE_AGENT_GPT_VERSION"] = "gpt-5-chat-latest"  # 액션 요약
-os.environ["SUBTASK_MERGE_AGENT_GPT_VERSION"] = "gpt-5-chat-latest" # 서브태스크 병합
+os.environ["TASK_AGENT_GPT_VERSION"] = "gpt-5.2"          # 사용자 명령 파싱
+os.environ["APP_AGENT_GPT_VERSION"] = "gpt-5.2"           # 대상 앱 예측
+os.environ["EXPLORE_AGENT_GPT_VERSION"] = "gpt-5.2"       # 화면 탐색/서브태스크 발견
+os.environ["SELECT_AGENT_GPT_VERSION"] = "gpt-5.2"        # 서브태스크 선택
+os.environ["SELECT_AGENT_HISTORY_GPT_VERSION"] = "gpt-5.2"# 히스토리 기반 선택
+os.environ["DERIVE_AGENT_GPT_VERSION"] = "gpt-5.2"        # UI 액션 도출
+os.environ["PARAMETER_FILLER_AGENT_GPT_VERSION"] = "gpt-5.2"  # 매개변수 채우기
+os.environ["ACTION_SUMMARIZE_AGENT_GPT_VERSION"] = "gpt-5.2"  # 액션 요약
+os.environ["SUBTASK_MERGE_AGENT_GPT_VERSION"] = "gpt-5.2" # 서브태스크 병합
 
 # GPT 모델 별칭 (호환성용)
-os.environ["gpt_5"] = "gpt-5-chat-latest"
-os.environ["gpt_4"] = "gpt-5-chat-latest"
-os.environ["gpt_4_turbo"] = "gpt-5-chat-latest"
-os.environ["gpt_3_5_turbo"] = "gpt-5-chat-latest"
+os.environ["gpt_5"] = "gpt-5.2"
+os.environ["gpt_4"] = "gpt-4.1"
+os.environ["gpt_4_turbo"] = "gpt-4.1"
+os.environ["gpt_3_5_turbo"] = "gpt-4.1-mini"
 
-# 기타 설정
-os.environ["vision_model"] = "gpt-5-chat-latest"    # 비전 모델 (스크린샷 분석용)
-os.environ["MOBILEGPT_USER_NAME"] = "user"          # 사용자 이름
+# 비전 모델 (스크린샷 분석용)
+os.environ["vision_model"] = "gpt-5.2"
+os.environ["MOBILEGPT_USER_NAME"] = "user"
+```
+
+#### 비용 최적화 예시
+
+비용을 줄이려면 단순 작업에 경량 모델을 사용할 수 있습니다:
+
+```python
+# 고성능이 필요한 에이전트
+os.environ["EXPLORE_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["SELECT_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["DERIVE_AGENT_GPT_VERSION"] = "gpt-5.2"
+
+# 단순 작업 에이전트 (비용 절감)
+os.environ["ACTION_SUMMARIZE_AGENT_GPT_VERSION"] = "gpt-4.1-mini"
+os.environ["SUBTASK_MERGE_AGENT_GPT_VERSION"] = "gpt-4.1-mini"
 ```
 
 **환경 변수 요약:**
 
 | 변수명 | 용도 | 기본값 |
 |-------|------|-------|
-| `TASK_AGENT_GPT_VERSION` | 사용자 명령을 구조화된 작업으로 변환 | gpt-5-chat-latest |
-| `APP_AGENT_GPT_VERSION` | 명령어에서 대상 앱 예측 | gpt-5-chat-latest |
-| `EXPLORE_AGENT_GPT_VERSION` | 새 화면 분석, 서브태스크 발견 | gpt-5-chat-latest |
-| `SELECT_AGENT_GPT_VERSION` | 목표에 맞는 서브태스크 선택 | gpt-5-chat-latest |
-| `SELECT_AGENT_HISTORY_GPT_VERSION` | 히스토리 기반 서브태스크 선택 | gpt-5-chat-latest |
-| `DERIVE_AGENT_GPT_VERSION` | 서브태스크를 UI 액션으로 변환 | gpt-5-chat-latest |
-| `PARAMETER_FILLER_AGENT_GPT_VERSION` | 서브태스크 매개변수 자동 채우기 | gpt-5-chat-latest |
-| `ACTION_SUMMARIZE_AGENT_GPT_VERSION` | 실행된 액션 시퀀스 요약 | gpt-5-chat-latest |
-| `SUBTASK_MERGE_AGENT_GPT_VERSION` | 중복 서브태스크 병합 | gpt-5-chat-latest |
+| `TASK_AGENT_GPT_VERSION` | 사용자 명령을 구조화된 작업으로 변환 | gpt-5.2 |
+| `APP_AGENT_GPT_VERSION` | 명령어에서 대상 앱 예측 | gpt-5.2 |
+| `EXPLORE_AGENT_GPT_VERSION` | 새 화면 분석, 서브태스크 발견 | gpt-5.2 |
+| `SELECT_AGENT_GPT_VERSION` | 목표에 맞는 서브태스크 선택 | gpt-5.2 |
+| `SELECT_AGENT_HISTORY_GPT_VERSION` | 히스토리 기반 서브태스크 선택 | gpt-5.2 |
+| `DERIVE_AGENT_GPT_VERSION` | 서브태스크를 UI 액션으로 변환 | gpt-5.2 |
+| `PARAMETER_FILLER_AGENT_GPT_VERSION` | 서브태스크 매개변수 자동 채우기 | gpt-5.2 |
+| `ACTION_SUMMARIZE_AGENT_GPT_VERSION` | 실행된 액션 시퀀스 요약 | gpt-5.2 |
+| `SUBTASK_MERGE_AGENT_GPT_VERSION` | 중복 서브태스크 병합 | gpt-5.2 |
 
 ### 3. 서버 모드 선택
 

@@ -11,22 +11,39 @@ from server_auto_explore import AutoExplorer
 sys.path.append('.')
 
 load_dotenv()
-os.environ["TASK_AGENT_GPT_VERSION"] = "gpt-5-chat-latest"
-os.environ["APP_AGENT_GPT_VERSION"] = "gpt-5-chat-latest"
-os.environ["SELECT_AGENT_HISTORY_GPT_VERSION"] = "gpt-5-chat-latest"
-os.environ["EXPLORE_AGENT_GPT_VERSION"] = "gpt-5-chat-latest"
-os.environ["SELECT_AGENT_GPT_VERSION"] = "gpt-5-chat-latest"
-os.environ["DERIVE_AGENT_GPT_VERSION"] = "gpt-5-chat-latest"
-os.environ["PARAMETER_FILLER_AGENT_GPT_VERSION"] = "gpt-5-chat-latest"
-os.environ["ACTION_SUMMARIZE_AGENT_GPT_VERSION"] = "gpt-5-chat-latest"
-os.environ["SUBTASK_MERGE_AGENT_GPT_VERSION"] = "gpt-5-chat-latest"
 
-os.environ["gpt_5"] = "gpt-5-chat-latest"
-os.environ["gpt_4"] = "gpt-5-chat-latest"
-os.environ["gpt_4_turbo"] = "gpt-5-chat-latest"
-os.environ["gpt_3_5_turbo"] = "gpt-5-chat-latest"
+# ============================================================================
+# GPT Model Configuration
+# ============================================================================
+# Supported models (as of 2026):
+#   - gpt-5.2       : Latest reasoning model (highest performance, highest cost)
+#   - gpt-5         : Reasoning model (high performance)
+#   - gpt-4.1       : General purpose model (balanced performance/cost)
+#   - gpt-4.1-mini  : Lightweight model (fast, low cost)
+#   - gpt-4.1-nano  : Ultra-lightweight model (fastest, lowest cost)
+#
+# You can customize each agent's model based on your needs.
+# ============================================================================
 
-os.environ["vision_model"] = "gpt-5-chat-latest"
+# Agent-specific model configuration
+os.environ["TASK_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["APP_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["SELECT_AGENT_HISTORY_GPT_VERSION"] = "gpt-5.2"
+os.environ["EXPLORE_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["SELECT_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["DERIVE_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["PARAMETER_FILLER_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["ACTION_SUMMARIZE_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["SUBTASK_MERGE_AGENT_GPT_VERSION"] = "gpt-5.2"
+
+# Legacy model aliases (for backward compatibility)
+os.environ["gpt_5"] = "gpt-5.2"
+os.environ["gpt_4"] = "gpt-4.1"
+os.environ["gpt_4_turbo"] = "gpt-4.1"
+os.environ["gpt_3_5_turbo"] = "gpt-4.1-mini"
+
+# Vision model
+os.environ["vision_model"] = "gpt-5.2"
 os.environ["MOBILEGPT_USER_NAME"] = "user"
 
 
