@@ -1,0 +1,4 @@
+name,description,parameters,exploration
+filter_messages,"Allows the user to filter messages based on different categories such as unread, known, unknown, starred, images, videos, places, or links.","{'filter_category': 'Which message category do you want to view? [""Unread"", ""Known"", ""Unknown"", ""Starred"", ""Images"", ""Videos"", ""Places"", ""Links""]'}",unexplored
+search_messages,Allows the user to search for specific messages using keywords or phrases.,{'search_query': 'What would you like to search for in your messages?'},unexplored
+go_back,Navigates the user back to the previous screen.,{},unexplored

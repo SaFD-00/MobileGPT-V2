@@ -1,0 +1,2 @@
+name,start,end,description,usage,parameters,example
+search_messages,0,1,Allows the user to search through existing messages or conversations.,Triggered by clicking 'Search messages',{},{}

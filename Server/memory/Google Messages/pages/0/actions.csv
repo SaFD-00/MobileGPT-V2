@@ -1,0 +1,3 @@
+subtask_name,trigger_ui_index,step,action,example
+search_messages,-1,0,"{""name"": ""click"", ""parameters"": {""index"": ""8"", ""description"": ""Search messages""}}",{}
+search_messages,-1,1,"{""name"": ""finish"", ""parameters"": {}}",{}
