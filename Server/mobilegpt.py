@@ -136,10 +136,8 @@ class MobileGPT:
         if page_index != self.current_page_index:
             self.memory.init_page_manager(page_index)  # 페이지 관리자 초기화
             self.current_page_index = page_index
-
-            # 학습 모드에서 페이지 전환 시 현재 서브태스크 종료
-            if self.subtask_status == Status.LEARN:
-                self.__finish_subtask()
+            # 참고: 페이지 전환은 subtask의 정상적인 일부일 수 있음 (예: 검색창 클릭 → 키보드 화면)
+            # subtask 종료는 DeriveAgent가 finish 액션을 반환했을 때만 수행 (라인 236-238)
 
         # 현재 페이지에서 수행 가능한 서브태스크들 가져오기
         available_subtasks = self.memory.get_available_subtasks(page_index)
@@ -286,17 +284,15 @@ class MobileGPT:
                     }
                 )
 
-            # usage 생성 (summarize_actions 전에 호출해야 함 - response_history가 초기화되기 전)
-            usage = ""
+            # guideline 생성 (summarize_actions 전에 호출해야 함 - response_history가 초기화되기 전)
+            guideline = ""
             if self.derive_agent:
-                usage = self.derive_agent.generate_usage()
+                guideline = self.derive_agent.generate_guideline()
 
-            # 서브태스크를 usage와 함께 저장 (start/end 페이지 포함)
+            # 서브태스크를 guideline과 함께 저장
             if self.current_subtask and self.memory:
                 example = {"instruction": self.instruction, "screen": self.encoded_xml}
-                start_page = self.current_subtask_data.get('page_index', -1)
-                end_page = self.current_page_index
-                self.memory.save_subtask(self.current_subtask, example, usage, start_page, end_page)
+                self.memory.save_subtask(self.current_subtask, example, guideline)
 
             action_summary = None
             if self.derive_agent:
@@ -433,6 +429,7 @@ class MobileGPT:
         self.exploration_stack = []                  # DFS용 스택 [(page_index, subtask_info), ...]
         self.exploration_queue = []                  # BFS용 큐 [(page_index, subtask_info), ...]
         self.page_graph = {}                         # 페이지 간 연결 그래프 {from: [(to, subtask_name), ...]}
+        self.back_edges = {}                         # Back 액션으로 이동한 역방향 edge {from: [to, ...]}
         self.traversal_path = []                     # 현재 탐색 경로 (back 복귀용)
         self.navigation_plan = []                    # 네비게이션 계획 [(page, subtask), ...]
         self.start_page_index = None                 # 시작 페이지 인덱스
@@ -569,10 +566,13 @@ class MobileGPT:
         log(f"Unexplored subtask-trigger combinations loaded: {total_items} items across {len(self.unexplored_subtasks)} pages", "blue")
 
     def _find_path_to_page(self, from_page: int, to_page: int) -> list:
-        """BFS로 from_page에서 to_page까지의 최단 경로 탐색
+        """BFS로 from_page에서 to_page까지의 최단 경로 탐색 (forward + back edge 사용)
 
         Returns:
-            list: [(page, subtask_name), ...] 형태의 경로, 없으면 빈 리스트
+            list: [(page, action_type, subtask_name), ...] 형태의 경로
+                - action_type: "forward" 또는 "back"
+                - subtask_name: forward면 subtask명, back이면 None
+                - 없으면 빈 리스트
         """
         if from_page == to_page:
             return []
@@ -583,20 +583,35 @@ class MobileGPT:
         while queue:
             current_page, path = queue.popleft()
 
-            if current_page not in self.page_graph:
-                continue
+            # Forward edges (subtask 실행으로 이동)
+            if current_page in self.page_graph:
+                for next_page, subtask_name in self.page_graph[current_page]:
+                    if next_page in visited:
+                        continue
 
-            for next_page, subtask_name in self.page_graph[current_page]:
-                if next_page in visited:
-                    continue
+                    new_path = path + [(current_page, "forward", subtask_name)]
 
-                new_path = path + [(current_page, subtask_name)]
+                    if next_page == to_page:
+                        return new_path
 
-                if next_page == to_page:
-                    return new_path
+                    visited.add(next_page)
+                    queue.append((next_page, new_path))
 
-                visited.add(next_page)
-                queue.append((next_page, new_path))
+            # Back edges (back 액션으로 이동)
+            # Page 0 제약: page 0에서는 back 불가 (앱 종료됨)
+            # → current_page == 0이면 back edge 탐색하지 않음
+            if current_page != 0 and current_page in self.back_edges:
+                for next_page in self.back_edges[current_page]:
+                    if next_page in visited:
+                        continue
+
+                    new_path = path + [(current_page, "back", None)]
+
+                    if next_page == to_page:
+                        return new_path
+
+                    visited.add(next_page)
+                    queue.append((next_page, new_path))
 
         return []
 
@@ -720,6 +735,11 @@ class MobileGPT:
 
             # 다른 페이지면 back으로 복귀
             if page_index != current_page_index:
+                # 0 페이지에서는 back 불가 (앱 종료됨) - 해당 항목 스킵
+                if current_page_index == 0:
+                    log(f"DFS: Cannot go back from page 0, skipping subtask on page {page_index}", "yellow")
+                    self.exploration_stack.pop()
+                    continue
                 if self.traversal_path and self.traversal_path[-1] == current_page_index:
                     self.traversal_path.pop()
                 log(f"DFS: Need to go back from page {current_page_index} to reach page {page_index}", "yellow")
@@ -739,6 +759,10 @@ class MobileGPT:
 
         # 스택 비었지만 시작점이 아니면 back
         if self.traversal_path:
+            # 0 페이지에서는 back 불가 (앱 종료됨) - 탐색 완료로 처리
+            if current_page_index == 0:
+                log(f"DFS: Stack empty at page 0, exploration complete", "green")
+                return None
             self.traversal_path.pop()
             log(f"DFS: Stack empty, going back from page {current_page_index}", "yellow")
             return {"name": "back", "parameters": {}}
@@ -796,6 +820,10 @@ class MobileGPT:
         if self.current_exploration_step >= self.max_exploration_steps:
             log(f"Multi-step: Max steps reached for '{subtask_name}', finishing", "yellow")
             self._finish_subtask_exploration(current_page_index, success=True)
+            # 0 페이지에서는 back 불가 (앱 종료됨) - 다음 subtask로 이동
+            if current_page_index == 0:
+                log(f"Multi-step: At page 0, proceeding to next subtask", "cyan")
+                return self.get_explore_action(self.parsed_xml, self.hierarchy_xml, encoded_xml, current_page_index)
             return {"name": "back", "parameters": {}}
 
         # DeriveAgent로 다음 액션 도출
@@ -823,6 +851,10 @@ class MobileGPT:
         if action.get('name') == 'finish' or is_complete:
             log(f"Multi-step: Subtask '{subtask_name}' completed after {self.current_exploration_step} steps", "green")
             self._finish_subtask_exploration(current_page_index, success=True)
+            # 0 페이지에서는 back 불가 (앱 종료됨) - 다음 subtask로 이동
+            if current_page_index == 0:
+                log(f"Multi-step: At page 0, proceeding to next subtask", "cyan")
+                return self.get_explore_action(self.parsed_xml, self.hierarchy_xml, encoded_xml, current_page_index)
             return {"name": "back", "parameters": {}}
 
         log(f"Multi-step: Step {self.current_exploration_step - 1} - {action.get('name')} for '{subtask_name}'", "cyan")
@@ -1039,14 +1071,38 @@ class MobileGPT:
         return self._start_subtask_exploration(parsed_xml, encoded_xml, current_page_index, target_subtask_info)
 
     def _execute_navigation_step(self, parsed_xml, encoded_xml, current_page_index):
-        """네비게이션 계획의 다음 단계 실행"""
+        """네비게이션 계획의 다음 단계 실행
+
+        navigation_plan 형식: [(page, action_type, subtask_name), ...]
+            - action_type: "forward" (subtask 실행) 또는 "back" (back 액션)
+            - subtask_name: forward면 subtask명, back이면 None
+        """
         if not self.navigation_plan:
             return None
 
-        step_page, subtask_name = self.navigation_plan[0]
+        step_page, action_type, subtask_name = self.navigation_plan[0]
 
-        # 현재 페이지가 단계의 페이지와 다르면 back
+        # Back 액션 타입인 경우
+        if action_type == "back":
+            # 0 페이지에서는 back 불가 (앱 종료됨)
+            if current_page_index == 0:
+                log(f"Navigation: Cannot execute back from page 0, aborting navigation", "red")
+                self.navigation_plan = []
+                return None
+            self.navigation_plan.pop(0)
+            if self.traversal_path:
+                self.traversal_path.pop()
+            log(f"Navigation: Executing back action from page {current_page_index}", "cyan")
+            return {"name": "back", "parameters": {}}
+
+        # Forward 액션 타입인 경우
+        # 현재 페이지가 단계의 페이지와 다르면 back 필요
         if step_page != current_page_index:
+            # 0 페이지에서는 back 불가 (앱 종료됨) - 네비게이션 취소
+            if current_page_index == 0:
+                log(f"Navigation: Cannot go back from page 0, aborting navigation to page {step_page}", "yellow")
+                self.navigation_plan = []
+                return None
             if self.traversal_path:
                 self.traversal_path.pop()
             log(f"Navigation: Need to go back from page {current_page_index} to reach page {step_page}", "yellow")
@@ -1094,6 +1150,25 @@ class MobileGPT:
                     self.last_explored_screen = encoded_xml
                     return action
         return None
+
+    def record_back_transition(self, from_page: int, to_page: int):
+        """back 액션으로 from_page에서 to_page로 이동한 기록 저장
+
+        Navigation 경로 계산 시 back edge도 활용할 수 있도록 캐시합니다.
+
+        Args:
+            from_page: back 액션 수행 전 페이지
+            to_page: back 액션 수행 후 도착한 페이지
+        """
+        if from_page == to_page:
+            return
+
+        if from_page not in self.back_edges:
+            self.back_edges[from_page] = []
+
+        if to_page not in self.back_edges[from_page]:
+            self.back_edges[from_page].append(to_page)
+            log(f"Recorded back edge: {from_page} -> {to_page}", "cyan")
 
     def mark_last_action_explored(self, end_page: int = -1):
         """마지막으로 클릭한 서브태스크를 explored로 마킹 및 액션 저장 (화면 전환 후 호출)

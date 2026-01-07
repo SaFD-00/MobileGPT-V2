@@ -1,9 +1,0 @@
-package com.example.hardcode;
-
-// 프로젝트 전역에서 사용되는 상수들을 정의하는 클래스
-public class MobileGPTGlobal {
-    // 서버의 IP 주소
-    public static final String HOST_IP = "192.168.0.8";
-    // 서버의 포트 번호
-    public static final int HOST_PORT = 12345;
-}

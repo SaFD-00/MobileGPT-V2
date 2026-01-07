@@ -30,12 +30,11 @@ os.environ["DERIVE_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
 os.environ["PARAMETER_FILLER_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
 os.environ["ACTION_SUMMARIZE_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
 os.environ["SUBTASK_MERGE_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
+os.environ["GUIDELINE_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
 
 # GPT-5 alias
 os.environ["gpt_5"] = "gpt-5.2-chat-latest"
 
-# Vision model
-os.environ["vision_model"] = "gpt-5.2-chat-latest"
 os.environ["MOBILEGPT_USER_NAME"] = "user"
 
 

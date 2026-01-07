@@ -1,12 +1,13 @@
 """Automatic exploration server for app UI discovery."""
 
+import os
 import socket
+import threading
 import traceback
 from datetime import datetime
 from typing import List, Optional, Tuple
 
 from agents.app_agent import AppAgent
-from base_server import BaseServer
 from handlers.message_handlers import (
     MessageType,
     handle_app_list,
@@ -15,22 +16,26 @@ from handlers.message_handlers import (
 )
 from mobilegpt import MobileGPT, Status
 from screenParser.Encoder import xmlEncoder
-from utils.network import recv_xml, send_json_response
+from utils.network import get_local_ip, recv_xml, send_json_response
 from utils.utils import log
 
 
-class AutoExplorer(BaseServer):
+class AutoExplorer:
     """Server for automatic app exploration using AI-driven navigation.
 
     Automatically explores app UI by discovering screens and
     interacting with elements using configurable algorithms.
     """
 
+    DEFAULT_HOST = '0.0.0.0'
+    DEFAULT_PORT = 12345
+    DEFAULT_BUFFER_SIZE = 4096
+
     def __init__(
         self,
-        host: str = '0.0.0.0',
-        port: int = 12345,
-        buffer_size: int = 4096,
+        host: str = DEFAULT_HOST,
+        port: int = DEFAULT_PORT,
+        buffer_size: int = DEFAULT_BUFFER_SIZE,
         memory_directory: str = './memory',
         algorithm: str = "DFS"
     ):
@@ -43,8 +48,57 @@ class AutoExplorer(BaseServer):
             memory_directory: Base directory for logs
             algorithm: Exploration algorithm ("DFS", "BFS", "GREEDY")
         """
-        super().__init__(host, port, buffer_size, memory_directory)
+        self.host = host
+        self.port = port
+        self.buffer_size = buffer_size
+        self.memory_directory = memory_directory
         self.algorithm = algorithm
+
+        self._ensure_directory(self.memory_directory)
+
+    def open(self) -> None:
+        """Start server and listen for client connections.
+
+        Creates TCP socket, binds to configured address, and spawns
+        threads for each client connection.
+        """
+        real_ip = get_local_ip()
+
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind((self.host, self.port))
+        server.listen()
+
+        self._log_server_start(real_ip)
+        self._accept_clients(server)
+
+    def _log_server_start(self, real_ip: str) -> None:
+        """Log server startup information."""
+        log(f"AutoExplorer is listening on {real_ip}:{self.port} (algorithm: {self.algorithm})", "red")
+
+    def _accept_clients(self, server: socket.socket) -> None:
+        """Accept and handle client connections in separate threads."""
+        while True:
+            client_socket, client_address = server.accept()
+            client_thread = threading.Thread(
+                target=self.handle_client,
+                args=(client_socket, client_address)
+            )
+            client_thread.start()
+
+    def _ensure_directory(self, path: str) -> None:
+        """Create directory if it doesn't exist."""
+        if not os.path.exists(path):
+            os.makedirs(path)
+
+    def _handle_disconnection(
+        self,
+        client_socket: socket.socket,
+        client_address: Tuple[str, int]
+    ) -> None:
+        """Handle client disconnection."""
+        log(f"Connection closed by {client_address}", 'red')
+        client_socket.close()
 
     def handle_client(
         self,
@@ -227,6 +281,13 @@ class AutoExplorer(BaseServer):
             log(f"New screen discovered and explored: Page #{page_index}", "green")
         else:
             log(f"Screen already visited: Page #{page_index} (similarity: {similarity:.2f})", "yellow")
+
+        # Record back transition for navigation planning
+        if last_action_was_back and mobile_gpt.last_explored_page_index is not None:
+            mobile_gpt.record_back_transition(
+                from_page=mobile_gpt.last_explored_page_index,
+                to_page=page_index
+            )
 
         # Mark previous action as explored with end_page
         mobile_gpt.mark_last_action_explored(end_page=page_index)

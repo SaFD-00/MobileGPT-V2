@@ -2,7 +2,7 @@ import json
 import os
 from copy import deepcopy
 
-from agents import action_summarize_agent, usage_agent
+from agents import action_summarize_agent, guideline_agent
 from agents.prompts import derive_agent_prompt
 from memory.memory_manager import Memory
 from utils.utils import query, log, parse_completion_rate
@@ -72,15 +72,15 @@ class DeriveAgent:
             self.response_history = []
             return action_summary
 
-    def generate_usage(self) -> str:
-        """서브태스크 수행 과정을 요약하여 usage 설명 생성
+    def generate_guideline(self) -> str:
+        """서브태스크 수행 과정을 요약하여 guideline 설명 생성
 
         Returns:
-            사람이 읽기 쉬운 usage 요약 문자열
+            사람이 읽기 쉬운 guideline 요약 문자열
         """
         if self.subtask is None or len(self.response_history) == 0:
             return ""
-        return usage_agent.summarize_usage(self.subtask, self.response_history)
+        return guideline_agent.summarize_guideline(self.subtask, self.response_history)
 
     def __exemplify(self, response: dict, screen: str) -> dict:
         """액션을 학습용 예시로 변환"""

@@ -1,6 +1,0 @@
-name,description,parameters,exploration
-search_messages,Allows the user to search through existing messages or conversations.,{'search_query': 'What message or keyword do you want to search for?'},explored
-open_account_settings,Opens the account and settings menu for the signed-in user.,{},unexplored
-open_conversation,Opens a selected conversation to view or send messages.,{'conversation_name': 'Which conversation do you want to open?'},unexplored
-start_new_chat,Starts a new chat with a contact or phone number.,{'recipient': 'Who do you want to start a chat with?'},unexplored
-open_gemini_chat,Opens the Gemini chat assistant for AI-powered messaging.,{},unexplored

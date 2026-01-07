@@ -55,7 +55,13 @@ def generate_numbered_list(data: list) -> str:
     return result_string
 
 
-def query(messages, model="gpt-5-chat-latest", is_list=False):
+def _is_fixed_temperature_model(model: str) -> bool:
+    """Check if the model doesn't support temperature parameter (o1, o3, gpt-5.2 series)."""
+    model_lower = model.lower()
+    return model_lower.startswith(('o1', 'o3', 'gpt-5.2'))
+
+
+def query(messages, model="gpt-5.2-chat-latest", is_list=False):
     client = OpenAI()
 
     for message in messages:
@@ -64,15 +70,20 @@ def query(messages, model="gpt-5-chat-latest", is_list=False):
     # log("--------------------------")
     # log(messages[-1]["content"], 'yellow')
 
-    response = client.chat.completions.create(
-        model=model,
-        messages=messages,
-        temperature=0,
-        max_tokens=900,
-        top_p=0,
-        frequency_penalty=0,
-        presence_penalty=0
-    )
+    # Models with fixed temperature (o1, o3, gpt-5.2) don't support temperature parameter
+    if _is_fixed_temperature_model(model):
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            max_completion_tokens=900,
+        )
+    else:
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=0,
+            max_completion_tokens=900,
+        )
     result = response.choices[0].message.content
     log(result, 'green')
     json_formatted_response = __parse_json(result, is_list=is_list)

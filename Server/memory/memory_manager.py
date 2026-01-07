@@ -208,18 +208,15 @@ class Memory:
 
         return None
 
-    def save_subtask(self, subtask_raw: dict, example: dict, usage: str = "",
-                     start_page: int = -1, end_page: int = -1) -> None:
+    def save_subtask(self, subtask_raw: dict, example: dict, guideline: str = "") -> None:
         """서브태스크 정보 저장
 
         Args:
             subtask_raw: 서브태스크 정보 딕셔너리
             example: 학습용 예시
-            usage: 서브태스크 사용 방법 요약
-            start_page: 서브태스크 시작 페이지 인덱스
-            end_page: 서브태스크 종료 페이지 인덱스
+            guideline: 서브태스크 수행 가이드라인
         """
-        self.page_manager.save_subtask(subtask_raw, example, usage, start_page, end_page)
+        self.page_manager.save_subtask(subtask_raw, example, guideline)
 
     def get_next_action(self, subtask: dict, screen: str) -> dict:
         """현재 서브태스크에서 다음 액션 반환"""

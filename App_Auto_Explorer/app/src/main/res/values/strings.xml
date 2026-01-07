@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">MobileGPT-Explorer</string>
+    <string name="app_name">MobileGPT-Auto-Explorer</string>
     <string name="accessibility_service_description">Mobile GPT agent that autonomously interact with mobile apps on instruction</string>
-    <string name="accessibility_service_label" translatable="false">MobileGPT-Explorer Accessibility</string>
+    <string name="accessibility_service_label" translatable="false">MobileGPT-Auto-Explorer Accessibility</string>
 </resources>

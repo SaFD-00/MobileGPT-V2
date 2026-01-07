@@ -3,17 +3,17 @@ from utils.utils import generate_numbered_list
 
 
 def format_subtask_for_display(subtask: dict) -> str:
-    """Format a subtask dict for display in the prompt, including usage if available"""
+    """Format a subtask dict for display in the prompt, including guideline if available"""
     # Create a display dict with core fields
     display = {
         "name": subtask.get("name", ""),
         "description": subtask.get("description", ""),
     }
 
-    # Add usage if present and not empty
-    usage = subtask.get("usage", "")
-    if usage and str(usage).strip():
-        display["usage"] = usage
+    # Add guideline if present and not empty
+    guideline = subtask.get("guideline", "")
+    if guideline and str(guideline).strip():
+        display["guideline"] = guideline
 
     # Add parameters
     display["parameters"] = subtask.get("parameters", {})
@@ -38,7 +38,7 @@ default_subtasks = [
 
 def get_sys_prompt(available_subtasks):
     subtasks = available_subtasks + default_subtasks
-    # Format subtasks with usage info for better readability
+    # Format subtasks with guideline info for better readability
     formatted_subtasks = [format_subtask_for_display(s) for s in subtasks]
     numbered_subtasks = generate_numbered_list(formatted_subtasks)
     sys_msg = (

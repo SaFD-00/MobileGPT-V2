@@ -133,16 +133,16 @@ def get_usr_prompt(instruction, subtask, history, screen, examples):
 
         usr_msg += "Your Turn:\n"
 
-    # subtask에 usage 정보가 있으면 포함
-    usage_info = ""
-    if isinstance(subtask, dict) and subtask.get("usage"):
-        usage_info = f"Usage hint: {subtask.get('usage')}\n"
+    # subtask에 guideline 정보가 있으면 포함
+    guideline_info = ""
+    if isinstance(subtask, dict) and subtask.get("guideline"):
+        guideline_info = f"Guideline: {subtask.get('guideline')}\n"
 
     usr_msg += (
         f"User's final goal (instruction): {instruction}\n"
         "(Only complete the below subtask given to you. You can ignore parameters with unknown values. But Do not proceed further steps)\n"
         f"Subtask given to you: {json.dumps(subtask)}\n"
-        f"{usage_info}\n"
+        f"{guideline_info}\n"
 
         "Past Events:\n"
         "'''\n"

@@ -6,6 +6,11 @@ __pycache__/
 .venv/
 venv/
 
+# Tests
+tests/
+pytest.ini
+.pytest_cache/
+
 # Android
 .gradle/
 build/
@@ -21,3 +26,7 @@ local.properties
 # OS
 .DS_Store
 Thumbs.db
+
+# Data & Logs
+Server/data/
+*.log
