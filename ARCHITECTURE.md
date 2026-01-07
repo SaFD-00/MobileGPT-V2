@@ -65,7 +65,8 @@ flowchart LR
 |------|------------|------|
 | **기본 모드** | `Server` | 사용자 명령어를 받아 앱 작업 자동 수행 |
 | **수동 탐색** | `Explorer` | 사용자가 수동으로 화면을 캡처하여 탐색 |
-| **자동 탐색** | `Auto_Explorer` | 앱을 자동으로 탐색하여 UI 구조 학습 |
+| **자동 탐색** | `AutoExplorer` | 앱을 자동으로 탐색하여 UI 구조 학습 |
+| **추론 모드** | `InferenceServer` | LangGraph 기반 자동 subtask 선택/검증 |
 
 ---
 
@@ -73,10 +74,11 @@ flowchart LR
 
 ```
 Server/
-├── main.py                     # 메인 진입점, 환경변수 설정
+├── main.py                     # 메인 진입점, 환경변수 설정, CLI 파서
 ├── server.py                   # 기본 서버 (사용자 명령 실행)
 ├── server_explore.py           # 수동 탐색 서버
 ├── server_auto_explore.py      # 자동 탐색 서버
+├── server_inference.py         # [NEW] 추론 서버 (LangGraph 기반)
 ├── mobilegpt.py                # 핵심 에이전트 클래스
 │
 ├── agents/                     # 에이전트 모듈
@@ -97,6 +99,22 @@ Server/
 │       ├── derive_agent_prompt.py
 │       └── ...
 │
+├── inference/                  # [NEW] LangGraph 기반 추론 시스템
+│   ├── __init__.py
+│   ├── graphs/
+│   │   ├── __init__.py
+│   │   └── inference_graph.py  # 메인 추론 그래프
+│   ├── agents/
+│   │   ├── __init__.py
+│   │   ├── supervisor.py       # Supervisor Agent (라우팅)
+│   │   ├── selector.py         # SelectAgent 래퍼
+│   │   ├── verifier.py         # VerifyAgent (다음 화면 검증)
+│   │   ├── deriver.py          # DeriveAgent 래퍼
+│   │   └── memory_agent.py     # MemoryAgent (page/state 조회)
+│   └── schemas/
+│       ├── __init__.py
+│       └── state.py            # LangGraph State 정의
+│
 ├── memory/                     # 메모리 관리
 │   ├── memory_manager.py       # 전체 메모리 관리
 │   ├── page_manager.py         # 페이지별 관리
@@ -105,6 +123,13 @@ Server/
 ├── screenParser/               # XML 파서
 │   ├── Encoder.py              # XML 인코딩
 │   └── parseXML.py             # XML 파싱
+│
+├── tests/                      # [NEW] 테스트
+│   └── inference/
+│       ├── conftest.py         # 테스트 Fixtures
+│       ├── test_agents.py      # Agent 노드 테스트
+│       ├── test_inference_graph.py  # 그래프 테스트
+│       └── test_server_integration.py  # TCP 서버 통합 테스트
 │
 └── utils/                      # 유틸리티
     ├── utils.py                # 공통 유틸리티
@@ -180,7 +205,7 @@ classDiagram
         +handle_client()
     }
 
-    class Auto_Explorer {
+    class AutoExplorer {
         +host: str
         +port: int
         +algorithm: str
@@ -188,8 +213,73 @@ classDiagram
         +handle_client()
     }
 
+    class InferenceServer {
+        +host: str
+        +port: int
+        +_inference_graph: CompiledGraph
+        +open()
+        +handle_client()
+        +_handle_inference()
+    }
+
     Server <|-- Explorer
-    Server <|-- Auto_Explorer
+    Server <|-- AutoExplorer
+    Server <|-- InferenceServer
+```
+
+### 3.3 InferenceServer 클래스
+
+`server_inference.py`에 정의된 LangGraph 기반 추론 서버입니다.
+
+#### 핵심 메서드
+
+```python
+class InferenceServer:
+    def __init__(
+        self,
+        host: str = '0.0.0.0',
+        port: int = 12345,
+        buffer_size: int = 4096
+    ):
+        """LangGraph 추론 그래프 초기화"""
+        self._inference_graph = compile_graph(checkpointer=True)
+
+    def _handle_inference(
+        self,
+        client_socket: socket.socket,
+        screen_parser: xmlEncoder,
+        memory: Memory,
+        instruction: str,
+        log_dir: str
+    ) -> Optional[dict]:
+        """XML 수신 → LangGraph 추론 → action 반환
+
+        자동으로 수행되는 흐름:
+        1. MemoryAgent: page/state 조회
+        2. SelectAgent: subtask 선택
+        3. VerifyAgent: 다음 화면 검증
+           - "가면 안된다" → 재선택 (Loop)
+           - "간다" → 확정
+        4. DeriveAgent: action 도출
+        """
+```
+
+#### 추론 흐름
+
+```mermaid
+flowchart TD
+    A[Client XML 수신] --> B[MemoryAgent: page/state 조회]
+    B --> C{subtask 있음?}
+    C -->|No| D[no_matching_page 반환]
+    C -->|Yes| E[SelectAgent: subtask 선택]
+    E --> F[VerifyAgent: 다음 화면 검증]
+    F --> G{검증 결과}
+    G -->|"가면 안된다"| H{최대 반복?}
+    H -->|No| I[rejected_subtasks에 추가]
+    I --> E
+    H -->|Yes| J[max_iterations_reached]
+    G -->|"간다"| K[DeriveAgent: action 도출]
+    K --> L[action JSON 반환]
 ```
 
 ---
@@ -258,7 +348,8 @@ sequenceDiagram
 | **ActionSummarizeAgent** | `action_summarize_agent.py` | 실행된 액션 시퀀스를 1문장으로 요약 | `ACTION_SUMMARIZE_AGENT_GPT_VERSION` |
 | **UsageAgent** | `usage_agent.py` | 서브태스크 사용법 설명 생성 | - |
 | **SubtaskMergeAgent** | `subtask_merge_agent.py` | 중복 서브태스크 병합 | `SUBTASK_MERGE_AGENT_GPT_VERSION` |
-| **GuidelineAgent** | `guideline_agent.py` | 서브태스크 UX 가이드라인 설명 생성 | - |
+| **GuidelineAgent** | `guideline_agent.py` | 서브태스크 UX 가이드라인 설명 생성 | `GUIDELINE_AGENT_GPT_VERSION` |
+| **VerifyAgent** | `inference/agents/verifier.py` | 선택한 subtask의 다음 화면 검증 (추론 모드) | `VERIFY_AGENT_GPT_VERSION` |
 
 ### 4.3 에이전트 입출력
 
@@ -465,6 +556,117 @@ sequenceDiagram
         end
     end
 ```
+
+### 6.3 추론 모드 (InferenceServer)
+
+```mermaid
+sequenceDiagram
+    participant Client as Android 클라이언트
+    participant Server as InferenceServer
+    participant Graph as LangGraph
+    participant Memory as MemoryAgent
+    participant Select as SelectAgent
+    participant Verify as VerifyAgent
+    participant Derive as DeriveAgent
+
+    Client->>Server: A (앱 패키지명)
+    Server->>Server: Memory 초기화
+
+    Client->>Server: I (명령어)
+    Server->>Server: instruction 저장
+
+    loop 추론 루프
+        Client->>Server: X (XML)
+        Server->>Graph: invoke(state)
+
+        Note over Graph: LangGraph 워크플로우 시작
+
+        Graph->>Memory: page/state 조회
+        Memory-->>Graph: available_subtasks
+
+        alt subtask 없음
+            Graph-->>Server: no_matching_page
+        else subtask 있음
+            loop 최대 5회 반복
+                Graph->>Select: subtask 선택
+                Select-->>Graph: selected_subtask
+
+                Graph->>Verify: 다음 화면 검증
+                Verify-->>Graph: should_proceed
+
+                alt "가면 안된다"
+                    Graph->>Graph: rejected_subtasks에 추가
+                else "간다"
+                    Graph->>Derive: action 도출
+                    Derive-->>Graph: action
+                end
+            end
+        end
+
+        Graph-->>Server: 추론 결과
+        Server-->>Client: JSON 액션
+    end
+
+    Client->>Server: F (종료)
+```
+
+### 6.4 LangGraph 추론 그래프
+
+```mermaid
+stateDiagram-v2
+    [*] --> supervisor: START
+    supervisor --> memory: 초기 상태
+    supervisor --> selector: subtask 선택 필요
+    supervisor --> verifier: 검증 필요
+    supervisor --> deriver: 검증 통과
+    supervisor --> [*]: FINISH
+
+    memory --> supervisor: subtasks 로드됨
+    selector --> supervisor: subtask 선택됨
+    verifier --> supervisor: 검증 완료
+    deriver --> [*]: action 반환
+```
+
+#### InferenceState 구조
+
+```python
+class InferenceState(TypedDict, total=False):
+    # 세션 정보
+    session_id: str
+    instruction: str
+    memory: Any
+
+    # 현재 상태
+    page_index: int
+    state_index: int
+    current_xml: str
+    hierarchy_xml: str
+    encoded_xml: str
+
+    # Subtask 관련
+    selected_subtask: dict | None
+    rejected_subtasks: list[dict]  # 거부된 subtask 목록
+    available_subtasks: list[dict]
+
+    # 검증 관련
+    verification_passed: bool | None  # True: 간다, False: 가면 안된다
+
+    # 라우팅 및 결과
+    next_agent: str
+    action: dict | None
+    status: str
+    iteration: int  # 재선택 루프 카운트 (최대 5)
+```
+
+#### 노드별 역할
+
+| 노드 | 역할 | 반환값 |
+|------|------|--------|
+| **supervisor** | 상태 기반 라우팅 결정 | `next_agent` |
+| **memory** | page/state 조회, subtask 로드 | `page_index`, `available_subtasks` |
+| **selector** | 거부된 subtask 제외 후 선택 | `selected_subtask` |
+| **verifier** | LLM으로 다음 화면 검증 | `verification_passed` |
+| **deriver** | 선택된 subtask의 action 도출 | `action` |
 
 ---
 
@@ -1374,9 +1576,10 @@ os.environ["DERIVE_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
 os.environ["PARAMETER_FILLER_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
 os.environ["ACTION_SUMMARIZE_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
 os.environ["SUBTASK_MERGE_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
+os.environ["GUIDELINE_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
+os.environ["VERIFY_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"  # 추론 모드 전용
 
 # 기타 설정
-os.environ["vision_model"] = "gpt-5.2-chat-latest"
 os.environ["MOBILEGPT_USER_NAME"] = "user"
 ```
 

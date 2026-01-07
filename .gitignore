@@ -6,6 +6,9 @@ __pycache__/
 .venv/
 venv/
 
+# Claude
+.claude/
+
 # Tests
 tests/
 pytest.ini
@@ -30,3 +33,9 @@ Thumbs.db
 # Data & Logs
 Server/data/
 *.log
+
+# Memory - App-specific data (generated during exploration)
+Server/memory/*/
+
+# Scripts (local only)
+Server/scripts/

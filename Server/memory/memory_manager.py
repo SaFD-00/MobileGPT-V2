@@ -1,7 +1,7 @@
 import json
 import os
 from collections import defaultdict
-from typing import Dict
+from typing import Dict, Tuple
 
 import numpy as np
 import pandas as pd
@@ -9,6 +9,8 @@ import pandas as pd
 from agents import param_fill_agent, subtask_merge_agent
 from memory.page_manager import PageManager
 from memory.node_manager import NodeManager
+from memory.state_classifier import StateClassifier  # [NEW]
+from memory.state_manager import StateManager  # [NEW]
 from utils import parsing_utils
 from utils.action_utils import generalize_action
 from utils.utils import get_openai_embedding, log, safe_literal_eval, cosine_similarity
@@ -56,35 +58,144 @@ class Memory:
         self.hierarchy_db = init_database(self.screen_hierarchy_path, hierarchy_header)
         self.hierarchy_db['embedding'] = self.hierarchy_db.embedding.apply(safe_literal_eval)
         self.task_path = self.__get_task_data(self.task_name)
-        self.page_managers: Dict[int, PageManager] = {}
+        # [MODIFIED] page_managers 키를 (page, state) 튜플로 변경
+        self.page_managers: Dict[Tuple[int, int], PageManager] = {}
         self.page_manager = None
 
-    def init_page_manager(self, page_index: int):
-        """페이지 관리자 초기화"""
-        if page_index not in self.page_managers:
-            self.page_managers[page_index] = PageManager(self.page_database_path, page_index)
+        # [NEW] State 관련 초기화
+        self.state_classifier = StateClassifier()
+        self.state_managers: Dict[int, StateManager] = {}  # {page_index: StateManager}
+        self.current_page_index = -1
+        self.current_state_index = -1
 
-        self.page_manager = self.page_managers[page_index]
+    def init_page_manager(self, page_index: int, state_index: int = 0):
+        """페이지 관리자 초기화 (state 포함)
 
-    def search_node(self, parsed_xml, hierarchy_xml, encoded_xml) -> (int, float):
-        """현재 화면에서 유사한 노드 검색"""
-        # candidate_nodes_indexes = self.__search_similar_hierarchy_nodes(hierarchy_xml)
-        #
-        # node_manager = NodeManager(self.page_db, self, parsed_xml, encoded_xml)
-        # node_index, new_subtasks = node_manager.search(candidate_nodes_indexes)
-        most_similar_node_index, similarity = self.__search_most_similar_hierarchy_node(hierarchy_xml)
-        if most_similar_node_index >= 0:
-            return most_similar_node_index, similarity
+        Args:
+            page_index: 페이지 인덱스
+            state_index: state 인덱스 (기본값 0 - 하위 호환성)
+        """
+        key = (page_index, state_index)
+        if key not in self.page_managers:
+            self.page_managers[key] = PageManager(
+                self.page_database_path,
+                page_index,
+                state_index
+            )
+        self.page_manager = self.page_managers[key]
+
+    def _get_state_manager(self, page_index: int) -> StateManager:
+        """StateManager 인스턴스 반환 (없으면 생성)
+
+        Args:
+            page_index: 페이지 인덱스
+
+        Returns:
+            StateManager: StateManager 인스턴스
+        """
+        if page_index not in self.state_managers:
+            self.state_managers[page_index] = StateManager(
+                self.page_database_path,
+                page_index,
+                self.state_classifier
+            )
+        return self.state_managers[page_index]
+
+    def _extract_subtasks_from_screen(self, encoded_xml: str, page_index: int) -> list:
+        """현재 화면에서 available_subtasks 추출
+
+        Args:
+            encoded_xml: 인코딩된 XML
+            page_index: 페이지 인덱스
+
+        Returns:
+            List[Dict]: subtask 정보 리스트
+        """
+        # page_db에서 available_subtasks 조회
+        if page_index >= 0 and page_index in self.page_db.index:
+            page_data = json.loads(self.page_db.loc[page_index].to_json())
+            available_subtasks = json.loads(page_data.get('available_subtasks', '[]'))
+            return available_subtasks
+        return []
+
+    def get_current_state(self) -> tuple:
+        """현재 page, state 인덱스 반환
+
+        Returns:
+            Tuple[int, int]: (page_index, state_index)
+        """
+        return self.current_page_index, self.current_state_index
+
+    def search_node(self, parsed_xml, hierarchy_xml, encoded_xml) -> tuple:
+        """현재 화면에서 유사한 노드 검색
+
+        Returns:
+            Tuple[int, int, float]: (page_index, state_index, similarity)
+        """
+        # 1. Embedding 기반 1차 필터링
+        most_similar_page, similarity = self.__search_most_similar_hierarchy_node(hierarchy_xml)
+
+        if most_similar_page < 0:
+            return -1, -1, 0.0
+
+        # 2. State 결정
+        current_subtasks = self._extract_subtasks_from_screen(encoded_xml, most_similar_page)
+        if current_subtasks:
+            state_manager = self._get_state_manager(most_similar_page)
+            state_index, is_new = state_manager.get_or_create_state(current_subtasks)
+
+            if is_new:
+                log(f"Created new state {state_index} for page {most_similar_page}", "green")
         else:
-            return -1, 0.0
+            # subtasks가 없으면 state 0 사용
+            state_index = 0
+
+        # 현재 page/state 업데이트
+        self.current_page_index = most_similar_page
+        self.current_state_index = state_index
+
+        return most_similar_page, state_index, similarity
 
     def get_available_subtasks(self, page_index):
         """특정 페이지에서 사용 가능한 서브태스크 목록 반환"""
-        return self.page_managers[page_index].get_available_subtasks()
+        # 현재 state를 사용하거나, 없으면 state 0 사용
+        state_index = self.current_state_index if self.current_state_index >= 0 else 0
+        key = (page_index, state_index)
+
+        # PageManager가 없으면 초기화
+        if key not in self.page_managers:
+            self.init_page_manager(page_index, state_index)
+
+        return self.page_managers[key].get_available_subtasks()
+
+    def get_subtask_destination(self, page_index: int, state_index: int, subtask_name: str) -> tuple:
+        """subtask 수행 시 이동하는 page/state 조회
+
+        Args:
+            page_index: 현재 페이지 인덱스
+            state_index: 현재 state 인덱스
+            subtask_name: 조회할 서브태스크 이름
+
+        Returns:
+            tuple: (end_page_index, end_state_index), (-1, -1) if not found
+        """
+        key = (page_index, state_index)
+        if key not in self.page_managers:
+            self.init_page_manager(page_index, state_index)
+
+        return self.page_managers[key].get_subtask_destination(subtask_name)
 
     def add_new_action(self, new_action, page_index):
         """새로운 액션을 페이지에 추가"""
-        self.page_managers[page_index].add_new_action(new_action)
+        # 현재 state를 사용하거나, 없으면 state 0 사용
+        state_index = self.current_state_index if self.current_state_index >= 0 else 0
+        key = (page_index, state_index)
+
+        # PageManager가 없으면 초기화
+        if key not in self.page_managers:
+            self.init_page_manager(page_index, state_index)
+
+        self.page_managers[key].add_new_action(new_action)
 
     def search_node_by_hierarchy(self, parsed_xml, hierarchy_xml, encoded_xml) -> (int, list):
         """화면 계층 구조를 기반으로 노드 검색"""
@@ -120,8 +231,9 @@ class Memory:
             os.makedirs(page_screen_path)
         parsing_utils.save_screen_info(self.app, self.task_name, page_screen_path, screen_num)
 
-        # 새로운 PageManager 인스턴스 생성 및 추가
-        self.page_managers[new_index] = PageManager(self.page_database_path, new_index)
+        # 새로운 PageManager 인스턴스 생성 및 추가 (state 0)
+        key = (new_index, 0)
+        self.page_managers[key] = PageManager(self.page_database_path, new_index, 0)
 
         return new_index
 
@@ -264,14 +376,19 @@ class Memory:
             step = 0
             for action_data in actions:
                 page_index = action_data['page_index']
+                state_index = action_data.get('state_index', 0)  # [NEW] state 지원
                 action = action_data['action']
                 screen = action_data['screen']
                 example = action_data['example']
 
                 if action['name'] == 'finish' or example:
                     generalized_action = generalize_action(action, subtask_dict, screen)
-                    page_manager = self.page_managers[page_index]
-                    page_manager.save_action(subtask_name, step, generalized_action, example)
+                    # [MODIFIED] (page, state) 키 사용
+                    key = (page_index, state_index)
+                    if key not in self.page_managers:
+                        self.init_page_manager(page_index, state_index)
+                    page_manager = self.page_managers[key]
+                    page_manager.save_action(subtask_name, -1, step, generalized_action, example)
                 step += 1
 
         known_task_path = {
@@ -305,7 +422,8 @@ class Memory:
 
     def mark_subtask_explored(self, page_index: int, subtask_name: str, ui_info: dict = None,
                               action: dict = None, screen: str = None,
-                              trigger_ui_index: int = -1, end_page: int = -1):
+                              trigger_ui_index: int = -1, end_page: int = -1,
+                              start_state: int = 0, end_state: int = 0):
         """Mark a subtask as explored on a specific page and save action
 
         Args:
@@ -316,36 +434,45 @@ class Memory:
             screen: 화면 XML (액션 일반화용)
             trigger_ui_index: 트리거 UI 인덱스 (같은 서브태스크의 다른 경로 구분용)
             end_page: 서브태스크 종료 페이지 인덱스
+            start_state: 시작 state 인덱스 [NEW]
+            end_state: 종료 state 인덱스 [NEW]
         """
-        if page_index not in self.page_managers:
-            self.init_page_manager(page_index)
-        self.page_managers[page_index].mark_subtask_explored(
+        key = (page_index, start_state)
+        if key not in self.page_managers:
+            self.init_page_manager(page_index, start_state)
+        self.page_managers[key].mark_subtask_explored(
             subtask_name, ui_info, action, screen,
             trigger_ui_index=trigger_ui_index,
-            start_page=page_index, end_page=end_page
+            start_page=page_index, end_page=end_page,
+            start_state=start_state, end_state=end_state
         )
 
     def mark_subtask_explored_multistep(self, page_index: int, subtask_name: str,
                                          subtask_info: dict, actions: list,
                                          trigger_ui_index: int = -1,
-                                         start_page: int = -1, end_page: int = -1):
+                                         start_page: int = -1, end_page: int = -1,
+                                         start_state: int = 0, end_state: int = 0):
         """Multi-step 탐색 완료 후 서브태스크를 explored로 마킹하고 모든 액션 저장
 
         Args:
             page_index: 페이지 인덱스
             subtask_name: 서브태스크 이름
             subtask_info: 서브태스크 정보 (name, description, parameters)
-            actions: 수행된 액션 리스트 [{step, action, screen, reasoning?}, ...]
+            actions: 수행된 액션 리스트 [{step, action, screen, reasoning?, start_state?, end_state?}, ...]
             trigger_ui_index: 트리거 UI 인덱스 (같은 서브태스크의 다른 경로 구분용)
             start_page: 시작 페이지 인덱스
             end_page: 종료 페이지 인덱스
+            start_state: 시작 state 인덱스 [NEW]
+            end_state: 종료 state 인덱스 [NEW]
         """
-        if page_index not in self.page_managers:
-            self.init_page_manager(page_index)
-        self.page_managers[page_index].mark_subtask_explored_multistep(
+        key = (page_index, start_state)
+        if key not in self.page_managers:
+            self.init_page_manager(page_index, start_state)
+        self.page_managers[key].mark_subtask_explored_multistep(
             page_index, subtask_name, subtask_info, actions,
             trigger_ui_index=trigger_ui_index,
-            start_page=start_page, end_page=end_page
+            start_page=start_page, end_page=end_page,
+            start_state=start_state, end_state=end_state
         )
 
     def save_task_path(self, new_task_path: dict):
@@ -437,6 +564,7 @@ class Memory:
             merged_subtask_dict = merged_subtasks[merged_pointer]
             if merged_subtask_dict['name'] == curr_subtask_name:
                 page_index = curr_subtask_data['page_index']
+                state_index = curr_subtask_data.get('state_index', 0)  # [NEW]
                 page_data = json.loads(self.page_db.loc[page_index].to_json())
                 available_subtasks = json.loads(page_data['available_subtasks'])
                 # 사용 가능한 서브태스크 목록을 순회하며 새로운 것으로 교체
@@ -448,7 +576,11 @@ class Memory:
                 self.page_db.loc[page_index] = page_data
                 self.page_db.to_csv(self.page_path, index=False)
 
-                self.page_managers[page_index].update_subtask_info(merged_subtask_dict)
+                # [MODIFIED] (page, state) 키 사용
+                key = (page_index, state_index)
+                if key not in self.page_managers:
+                    self.init_page_manager(page_index, state_index)
+                self.page_managers[key].update_subtask_info(merged_subtask_dict)
 
                 merged_subtask_params = merged_subtask_dict['parameters']
                 curr_subtask_params = curr_subtask_data['subtask']['parameters']

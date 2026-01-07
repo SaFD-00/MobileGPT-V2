@@ -26,17 +26,23 @@ def init_database(path: str, headers: list):
 
 class PageManager:
     """각 페이지(화면 상태)에서의 서브태스크와 액션을 관리하는 클래스"""
-    def __init__(self, page_path, page_index):
+    def __init__(self, page_path, page_index, state_index: int = 0):
         self.page_index = page_index
+        self.state_index = state_index  # [NEW] State 지원
 
         subtask_header = ['name', 'description', 'guideline', 'parameters', 'example']
-        action_header = ['subtask_name', 'trigger_ui_index', 'step', 'start', 'end', 'action', 'example']
+        # [MODIFIED] 컬럼명 변경: start -> start_page, end -> end_page
+        action_header = ['subtask_name', 'trigger_ui_index', 'step',
+                        'start_page', 'start_state', 'end_page', 'end_state',
+                        'action', 'example']
         available_subtask_header = ['name', 'description', 'parameters', 'exploration']
 
-        if not os.path.exists(page_path + f"/{page_index}/"):
-            os.makedirs(page_path + f"/{page_index}/")
+        # [MODIFIED] state별 경로 계산
+        state_path = os.path.join(page_path, str(page_index), str(state_index))
+        if not os.path.exists(state_path):
+            os.makedirs(state_path)
 
-        self.subtask_db_path = page_path + f"{page_index}/subtasks.csv"
+        self.subtask_db_path = os.path.join(state_path, "subtasks.csv")
         self.subtask_db = init_database(self.subtask_db_path, subtask_header)
 
         # Fill missing 'guideline' values with empty string for backward compatibility
@@ -45,14 +51,14 @@ class PageManager:
         else:
             self.subtask_db['guideline'] = self.subtask_db['guideline'].fillna('')
 
-        self.available_subtask_db_path = page_path + f"{page_index}/available_subtasks.csv"
+        self.available_subtask_db_path = os.path.join(state_path, "available_subtasks.csv")
         self.available_subtask_db = init_database(self.available_subtask_db_path, available_subtask_header)
 
         # Fill missing 'exploration' values with 'unexplored' for backward compatibility
         if 'exploration' in self.available_subtask_db.columns:
             self.available_subtask_db['exploration'] = self.available_subtask_db['exploration'].fillna('unexplored')
 
-        self.action_db_path = page_path + f"{page_index}/actions.csv"
+        self.action_db_path = os.path.join(state_path, "actions.csv")
         self.action_db = init_database(self.action_db_path, action_header)
 
         # Fill missing 'trigger_ui_index' with -1 for backward compatibility
@@ -61,15 +67,33 @@ class PageManager:
         else:
             self.action_db['trigger_ui_index'] = self.action_db['trigger_ui_index'].fillna(-1).astype(int)
 
-        # Fill missing 'start' and 'end' values with -1 for backward compatibility
-        if 'start' not in self.action_db.columns:
-            self.action_db['start'] = -1
+        # [MODIFIED] Backward compatibility: start/end -> start_page/end_page
+        # Handle old 'start'/'end' column names
+        if 'start' in self.action_db.columns and 'start_page' not in self.action_db.columns:
+            self.action_db = self.action_db.rename(columns={'start': 'start_page'})
+        if 'end' in self.action_db.columns and 'end_page' not in self.action_db.columns:
+            self.action_db = self.action_db.rename(columns={'end': 'end_page'})
+
+        # Fill missing 'start_page' and 'end_page' values with -1 for backward compatibility
+        if 'start_page' not in self.action_db.columns:
+            self.action_db['start_page'] = -1
         else:
-            self.action_db['start'] = self.action_db['start'].fillna(-1).astype(int)
-        if 'end' not in self.action_db.columns:
-            self.action_db['end'] = -1
+            self.action_db['start_page'] = self.action_db['start_page'].fillna(-1).astype(int)
+        if 'end_page' not in self.action_db.columns:
+            self.action_db['end_page'] = -1
         else:
-            self.action_db['end'] = self.action_db['end'].fillna(-1).astype(int)
+            self.action_db['end_page'] = self.action_db['end_page'].fillna(-1).astype(int)
+
+        # [NEW] Fill missing 'start_state' and 'end_state' with 0 for backward compatibility
+        if 'start_state' not in self.action_db.columns:
+            self.action_db['start_state'] = 0
+        else:
+            self.action_db['start_state'] = self.action_db['start_state'].fillna(0).astype(int)
+
+        if 'end_state' not in self.action_db.columns:
+            self.action_db['end_state'] = 0
+        else:
+            self.action_db['end_state'] = self.action_db['end_state'].fillna(0).astype(int)
 
         self.action_data = self.action_db.to_dict(orient='records')
 
@@ -102,7 +126,8 @@ class PageManager:
     def mark_subtask_explored(self, subtask_name: str, ui_info: dict = None,
                               action: dict = None, screen: str = None,
                               trigger_ui_index: int = -1,
-                              start_page: int = -1, end_page: int = -1):
+                              start_page: int = -1, end_page: int = -1,
+                              start_state: int = 0, end_state: int = 0):
         """Mark a subtask as explored and register it in subtasks.csv + actions.csv
 
         Args:
@@ -113,6 +138,8 @@ class PageManager:
             trigger_ui_index: 트리거 UI 인덱스
             start_page: 서브태스크 시작 페이지 인덱스
             end_page: 서브태스크 종료 페이지 인덱스
+            start_state: 시작 state 인덱스 [NEW]
+            end_state: 종료 state 인덱스 [NEW]
         """
         condition = (self.available_subtask_db['name'] == subtask_name)
         if condition.any():
@@ -157,14 +184,16 @@ class PageManager:
                 # 액션 일반화 (LEARN 모드와 동일)
                 generalized_action = generalize_action(action, subtask_dict, screen)
 
-                # actions.csv에 저장 (step=0: 첫 번째 액션, start/end 포함)
+                # actions.csv에 저장 (step=0: 첫 번째 액션, state 포함)
                 self.save_action(subtask_name, trigger_ui_index, 0, generalized_action, {},
-                                start_page=start_page, end_page=end_page)
+                                start_page=start_page, end_page=end_page,
+                                start_state=start_state, end_state=end_state)
 
                 # finish 액션도 저장 (서브태스크 완료 표시)
                 finish_action = {"name": "finish", "parameters": {}}
                 self.save_action(subtask_name, trigger_ui_index, 1, finish_action, {},
-                                start_page=end_page, end_page=end_page)
+                                start_page=end_page, end_page=end_page,
+                                start_state=end_state, end_state=end_state)
 
                 log(f"Action saved for subtask '{subtask_name}' (trigger_ui={trigger_ui_index}) in actions.csv")
 
@@ -201,17 +230,20 @@ class PageManager:
     def mark_subtask_explored_multistep(self, page_index: int, subtask_name: str,
                                          subtask_info: dict, actions: list,
                                          trigger_ui_index: int = -1,
-                                         start_page: int = -1, end_page: int = -1):
+                                         start_page: int = -1, end_page: int = -1,
+                                         start_state: int = 0, end_state: int = 0):
         """Multi-step 탐색 완료 후 특정 trigger UI 경로의 액션 저장
 
         Args:
             page_index: 페이지 인덱스
             subtask_name: 서브태스크 이름
             subtask_info: 서브태스크 정보 (name, description, parameters)
-            actions: 수행된 액션 리스트 [{step, action, screen, reasoning?, start?, end?}, ...]
+            actions: 수행된 액션 리스트 [{step, action, screen, reasoning?, start_page?, end_page?, start_state?, end_state?}, ...]
             trigger_ui_index: 트리거 UI 인덱스 (같은 서브태스크의 다른 경로 구분용)
-            start_page: 시작 페이지 인덱스 (deprecated, use action-level start/end)
-            end_page: 종료 페이지 인덱스 (deprecated, use action-level start/end)
+            start_page: 시작 페이지 인덱스 (deprecated, use action-level)
+            end_page: 종료 페이지 인덱스 (deprecated, use action-level)
+            start_state: 시작 state 인덱스 (deprecated, use action-level)
+            end_state: 종료 state 인덱스 (deprecated, use action-level)
         """
         from agents import guideline_agent
         from utils.action_utils import generalize_action
@@ -246,15 +278,19 @@ class PageManager:
         ]
         self.action_db.to_csv(self.action_db_path, index=False)
 
-        # 4. actions.csv에 모든 액션 저장 (각 액션의 start/end 포함)
+        # 4. actions.csv에 모든 액션 저장 (각 액션의 page/state 포함)
         last_end_page = start_page
+        last_end_state = start_state
         for action_data in actions:
             step = action_data.get('step', 0)
             action = action_data.get('action', {})
             screen = action_data.get('screen', '')
-            action_start = action_data.get('start', last_end_page)
-            action_end = action_data.get('end', action_start)
-            last_end_page = action_end
+            action_start_page = action_data.get('start_page', action_data.get('start', last_end_page))
+            action_end_page = action_data.get('end_page', action_data.get('end', action_start_page))
+            action_start_state = action_data.get('start_state', last_end_state)
+            action_end_state = action_data.get('end_state', action_start_state)
+            last_end_page = action_end_page
+            last_end_state = action_end_state
 
             # 액션 일반화
             if 'index' in action.get('parameters', {}):
@@ -263,13 +299,15 @@ class PageManager:
                 generalized_action = action
 
             self.save_action(subtask_name, trigger_ui_index, step, generalized_action, {},
-                            start_page=action_start, end_page=action_end)
+                            start_page=action_start_page, end_page=action_end_page,
+                            start_state=action_start_state, end_state=action_end_state)
 
         # 5. finish 액션 추가
         finish_step = len(actions)
         finish_action = {"name": "finish", "parameters": {}}
         self.save_action(subtask_name, trigger_ui_index, finish_step, finish_action, {},
-                        start_page=last_end_page, end_page=last_end_page)
+                        start_page=last_end_page, end_page=last_end_page,
+                        start_state=last_end_state, end_state=last_end_state)
 
         log(f"Saved {len(actions) + 1} actions for subtask '{subtask_name}' (trigger_ui={trigger_ui_index}) in actions.csv")
 
@@ -332,7 +370,8 @@ class PageManager:
         return next_subtask_data
 
     def save_action(self, subtask_name, trigger_ui_index: int, step: int, action: dict,
-                    example=None, start_page: int = -1, end_page: int = -1) -> None:
+                    example=None, start_page: int = -1, end_page: int = -1,
+                    start_state: int = 0, end_state: int = 0) -> None:
         """액션 정보를 데이터베이스에 저장
 
         Args:
@@ -343,6 +382,8 @@ class PageManager:
             example: 학습용 예시 데이터
             start_page: 액션 수행 전 페이지 인덱스
             end_page: 액션 수행 후 페이지 인덱스
+            start_state: 액션 수행 전 state 인덱스
+            end_state: 액션 수행 후 state 인덱스
         """
         if example is None:
             example = {}
@@ -350,8 +391,10 @@ class PageManager:
             "subtask_name": subtask_name,
             "trigger_ui_index": trigger_ui_index,
             'step': step,
-            "start": start_page,
-            "end": end_page,
+            "start_page": start_page,
+            "start_state": start_state,
+            "end_page": end_page,
+            "end_state": end_state,
             "action": json.dumps(action),
             "example": json.dumps(example)
         }
@@ -365,8 +408,10 @@ class PageManager:
             "subtask_name": subtask_name,
             "trigger_ui_index": trigger_ui_index,
             'step': step,
-            "start": start_page,
-            "end": end_page,
+            "start_page": start_page,
+            "start_state": start_state,
+            "end_page": end_page,
+            "end_state": end_state,
             "action": json.dumps(action),
             "example": json.dumps(example),
             "traversed": True
@@ -424,3 +469,28 @@ class PageManager:
 
         self.action_db = pd.DataFrame(actions)
         self.action_db.to_csv(self.action_db_path, index=False)
+
+    def get_subtask_destination(self, subtask_name: str) -> tuple:
+        """Get the destination page/state for a subtask.
+
+        Looks up the actions.csv to find where executing this subtask leads to.
+        Uses the end_page and end_state from the last action (typically 'finish').
+
+        Args:
+            subtask_name: Name of the subtask to look up
+
+        Returns:
+            tuple: (end_page_index, end_state_index), (-1, -1) if not found
+        """
+        # Filter actions for this subtask
+        subtask_actions = self.action_db[self.action_db['subtask_name'] == subtask_name]
+
+        if subtask_actions.empty:
+            return (-1, -1)
+
+        # Get the last action (usually 'finish') which has the final destination
+        last_action = subtask_actions.iloc[-1]
+        end_page = int(last_action.get('end_page', -1))
+        end_state = int(last_action.get('end_state', 0))
+
+        return (end_page, end_state)
