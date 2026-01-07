@@ -258,6 +258,7 @@ sequenceDiagram
 | **ActionSummarizeAgent** | `action_summarize_agent.py` | 실행된 액션 시퀀스를 1문장으로 요약 | `ACTION_SUMMARIZE_AGENT_GPT_VERSION` |
 | **UsageAgent** | `usage_agent.py` | 서브태스크 사용법 설명 생성 | - |
 | **SubtaskMergeAgent** | `subtask_merge_agent.py` | 중복 서브태스크 병합 | `SUBTASK_MERGE_AGENT_GPT_VERSION` |
+| **GuidelineAgent** | `guideline_agent.py` | 서브태스크 UX 가이드라인 설명 생성 | - |
 
 ### 4.3 에이전트 입출력
 
@@ -1109,13 +1110,13 @@ self.navigation_plan = []
 
 #### 현재 코드베이스 기본값
 
-[main.py:39](Server/main.py#L39)에서 기본값은 **BFS**로 설정되어 있습니다.
+[main.py:39](Server/main.py#L39)에서 기본값은 **GREEDY_BFS**로 설정되어 있습니다.
 
 ```python
-exploration_algorithm = "BFS"
+exploration_algorithm = "GREEDY_BFS"
 ```
 
-**이유**: Gmail과 같은 복잡한 앱을 타겟으로 하므로 BFS가 가장 안정적이고 효율적입니다.
+**이유**: 대부분의 앱에서 최단 경로 탐색과 효율성의 균형을 제공합니다. 복잡한 앱(Gmail 등)에서는 **BFS**로 변경하는 것이 권장됩니다.
 
 ### 7.13 하이브리드 전략 제안 (선택사항)
 
@@ -1363,19 +1364,19 @@ sequenceDiagram
 `Server/main.py`에서 설정하는 환경 변수:
 
 ```python
-# 에이전트별 GPT 모델
-os.environ["TASK_AGENT_GPT_VERSION"] = "gpt-5-chat-latest"
-os.environ["APP_AGENT_GPT_VERSION"] = "gpt-5-chat-latest"
-os.environ["EXPLORE_AGENT_GPT_VERSION"] = "gpt-5-chat-latest"
-os.environ["SELECT_AGENT_GPT_VERSION"] = "gpt-5-chat-latest"
-os.environ["SELECT_AGENT_HISTORY_GPT_VERSION"] = "gpt-5-chat-latest"
-os.environ["DERIVE_AGENT_GPT_VERSION"] = "gpt-5-chat-latest"
-os.environ["PARAMETER_FILLER_AGENT_GPT_VERSION"] = "gpt-5-chat-latest"
-os.environ["ACTION_SUMMARIZE_AGENT_GPT_VERSION"] = "gpt-5-chat-latest"
-os.environ["SUBTASK_MERGE_AGENT_GPT_VERSION"] = "gpt-5-chat-latest"
+# 에이전트별 GPT 모델 (GPT-5.2 계열)
+os.environ["TASK_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
+os.environ["APP_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
+os.environ["EXPLORE_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
+os.environ["SELECT_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
+os.environ["SELECT_AGENT_HISTORY_GPT_VERSION"] = "gpt-5.2-chat-latest"
+os.environ["DERIVE_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
+os.environ["PARAMETER_FILLER_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
+os.environ["ACTION_SUMMARIZE_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
+os.environ["SUBTASK_MERGE_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
 
 # 기타 설정
-os.environ["vision_model"] = "gpt-5-chat-latest"
+os.environ["vision_model"] = "gpt-5.2-chat-latest"
 os.environ["MOBILEGPT_USER_NAME"] = "user"
 ```
 
