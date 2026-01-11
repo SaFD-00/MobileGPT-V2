@@ -63,10 +63,9 @@ flowchart LR
 
 | 모드 | 서버 클래스 | 용도 |
 |------|------------|------|
-| **기본 모드** | `Server` | 사용자 명령어를 받아 앱 작업 자동 수행 |
+| **작업 모드** | `Server` | LangGraph 기반 사용자 명령 자동 수행 (기본값) |
 | **수동 탐색** | `Explorer` | 사용자가 수동으로 화면을 캡처하여 탐색 |
 | **자동 탐색** | `AutoExplorer` | 앱을 자동으로 탐색하여 UI 구조 학습 |
-| **추론 모드** | `InferenceServer` | LangGraph 기반 자동 subtask 선택/검증 |
 
 ---
 
@@ -75,11 +74,9 @@ flowchart LR
 ```
 Server/
 ├── main.py                     # 메인 진입점, 환경변수 설정, CLI 파서
-├── server.py                   # 기본 서버 (사용자 명령 실행)
+├── server.py                   # 작업 서버 (LangGraph 기반 사용자 명령 실행)
 ├── server_explore.py           # 수동 탐색 서버
 ├── server_auto_explore.py      # 자동 탐색 서버
-├── server_inference.py         # [NEW] 추론 서버 (LangGraph 기반)
-├── mobilegpt.py                # 핵심 에이전트 클래스
 │
 ├── agents/                     # 에이전트 모듈
 │   ├── task_agent.py           # 명령어 파싱
@@ -91,6 +88,7 @@ Server/
 │   ├── action_summarize_agent.py # 액션 요약
 │   ├── usage_agent.py          # 사용법 생성
 │   ├── subtask_merge_agent.py  # 서브태스크 병합
+│   ├── verify_agent.py         # 다음 화면 검증
 │   └── prompts/                # GPT 프롬프트 정의
 │       ├── task_agent_prompt.py
 │       ├── app_agent_prompt.py
@@ -99,40 +97,34 @@ Server/
 │       ├── derive_agent_prompt.py
 │       └── ...
 │
-├── inference/                  # [NEW] LangGraph 기반 추론 시스템
-│   ├── __init__.py
-│   ├── graphs/
-│   │   ├── __init__.py
-│   │   └── inference_graph.py  # 메인 추론 그래프
-│   ├── agents/
-│   │   ├── __init__.py
-│   │   ├── supervisor.py       # Supervisor Agent (라우팅)
-│   │   ├── selector.py         # SelectAgent 래퍼
-│   │   ├── verifier.py         # VerifyAgent (다음 화면 검증)
-│   │   ├── deriver.py          # DeriveAgent 래퍼
-│   │   └── memory_agent.py     # MemoryAgent (page/state 조회)
-│   └── schemas/
-│       ├── __init__.py
-│       └── state.py            # LangGraph State 정의
+├── graphs/                     # LangGraph 워크플로우
+│   ├── state.py                # TaskState, ExploreState 정의
+│   ├── task_graph.py           # Task 실행 그래프
+│   ├── explore_graph.py        # 자동 탐색 그래프
+│   └── nodes/                  # 그래프 노드
+│       ├── supervisor.py       # Supervisor 노드 (라우팅)
+│       ├── memory_node.py      # Memory 노드 (page/state 조회)
+│       ├── selector_node.py    # Selector 노드 (subtask 선택)
+│       ├── verifier_node.py    # Verifier 노드 (다음 화면 검증)
+│       └── deriver_node.py     # Deriver 노드 (action 도출)
+│
+├── handlers/                   # 메시지 핸들러
+│   └── message_handlers.py     # 클라이언트 메시지 처리
 │
 ├── memory/                     # 메모리 관리
 │   ├── memory_manager.py       # 전체 메모리 관리
 │   ├── page_manager.py         # 페이지별 관리
-│   └── node_manager.py         # 화면 구조 매칭
+│   ├── node_manager.py         # 화면 구조 매칭
+│   ├── state_manager.py        # 상태 관리
+│   └── state_classifier.py     # 상태 분류
 │
 ├── screenParser/               # XML 파서
 │   ├── Encoder.py              # XML 인코딩
 │   └── parseXML.py             # XML 파싱
 │
-├── tests/                      # [NEW] 테스트
-│   └── inference/
-│       ├── conftest.py         # 테스트 Fixtures
-│       ├── test_agents.py      # Agent 노드 테스트
-│       ├── test_inference_graph.py  # 그래프 테스트
-│       └── test_server_integration.py  # TCP 서버 통합 테스트
-│
 └── utils/                      # 유틸리티
     ├── utils.py                # 공통 유틸리티
+    ├── network.py              # 네트워크 유틸리티
     ├── action_utils.py         # 액션 유틸리티
     └── parsing_utils.py        # 파싱 유틸리티
 ```
@@ -141,52 +133,7 @@ Server/
 
 ## 3. 핵심 클래스
 
-### 3.1 MobileGPT 클래스
-
-`mobilegpt.py`에 정의된 핵심 에이전트 클래스입니다.
-
-#### 상태 머신
-
-```mermaid
-stateDiagram-v2
-    [*] --> WAIT: 초기화
-    WAIT --> LEARN: 새 작업
-    WAIT --> RECALL: 기존 작업
-    WAIT --> AUTO_EXPLORE: 탐색 모드
-
-    LEARN --> WAIT: 서브태스크 완료
-    RECALL --> WAIT: 서브태스크 완료
-    RECALL --> LEARN: 분기 필요
-    AUTO_EXPLORE --> WAIT: 탐색 완료
-
-    WAIT --> [*]: 작업 종료
-```
-
-| 상태 | 설명 |
-|------|------|
-| `WAIT` | 다음 동작을 기다리는 대기 상태 |
-| `LEARN` | 새로운 작업을 학습하는 모드 |
-| `RECALL` | 학습된 작업을 실행하는 모드 |
-| `AUTO_EXPLORE` | 앱을 자동으로 탐색하는 모드 |
-
-#### 핵심 메서드
-
-```python
-class MobileGPT:
-    def init(instruction, task, is_new_task)
-        """기본 모드 초기화"""
-
-    def init_explore(app_name, algorithm)
-        """탐색 모드 초기화 (DFS/BFS/GREEDY_BFS/GREEDY_DFS)"""
-
-    def get_next_action(parsed_xml, hierarchy_xml, encoded_xml)
-        """기본 모드: 다음 액션 결정"""
-
-    def get_explore_action(parsed_xml, hierarchy_xml, encoded_xml, page_index)
-        """탐색 모드: 다음 탐색 액션 결정"""
-```
-
-### 3.2 서버 클래스
+### 3.1 서버 클래스
 
 ```mermaid
 classDiagram
@@ -194,8 +141,11 @@ classDiagram
         +host: str
         +port: int
         +buffer_size: int
+        +memory_directory: str
+        +_task_graph: CompiledGraph
         +open()
         +handle_client()
+        +_handle_xml()
     }
 
     class Explorer {
@@ -209,76 +159,67 @@ classDiagram
         +host: str
         +port: int
         +algorithm: str
+        +_explore_graph: CompiledGraph
         +open()
         +handle_client()
     }
-
-    class InferenceServer {
-        +host: str
-        +port: int
-        +_inference_graph: CompiledGraph
-        +open()
-        +handle_client()
-        +_handle_inference()
-    }
-
-    Server <|-- Explorer
-    Server <|-- AutoExplorer
-    Server <|-- InferenceServer
 ```
 
-### 3.3 InferenceServer 클래스
+### 3.2 Server 클래스 (LangGraph 기반)
 
-`server_inference.py`에 정의된 LangGraph 기반 추론 서버입니다.
+`server.py`에 정의된 LangGraph 기반 작업 서버입니다.
 
 #### 핵심 메서드
 
 ```python
-class InferenceServer:
+class Server:
     def __init__(
         self,
         host: str = '0.0.0.0',
         port: int = 12345,
-        buffer_size: int = 4096
+        buffer_size: int = 4096,
+        memory_directory: str = './memory'
     ):
-        """LangGraph 추론 그래프 초기화"""
-        self._inference_graph = compile_graph(checkpointer=True)
+        """LangGraph Task 그래프 초기화"""
+        self._task_graph = compile_task_graph(checkpointer=True)
 
-    def _handle_inference(
+    def _handle_xml(
         self,
         client_socket: socket.socket,
         screen_parser: xmlEncoder,
         memory: Memory,
         instruction: str,
-        log_dir: str
-    ) -> Optional[dict]:
-        """XML 수신 → LangGraph 추론 → action 반환
+        session_id: str,
+        log_directory: str,
+        screen_count: int
+    ) -> int:
+        """XML 수신 → LangGraph Task Graph 실행 → action 반환
 
         자동으로 수행되는 흐름:
-        1. MemoryAgent: page/state 조회
-        2. SelectAgent: subtask 선택
-        3. VerifyAgent: 다음 화면 검증
+        1. Memory Node: page/state 조회
+        2. Selector Node: subtask 선택
+        3. Verifier Node: 다음 화면 검증
            - "가면 안된다" → 재선택 (Loop)
            - "간다" → 확정
-        4. DeriveAgent: action 도출
+        4. Deriver Node: action 도출
         """
 ```
 
-#### 추론 흐름
+#### Task 실행 흐름
 
 ```mermaid
 flowchart TD
-    A[Client XML 수신] --> B[MemoryAgent: page/state 조회]
+    A[Client XML 수신] --> B[Memory Node: page/state 조회]
     B --> C{subtask 있음?}
     C -->|No| D[no_matching_page 반환]
-    C -->|Yes| E[SelectAgent: subtask 선택]
-    E --> F[VerifyAgent: 다음 화면 검증]
+    C -->|Yes| E[Selector Node: subtask 선택]
+    E --> F[Verifier Node: 다음 화면 검증]
     F --> G{검증 결과}
     G -->|"가면 안된다"| H{최대 반복?}
     H -->|No| I[rejected_subtasks에 추가]
     I --> E
     H -->|Yes| J[max_iterations_reached]
-    G -->|"간다"| K[DeriveAgent: action 도출]
+    G -->|"간다"| K[Deriver Node: action 도출]
     K --> L[action JSON 반환]
 ```
 
@@ -349,7 +290,7 @@ sequenceDiagram
 | **UsageAgent** | `usage_agent.py` | 서브태스크 사용법 설명 생성 | - |
 | **SubtaskMergeAgent** | `subtask_merge_agent.py` | 중복 서브태스크 병합 | `SUBTASK_MERGE_AGENT_GPT_VERSION` |
 | **GuidelineAgent** | `guideline_agent.py` | 서브태스크 UX 가이드라인 설명 생성 | `GUIDELINE_AGENT_GPT_VERSION` |
-| **VerifyAgent** | `inference/agents/verifier.py` | 선택한 subtask의 다음 화면 검증 (추론 모드) | `VERIFY_AGENT_GPT_VERSION` |
+| **VerifyAgent** | `agents/verify_agent.py` | 선택한 subtask의 다음 화면 검증 | `VERIFY_AGENT_GPT_VERSION` |
 
 ### 4.3 에이전트 입출력
 
@@ -557,29 +498,31 @@ sequenceDiagram
     end
 ```
 
-### 6.3 추론 모드 (InferenceServer)
+### 6.3 작업 모드 (Server with LangGraph)
 
 ```mermaid
 sequenceDiagram
     participant Client as Android 클라이언트
-    participant Server as InferenceServer
-    participant Graph as LangGraph
-    participant Memory as MemoryAgent
-    participant Select as SelectAgent
-    participant Verify as VerifyAgent
-    participant Derive as DeriveAgent
+    participant Server as Server
+    participant Graph as TaskGraph
+    participant Memory as MemoryNode
+    participant Select as SelectorNode
+    participant Verify as VerifierNode
+    participant Derive as DeriverNode
 
-    Client->>Server: A (앱 패키지명)
-    Server->>Server: Memory 초기화
+    Client->>Server: L (앱 리스트)
+    Server->>Server: AppAgent.update_app_list()
 
     Client->>Server: I (명령어)
-    Server->>Server: instruction 저장
+    Server->>Server: TaskAgent.get_task()
+    Server->>Server: Memory 초기화
+    Server-->>Client: ##$$## + 패키지명
 
-    loop 추론 루프
+    loop Task 실행 루프
         Client->>Server: X (XML)
-        Server->>Graph: invoke(state)
+        Server->>Graph: invoke(TaskState)
 
-        Note over Graph: LangGraph 워크플로우 시작
+        Note over Graph: LangGraph Task Graph 시작
 
         Graph->>Memory: page/state 조회
         Memory-->>Graph: available_subtasks
@@ -587,12 +530,12 @@ sequenceDiagram
         alt subtask 없음
             Graph-->>Server: no_matching_page
         else subtask 있음
-            loop 최대 5회 반복
+            loop 검증 반복
                 Graph->>Select: subtask 선택
                 Select-->>Graph: selected_subtask
 
                 Graph->>Verify: 다음 화면 검증
-                Verify-->>Graph: should_proceed
+                Verify-->>Graph: verification_passed
 
                 alt "가면 안된다"
                     Graph->>Graph: rejected_subtasks에 추가
@@ -603,14 +546,12 @@ sequenceDiagram
             end
         end
 
-        Graph-->>Server: 추론 결과
+        Graph-->>Server: TaskState 결과
         Server-->>Client: JSON 액션
     end
-
-    Client->>Server: F (종료)
 ```
 
-### 6.4 LangGraph 추론 그래프
+### 6.4 LangGraph Task Graph
 
 ```mermaid
 stateDiagram-v2
@@ -627,35 +568,82 @@ stateDiagram-v2
     deriver --> [*]: action 반환
 ```
 
-#### InferenceState 구조
+#### TaskState 구조
 
 ```python
-class InferenceState(TypedDict, total=False):
-    # 세션 정보
+class TaskState(TypedDict, total=False):
+    """Task execution graph state."""
+
+    # Session info
     session_id: str
     instruction: str
-    memory: Any
 
-    # 현재 상태
+    # Memory reference (passed from server)
+    memory: Any  # Memory instance
+
+    # Current screen state
     page_index: int
     state_index: int
     current_xml: str
     hierarchy_xml: str
     encoded_xml: str
 
-    # Subtask 관련
+    # Subtask selection
     selected_subtask: dict | None
-    rejected_subtasks: list[dict]  # 거부된 subtask 목록
+    rejected_subtasks: list[dict]  # Rejected subtasks (for reselection)
     available_subtasks: list[dict]
 
-    # 검증 관련
-    verification_passed: bool | None  # True: 간다, False: 가면 안된다
+    # VerifyAgent results
+    next_page_index: int | None
+    next_state_index: int | None
+    next_page_subtasks: list[dict]
+    verification_passed: bool | None  # True: go, False: don't go, None: not verified
 
-    # 라우팅 및 결과
+    # Routing
     next_agent: str
+
+    # Result
     action: dict | None
     status: str
-    iteration: int  # 재선택 루프 카운트 (최대 5)
+    iteration: int  # Reselection loop count
+```
+
+#### ExploreState 구조 (자동 탐색용)
+
+```python
+class ExploreState(TypedDict, total=False):
+    """Exploration graph state."""
+
+    # Session info
+    session_id: str
+    app_name: str
+    algorithm: Literal["DFS", "BFS", "GREEDY_BFS", "GREEDY_DFS"]
+
+    # Current screen state
+    current_xml: str
+    hierarchy_xml: str
+    encoded_xml: str
+    page_index: int
+    state_index: int
+
+    # Exploration state (persisted via MemorySaver)
+    visited_pages: Set[Tuple[int, int]]  # (page, state) tuples
+    exploration_stack: List  # DFS stack
+    exploration_queue: List  # BFS queue
+    page_graph: Dict  # Page connection graph
+    back_edges: Dict  # Back action edges
+    unexplored_subtasks: Dict  # {(page, state): [subtask_info, ...]}
+    traversal_path: List  # Current path for backtracking
+
+    # Memory and agents
+    memory: Any
+    explore_agent: Any
+
+    # Routing and result
+    next_node: str
+    action: Optional[dict]
+    status: str
+    is_new_screen: bool
 ```
 
 #### 노드별 역할
@@ -966,7 +954,7 @@ sequenceDiagram
 - 한 경로를 끝까지 탐색한 후 `back` 버튼으로 되돌아가며 다른 경로 탐색
 - 현재 페이지에서 unexplored UI를 클릭 → 새 페이지 도달 → 다시 그 페이지에서 깊이 탐색
 
-**핵심 코드** ([mobilegpt.py:652-687](Server/mobilegpt.py#L652-L687))
+**핵심 코드**
 ```python
 self.exploration_stack = []      # (page_index, ui_index) 쌍을 저장
 self.traversal_path = []         # 현재까지의 경로 (백트래킹용)
@@ -995,7 +983,7 @@ self.traversal_path = []         # 현재까지의 경로 (백트래킹용)
 - **페이지 그래프 활용**: 목표 페이지로 최단 경로를 찾아 네비게이션
 - 현재 페이지의 모든 unexplored UI를 큐에 추가 → 순서대로 처리
 
-**핵심 코드** ([mobilegpt.py:688-771](Server/mobilegpt.py#L688-L771))
+**핵심 코드**
 ```python
 self.exploration_queue = []      # (page_index, ui_index) 큐
 self.navigation_plan = []        # 최단 경로 계획
@@ -1026,7 +1014,7 @@ self.page_graph = {}             # {from_page: [(to_page, subtask), ...]}
 - **BFS 기반 거리 계산**: `_find_nearest_unexplored()` 함수로 최단 거리 페이지 찾기
 - 로컬 최적화 → 글로벌 탐색 커버리지 목표
 
-**핵심 코드** ([mobilegpt.py:772-815](Server/mobilegpt.py#L772-L815))
+**핵심 코드**
 ```python
 self.unexplored_subtasks = {}    # {page_index: [subtask_names]}
 self.navigation_plan = []
@@ -1038,7 +1026,7 @@ self.navigation_plan = []
 # 4. 해당 페이지의 unexplored 실행
 ```
 
-**`_find_nearest_unexplored()` 로직** ([mobilegpt.py:559-595](Server/mobilegpt.py#L559-L595))
+**`_find_nearest_unexplored()` 로직**
 ```python
 # BFS로 페이지 그래프 탐색
 # 현재 페이지에서 시작해 레벨별로 확장
@@ -1577,7 +1565,7 @@ os.environ["PARAMETER_FILLER_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
 os.environ["ACTION_SUMMARIZE_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
 os.environ["SUBTASK_MERGE_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
 os.environ["GUIDELINE_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
-os.environ["VERIFY_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"  # 추론 모드 전용
+os.environ["VERIFY_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"  # LangGraph 검증 노드
 
 # 기타 설정
 os.environ["MOBILEGPT_USER_NAME"] = "user"
