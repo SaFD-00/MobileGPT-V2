@@ -1,23 +1,23 @@
-"""LangGraph inference graph for subtask selection and verification."""
+"""LangGraph task graph for subtask selection and verification."""
 
 from typing import Literal
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 
-from inference.schemas.state import InferenceState
-from inference.agents.supervisor import supervisor_node
-from inference.agents.memory_agent import memory_node
-from inference.agents.selector import selector_node
-from inference.agents.verifier import verifier_node
-from inference.agents.deriver import deriver_node
+from graphs.state import TaskState
+from graphs.nodes.supervisor import supervisor_node
+from graphs.nodes.memory_node import memory_node
+from graphs.nodes.selector_node import selector_node
+from graphs.nodes.verifier_node import verifier_node
+from graphs.nodes.deriver_node import deriver_node
 
 
-def route_next_agent(state: InferenceState) -> Literal["memory", "selector", "verifier", "deriver", "FINISH"]:
+def route_next_agent(state: TaskState) -> Literal["memory", "selector", "verifier", "deriver", "FINISH"]:
     """Route to the next agent based on state.
 
     Args:
-        state: Current inference state
+        state: Current task state
 
     Returns:
         str: Name of the next node to execute
@@ -31,8 +31,8 @@ def route_next_agent(state: InferenceState) -> Literal["memory", "selector", "ve
     return next_agent
 
 
-def build_inference_graph() -> StateGraph:
-    """Build the inference workflow graph.
+def build_task_graph() -> StateGraph:
+    """Build the task workflow graph.
 
     Graph structure:
         START -> supervisor -> (conditional routing)
@@ -53,9 +53,9 @@ def build_inference_graph() -> StateGraph:
         5. deriver: derive concrete action and END
 
     Returns:
-        StateGraph: Compiled inference graph
+        StateGraph: Compiled task graph
     """
-    graph = StateGraph(InferenceState)
+    graph = StateGraph(TaskState)
 
     # Add nodes
     graph.add_node("supervisor", supervisor_node)
@@ -91,8 +91,8 @@ def build_inference_graph() -> StateGraph:
     return graph
 
 
-def compile_graph(checkpointer: bool = True):
-    """Compile the inference graph.
+def compile_task_graph(checkpointer: bool = True):
+    """Compile the task graph.
 
     Args:
         checkpointer: Whether to use memory checkpointer for state persistence
@@ -100,7 +100,7 @@ def compile_graph(checkpointer: bool = True):
     Returns:
         Compiled graph ready for execution
     """
-    graph = build_inference_graph()
+    graph = build_task_graph()
     memory = MemorySaver() if checkpointer else None
 
     return graph.compile(checkpointer=memory)

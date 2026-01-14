@@ -3,17 +3,17 @@
 from typing import Any
 
 from agents.select_agent import SelectAgent
-from inference.schemas.state import InferenceState
+from graphs.state import TaskState
 from utils.utils import log
 
 
-def selector_node(state: InferenceState) -> dict:
+def selector_node(state: TaskState) -> dict:
     """Selector agent node: select best subtask from available options.
 
     Filters out rejected subtasks and uses SelectAgent to choose the best one.
 
     Args:
-        state: Current inference state
+        state: Current task state
 
     Returns:
         dict: Updated state with selected_subtask

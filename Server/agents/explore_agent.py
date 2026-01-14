@@ -56,10 +56,22 @@ class ExploreAgent:
         # 트리거 UI 외의 추가 UI 속성 추출
         extra_ui_attributes = get_extra_ui_attributes(trigger_ui_indexes, parsed_xml)
 
-        # trigger_UIs 필드 제외한 서브태스크 정보 정리 (exploration 필드 추가)
-        available_subtasks = [{**{key: value for key, value in subtask.items() if key != 'trigger_UIs'},
-                               'exploration': 'unexplored'}
-                              for subtask in subtasks_raw]
+        # trigger_UIs의 각 인덱스를 개별 subtask entry로 분리 (trigger_ui_index 포함)
+        available_subtasks = []
+        for subtask in subtasks_raw:
+            trigger_uis = subtask.get('trigger_UIs', [])
+            base_subtask = {key: value for key, value in subtask.items() if key != 'trigger_UIs'}
+            base_subtask['exploration'] = 'unexplored'
+
+            if trigger_uis:
+                # 각 trigger UI에 대해 개별 entry 생성
+                for trigger_ui_index in trigger_uis:
+                    subtask_entry = {**base_subtask, 'trigger_ui_index': trigger_ui_index}
+                    available_subtasks.append(subtask_entry)
+            else:
+                # trigger UI가 없는 경우 -1로 설정
+                base_subtask['trigger_ui_index'] = -1
+                available_subtasks.append(base_subtask)
         # 메모리에 새 노드 추가
         new_node_index = self.memory.add_node(available_subtasks, subtasks_trigger_ui_attributes, extra_ui_attributes, parsed_xml, screen_num)
 

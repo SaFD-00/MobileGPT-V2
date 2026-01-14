@@ -1,30 +1,35 @@
-"""Automatic exploration server for app UI discovery."""
+"""Automatic exploration server for app UI discovery using LangGraph."""
 
 import os
 import socket
 import threading
 import traceback
+import uuid
 from datetime import datetime
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from agents.app_agent import AppAgent
+from agents.explore_agent import ExploreAgent
+from graphs.explore_graph import compile_explore_graph
 from handlers.message_handlers import (
     MessageType,
     handle_app_list,
     handle_package_name,
     handle_screenshot,
 )
-from mobilegpt import MobileGPT, Status
+from memory.memory_manager import Memory
 from screenParser.Encoder import xmlEncoder
 from utils.network import get_local_ip, recv_xml, send_json_response
 from utils.utils import log
 
 
 class AutoExplorer:
-    """Server for automatic app exploration using AI-driven navigation.
+    """Server for automatic app exploration using LangGraph.
 
-    Automatically explores app UI by discovering screens and
-    interacting with elements using configurable algorithms.
+    Uses LangGraph multi-agent system for intelligent exploration:
+    1. DiscoverNode: Find and learn new screens
+    2. ExploreActionNode: Determine next exploration action
+       - DFS, BFS, GREEDY_BFS, GREEDY_DFS algorithms
     """
 
     DEFAULT_HOST = '0.0.0.0'
@@ -46,13 +51,20 @@ class AutoExplorer:
             port: Server port number
             buffer_size: Socket buffer size
             memory_directory: Base directory for logs
-            algorithm: Exploration algorithm ("DFS", "BFS", "GREEDY")
+            algorithm: Exploration algorithm ("DFS", "BFS", "GREEDY_BFS", "GREEDY_DFS")
         """
         self.host = host
         self.port = port
         self.buffer_size = buffer_size
         self.memory_directory = memory_directory
         self.algorithm = algorithm
+
+        # Compile LangGraph explore graph
+        # Note: checkpointer=False because Memory/ExploreAgent are not serializable
+        self._explore_graph = compile_explore_graph(checkpointer=False)
+
+        # Session states for each connection
+        self._sessions: Dict[str, dict] = {}
 
         self._ensure_directory(self.memory_directory)
 
@@ -114,12 +126,16 @@ class AutoExplorer:
         print(f"Connected to Client: {client_address}")
 
         log_directory = self.memory_directory
-        mobile_gpt = MobileGPT(client_socket)
         app_agent = AppAgent()
         screen_parser = xmlEncoder()
         screen_count = 0
         screens: List[dict] = []
-        last_action_was_back = False
+
+        # Session state (replaces MobileGPT instance)
+        session_id: Optional[str] = None
+        memory: Optional[Memory] = None
+        explore_agent: Optional[ExploreAgent] = None
+        app_name: Optional[str] = None
 
         while True:
             log(f"Waiting for message... (screen_count: {screen_count})", "magenta")
@@ -137,18 +153,22 @@ class AutoExplorer:
                 handle_app_list(client_socket, app_agent)
 
             elif message_type == MessageType.APP_PACKAGE:
-                log_directory = self._handle_app_init(
-                    client_socket, app_agent, screen_parser, mobile_gpt
+                log_directory, memory, explore_agent, app_name, session_id = self._handle_app_init(
+                    client_socket, app_agent, screen_parser
                 )
 
             elif message_type == MessageType.XML:
+                if not memory or not explore_agent:
+                    log("Error: memory or explore_agent not initialized", "red")
+                    continue
+
                 result = self._handle_xml_exploration(
-                    client_socket, screen_parser, mobile_gpt,
-                    screens, log_directory, screen_count, last_action_was_back
+                    client_socket, screen_parser, memory, explore_agent,
+                    app_name, session_id, screens, log_directory, screen_count
                 )
                 if result is None:
                     break
-                screen_count, last_action_was_back = result
+                screen_count = result
 
             elif message_type == MessageType.SCREENSHOT:
                 log(f"Receiving screenshot for screen #{screen_count}", "blue")
@@ -168,43 +188,63 @@ class AutoExplorer:
         self,
         client_socket: socket.socket,
         app_agent: AppAgent,
-        screen_parser: xmlEncoder,
-        mobile_gpt: MobileGPT
-    ) -> str:
+        screen_parser: xmlEncoder
+    ) -> Tuple[str, Optional[Memory], Optional[ExploreAgent], Optional[str], Optional[str]]:
         """Initialize exploration for an app.
 
         Returns:
-            str: Log directory path
+            Tuple of (log_directory, memory, explore_agent, app_name, session_id)
         """
         package_name, app_name = handle_package_name(client_socket, app_agent)
 
         if not package_name:
-            return self.memory_directory
+            return self.memory_directory, None, None, None, None
 
         # Create timestamped log directory
         dt_string = datetime.now().strftime("%Y_%m_%d %H:%M:%S")
         log_directory = f"{self.memory_directory}/log/{app_name}/hardcode/{dt_string}/"
         screen_parser.init(log_directory)
 
-        # Initialize MobileGPT exploration mode
-        mobile_gpt.init_explore(app_name, algorithm=self.algorithm)
+        # Initialize memory and explore_agent (replaces mobile_gpt.init_explore)
+        memory = Memory(app_name, "hardcode", "hardcode")
+        explore_agent = ExploreAgent(memory)
+        session_id = str(uuid.uuid4())
 
-        return log_directory
+        # Initialize session state for exploration persistence
+        self._sessions[session_id] = {
+            "page_index": -1,
+            "visited_pages": set(),
+            "explored_subtasks": {},
+            "exploration_stack": [],
+            "exploration_queue": [],
+            "page_graph": {},
+            "back_edges": {},
+            "unexplored_subtasks": {},
+            "traversal_path": [],
+            "navigation_plan": [],
+            "last_action_was_back": False,
+        }
+
+        log(f"Initialized exploration for app '{app_name}' with {self.algorithm} algorithm", "green")
+
+        return log_directory, memory, explore_agent, app_name, session_id
 
     def _handle_xml_exploration(
         self,
         client_socket: socket.socket,
         screen_parser: xmlEncoder,
-        mobile_gpt: MobileGPT,
+        memory: Memory,
+        explore_agent: ExploreAgent,
+        app_name: Optional[str],
+        session_id: Optional[str],
         screens: List[dict],
         log_directory: str,
-        screen_count: int,
-        last_action_was_back: bool
-    ) -> Optional[Tuple[int, bool]]:
-        """Process XML and perform auto exploration.
+        screen_count: int
+    ) -> Optional[int]:
+        """Process XML and perform auto exploration using LangGraph.
 
         Returns:
-            Tuple of (screen_count, last_action_was_back) or None to stop
+            Updated screen_count or None to stop
         """
         try:
             log(f"Receiving XML for screen #{screen_count}", "blue")
@@ -224,96 +264,83 @@ class AutoExplorer:
             })
             screen_count += 1
 
-            if mobile_gpt.task_status == Status.AUTO_EXPLORE:
-                result = self._process_auto_explore(
-                    client_socket, mobile_gpt,
-                    parsed_xml, hierarchy_xml, encoded_xml,
-                    screen_count, last_action_was_back
-                )
-                if result is None:
-                    return None
-                last_action_was_back = result
-            else:
-                # Non-explore mode: use standard action
-                action = mobile_gpt.get_next_action(
-                    parsed_xml, hierarchy_xml, encoded_xml
-                )
-                if action is not None:
-                    send_json_response(client_socket, action)
+            # Run LangGraph exploration
+            config = {"configurable": {"thread_id": session_id}}
 
-            return screen_count, last_action_was_back
+            # Load previous session state
+            prev_state = self._sessions.get(session_id, {}) if session_id else {}
+
+            log("Starting LangGraph exploration...", "cyan")
+            log(f":::DEBUG::: prev_state explored_subtasks = {prev_state.get('explored_subtasks', {})}", "yellow")
+            log(f":::DEBUG::: prev_state visited_pages = {prev_state.get('visited_pages', set())}", "yellow")
+            result = self._explore_graph.invoke({
+                "session_id": session_id,
+                "app_name": app_name,
+                "algorithm": self.algorithm,
+                "current_xml": parsed_xml,
+                "hierarchy_xml": hierarchy_xml,
+                "encoded_xml": encoded_xml,
+                "memory": memory,
+                "explore_agent": explore_agent,
+                # Load persisted state from session (or use defaults)
+                "page_index": -1,  # Always -1 for new screen (let discover find it)
+                "visited_pages": prev_state.get("visited_pages", set()),
+                "exploration_stack": prev_state.get("exploration_stack", []),
+                "exploration_queue": prev_state.get("exploration_queue", []),
+                "page_graph": prev_state.get("page_graph", {}),
+                "back_edges": prev_state.get("back_edges", {}),
+                "unexplored_subtasks": prev_state.get("unexplored_subtasks", {}),
+                "traversal_path": prev_state.get("traversal_path", []),
+                "navigation_plan": prev_state.get("navigation_plan", []),
+                "explored_subtasks": prev_state.get("explored_subtasks", {}),
+                "last_action_was_back": prev_state.get("last_action_was_back", False),
+            }, config=config)
+
+            # Save exploration state back to session for next invocation
+            log(f":::DEBUG::: result explored_subtasks = {result.get('explored_subtasks', 'NOT_IN_RESULT')}", "yellow")
+            log(f":::DEBUG::: result visited_pages = {result.get('visited_pages', 'NOT_IN_RESULT')}", "yellow")
+            if session_id:
+                self._sessions[session_id] = {
+                    "page_index": result.get("page_index", -1),
+                    "visited_pages": result.get("visited_pages", set()),
+                    "explored_subtasks": result.get("explored_subtasks", {}),
+                    "exploration_stack": result.get("exploration_stack", []),
+                    "exploration_queue": result.get("exploration_queue", []),
+                    "page_graph": result.get("page_graph", {}),
+                    "back_edges": result.get("back_edges", {}),
+                    "unexplored_subtasks": result.get("unexplored_subtasks", {}),
+                    "traversal_path": result.get("traversal_path", []),
+                    "navigation_plan": result.get("navigation_plan", []),
+                    "last_action_was_back": result.get("last_action_was_back", False),
+                }
+
+            # Extract result
+            action = result.get("action")
+            status = result.get("status", "unknown")
+
+            log(f"Exploration result: status={status}", "green")
+
+            if action is not None:
+                log(f"Auto exploration action: {action}", "cyan")
+                send_json_response(client_socket, action)
+                log("Action sent to client, waiting for next message...", "cyan")
+                return screen_count
+
+            # Exploration complete
+            if status == "exploration_complete":
+                log("Exploration complete, no more actions", "green")
+                return None
+
+            # No action but not complete - shouldn't happen often
+            log("No action from exploration", "yellow")
+            return screen_count
 
         except Exception as e:
             log(f"Error processing XML: {str(e)}", "red")
             log(traceback.format_exc(), "red")
             # Send back action to prevent getting stuck
             send_json_response(client_socket, {"name": "back", "parameters": {}})
-            return screen_count, last_action_was_back
-
-    def _process_auto_explore(
-        self,
-        client_socket: socket.socket,
-        mobile_gpt: MobileGPT,
-        parsed_xml: str,
-        hierarchy_xml: str,
-        encoded_xml: str,
-        screen_count: int,
-        last_action_was_back: bool
-    ) -> Optional[bool]:
-        """Process auto exploration for current screen.
-
-        Returns:
-            Updated last_action_was_back flag, or None to stop exploration
-        """
-        # Search for similar screen in memory
-        log("Searching for similar screens...", "blue")
-        page_index, similarity = mobile_gpt.memory.search_node(
-            parsed_xml, hierarchy_xml, encoded_xml
-        )
-        log(f"Search complete. Page index: {page_index}, Similarity: {similarity}", "blue")
-
-        if page_index == -1:
-            # New screen discovered
-            log("New screen detected, exploring...", "green")
-            page_index = mobile_gpt.explore_agent.explore(
-                parsed_xml, hierarchy_xml, encoded_xml, screen_count - 1
-            )
-            log(f"New screen discovered and explored: Page #{page_index}", "green")
-        else:
-            log(f"Screen already visited: Page #{page_index} (similarity: {similarity:.2f})", "yellow")
-
-        # Record back transition for navigation planning
-        if last_action_was_back and mobile_gpt.last_explored_page_index is not None:
-            mobile_gpt.record_back_transition(
-                from_page=mobile_gpt.last_explored_page_index,
-                to_page=page_index
-            )
-
-        # Mark previous action as explored with end_page
-        mobile_gpt.mark_last_action_explored(end_page=page_index)
-
-        # Get next exploration action
-        log(f"Getting next action for page #{page_index}...", "blue")
-        action = mobile_gpt.get_explore_action(
-            parsed_xml, hierarchy_xml, encoded_xml, page_index
-        )
-
-        if action is not None:
-            log(f"Auto exploration action: {action}", "cyan")
-            send_json_response(client_socket, action)
-            log("Action sent to client, waiting for next message...", "cyan")
-            return False  # Reset back flag
-
-        # No more actions to explore
-        if last_action_was_back:
-            log("No more actions and already sent back. Stopping exploration.", "red")
-            return None  # Signal to stop
-
-        # Send back action once
-        log("No more actions on this screen", "yellow")
-        send_json_response(client_socket, {"name": "back", "parameters": {}})
-        log("Back action sent to client, waiting for next message...", "yellow")
-        return True  # Set back flag
+            return screen_count
 
     def _handle_finish(
         self,

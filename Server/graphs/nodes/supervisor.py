@@ -1,17 +1,17 @@
-"""Supervisor node for routing decisions in the inference graph."""
+"""Supervisor node for routing decisions in the task graph."""
 
 from typing import Any
 
-from inference.schemas.state import InferenceState
+from graphs.state import TaskState
 from utils.utils import log
 
 MAX_ITERATIONS = 5  # Maximum reselection attempts
 
 
-def supervisor_node(state: InferenceState) -> dict:
+def supervisor_node(state: TaskState) -> dict:
     """Supervisor agent node: decide which agent to call next.
 
-    Implements the routing logic for the inference graph:
+    Implements the routing logic for the task graph:
     1. Initial state -> MemoryAgent (load page/state and subtasks)
     2. Subtasks loaded -> SelectAgent (select best subtask)
     3. Subtask selected -> VerifyAgent (verify next screen)
@@ -19,7 +19,7 @@ def supervisor_node(state: InferenceState) -> dict:
     5. Verification failed -> SelectAgent (reselect with rejection)
 
     Args:
-        state: Current inference state
+        state: Current task state
 
     Returns:
         dict: Updated state with next_agent routing decision

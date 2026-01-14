@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 from server import Server
 from server_explore import Explorer
 from server_auto_explore import AutoExplorer
-from server_inference import InferenceServer
 
 # os.chdir('./MobileGPT_server')
 sys.path.append('.')
@@ -45,9 +44,9 @@ def main():
     parser = argparse.ArgumentParser(description='MobileGPT Server')
     parser.add_argument(
         '--mode',
-        choices=['task', 'explore', 'auto_explore', 'inference'],
-        default='inference',
-        help='Server mode (default: inference)'
+        choices=['task', 'explore', 'auto_explore'],
+        default='task',
+        help='Server mode (default: task)'
     )
     parser.add_argument(
         '--algorithm',
@@ -67,12 +66,12 @@ def main():
     server_port = args.port
 
     # Server mode selection
-    # - task: Execute tasks using learned memory
+    # - task: Execute tasks using LangGraph multi-agent system
     # - explore: Manual exploration for screen structure learning
-    # - auto_explore: Automatic UI exploration using algorithms
-    # - inference: LangGraph-based intelligent subtask selection
+    # - auto_explore: Automatic UI exploration using LangGraph algorithms
 
     if args.mode == 'task':
+        # LangGraph-based task execution with intelligent subtask selection
         server = Server(host=server_ip, port=server_port)
         server.open()
 
@@ -81,7 +80,7 @@ def main():
         explorer.open()
 
     elif args.mode == 'auto_explore':
-        # Exploration algorithm:
+        # Exploration algorithm (all use LangGraph):
         # - DFS: Depth-first search, explores one path fully then backtracks
         # - BFS: Breadth-first search, explores all UI at same level first
         # - GREEDY_BFS: BFS to nearest unexplored subtask (shortest path)
@@ -92,15 +91,6 @@ def main():
             algorithm=args.algorithm
         )
         auto_explorer.open()
-
-    elif args.mode == 'inference':
-        # LangGraph-based inference server
-        # Automatically selects and verifies subtasks using multi-agent system
-        inference_server = InferenceServer(
-            host=server_ip,
-            port=server_port
-        )
-        inference_server.open()
 
 
 if __name__ == '__main__':

@@ -3,17 +3,17 @@
 from typing import Any
 
 from agents.derive_agent import DeriveAgent
-from inference.schemas.state import InferenceState
+from graphs.state import TaskState
 from utils.utils import log
 
 
-def deriver_node(state: InferenceState) -> dict:
+def deriver_node(state: TaskState) -> dict:
     """Deriver agent node: derive concrete action from selected subtask.
 
     Uses DeriveAgent to convert the selected subtask into an executable action.
 
     Args:
-        state: Current inference state
+        state: Current task state
 
     Returns:
         dict: Updated state with action

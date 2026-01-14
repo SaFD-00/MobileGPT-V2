@@ -43,8 +43,7 @@ loguru==0.7.2
 Markdown==3.6
 markdown-it-py==3.0.0
 MarkupSafe==2.1.5
-matplot==0.1.9
-matplotlib==3.9.0
+matplotlib>=3.9.0
 mdurl==0.1.2
 ml-dtypes==0.3.2
 more-itertools==10.2.0
@@ -65,14 +64,15 @@ pinecone-client==2.2.4
 pip==23.3.1
 pkginfo==1.10.0
 protobuf==4.25.3
-pydantic==2.6.4
-pydantic_core==2.16.3
+pydantic>=2.7.4
+pydantic_core>=2.18.0
 Pygments==2.18.0
 pytest>=8.0.0
 pytest-asyncio>=0.24.0
+pytest-mock>=3.10.0
+pytest-cov>=4.0.0
 pyloco==0.0.139
 pyparsing==3.1.2
-pyshine==0.0.9
 python-dateutil==2.8.2
 python-dotenv==1.0.1
 pytz==2023.3.post1
@@ -102,7 +102,7 @@ tqdm==4.66.2
 transformers==4.39.3
 twine==5.1.0
 typing==3.7.4.3
-typing_extensions==4.10.0
+typing_extensions>=4.10.0
 tzdata==2023.3
 urllib3==2.2.1
 ushlex==0.99.1

@@ -1,30 +1,35 @@
-"""Task execution server for mobile device automation."""
+"""Task execution server for mobile device automation using LangGraph."""
 
 import os
 import socket
 import threading
+import uuid
 from datetime import datetime
-from typing import Tuple
+from typing import Optional, Tuple
 
 from agents.app_agent import AppAgent
 from agents.task_agent import TaskAgent
+from graphs.task_graph import compile_task_graph
 from handlers.message_handlers import (
     MessageType,
     handle_app_list,
     handle_screenshot,
     handle_xml_message,
 )
-from mobilegpt import MobileGPT
+from memory.memory_manager import Memory
 from screenParser.Encoder import xmlEncoder
 from utils.network import get_local_ip, recv_text_line, send_json_response
 from utils.utils import log
 
 
 class Server:
-    """Server for executing automated tasks on mobile devices.
+    """Server for executing automated tasks on mobile devices using LangGraph.
 
-    Handles task instructions from users, processes screen data,
-    and sends actions to the mobile client.
+    Uses LangGraph multi-agent system for intelligent subtask selection:
+    1. MemoryAgent: Load page/state and available subtasks
+    2. SelectAgent: Select best subtask for the instruction
+    3. VerifyAgent: Verify if selected subtask leads to a good path
+    4. DeriveAgent: Derive concrete action from confirmed subtask
     """
 
     DEFAULT_HOST = '0.0.0.0'
@@ -50,6 +55,9 @@ class Server:
         self.port = port
         self.buffer_size = buffer_size
         self.memory_directory = memory_directory
+
+        # Compile LangGraph task graph
+        self._task_graph = compile_task_graph(checkpointer=True)
 
         self._ensure_directory(self.memory_directory)
 
@@ -115,12 +123,16 @@ class Server:
         """
         print(f"Connected to client: {client_address}")
 
-        mobile_gpt = MobileGPT(client_socket)
         app_agent = AppAgent()
         task_agent = TaskAgent()
         screen_parser = xmlEncoder()
         screen_count = 0
         log_directory = self.memory_directory
+
+        # Session state (replaces MobileGPT instance)
+        memory: Optional[Memory] = None
+        instruction: Optional[str] = None
+        session_id: Optional[str] = None
 
         while True:
             raw_message_type = client_socket.recv(1)
@@ -135,9 +147,8 @@ class Server:
                 handle_app_list(client_socket, app_agent)
 
             elif message_type == MessageType.INSTRUCTION:
-                log_directory = self._handle_instruction(
-                    client_socket, app_agent, task_agent,
-                    screen_parser, mobile_gpt
+                log_directory, memory, instruction, session_id = self._handle_instruction(
+                    client_socket, app_agent, task_agent, screen_parser
                 )
 
             elif message_type == MessageType.SCREENSHOT:
@@ -147,26 +158,28 @@ class Server:
                 )
 
             elif message_type == MessageType.XML:
+                if not memory or not instruction:
+                    log("Error: instruction or memory not initialized", "red")
+                    continue
                 screen_count = self._handle_xml(
-                    client_socket, screen_parser, mobile_gpt,
-                    log_directory, screen_count
+                    client_socket, screen_parser, memory, instruction,
+                    session_id, log_directory, screen_count
                 )
 
             elif message_type == MessageType.APP_PACKAGE:
-                self._handle_qa_response(client_socket, mobile_gpt)
+                self._handle_qa_response(client_socket)
 
     def _handle_instruction(
         self,
         client_socket: socket.socket,
         app_agent: AppAgent,
         task_agent: TaskAgent,
-        screen_parser: xmlEncoder,
-        mobile_gpt: MobileGPT
-    ) -> str:
+        screen_parser: xmlEncoder
+    ) -> Tuple[str, Memory, str, str]:
         """Process user instruction and initialize task.
 
         Returns:
-            str: Log directory path for this task
+            Tuple of (log_directory, memory, instruction, session_id)
         """
         log("Instruction is received", "blue")
 
@@ -191,19 +204,25 @@ class Server:
         client_socket.send(response.encode())
         client_socket.send(b"\r\n")
 
-        mobile_gpt.init(instruction, task, is_new_task)
+        # Initialize memory (replaces mobile_gpt.init)
+        memory = Memory(target_app, instruction, task['name'])
+        session_id = str(uuid.uuid4())
 
-        return log_directory
+        log(f"Initialized memory for app '{target_app}' with instruction: {instruction}", "green")
+
+        return log_directory, memory, instruction, session_id
 
     def _handle_xml(
         self,
         client_socket: socket.socket,
         screen_parser: xmlEncoder,
-        mobile_gpt: MobileGPT,
+        memory: Memory,
+        instruction: str,
+        session_id: Optional[str],
         log_directory: str,
         screen_count: int
     ) -> int:
-        """Process XML screen data and determine next action.
+        """Process XML screen data and determine next action using LangGraph.
 
         Returns:
             int: Updated screen count
@@ -213,24 +232,47 @@ class Server:
             log_directory, screen_count, screen_parser
         )
 
-        action = mobile_gpt.get_next_action(parsed_xml, hierarchy_xml, encoded_xml)
+        # Run LangGraph task execution
+        config = {"configurable": {"thread_id": session_id}}
+
+        log("Starting LangGraph task execution...", "cyan")
+        result = self._task_graph.invoke({
+            "session_id": session_id,
+            "instruction": instruction,
+            "current_xml": parsed_xml,
+            "hierarchy_xml": hierarchy_xml,
+            "encoded_xml": encoded_xml,
+            "memory": memory,
+            "rejected_subtasks": [],
+            "iteration": 0,
+        }, config=config)
+
+        # Extract result
+        action = result.get("action")
+        status = result.get("status", "unknown")
+        iterations = result.get("iteration", 0)
+
+        log(f"Task execution complete: status={status}, iterations={iterations}", "green")
 
         if action is not None:
+            log(f"Action: {action}", "cyan")
             send_json_response(client_socket, action)
+        else:
+            log("No action derived", "yellow")
 
         return screen_count + 1
 
     def _handle_qa_response(
         self,
-        client_socket: socket.socket,
-        mobile_gpt: MobileGPT
+        client_socket: socket.socket
     ) -> None:
-        """Process Q&A response from user."""
+        """Process Q&A response from user.
+
+        Note: Q&A handling is simplified in LangGraph mode.
+        The Q&A response is logged but not processed as action.
+        """
         qa_string = recv_text_line(client_socket)
         info_name, question, answer = qa_string.split("\\", 2)
         log(f"QA is received ({question}: {answer})", "blue")
-
-        action = mobile_gpt.set_qa_answer(info_name, question, answer)
-
-        if action is not None:
-            send_json_response(client_socket, action)
+        # Q&A responses are handled within the inference graph context
+        # No immediate action is sent back
