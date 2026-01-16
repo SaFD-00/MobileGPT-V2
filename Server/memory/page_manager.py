@@ -27,7 +27,7 @@ class PageManager:
     def __init__(self, page_path, page_index):
         self.page_index = page_index
 
-        subtask_header = ['name', 'description', 'guideline', 'parameters', 'example']
+        subtask_header = ['name', 'description', 'guideline', 'trigger_ui_index', 'start_page', 'end_page', 'parameters', 'example']
         action_header = ['subtask_name', 'trigger_ui_index', 'step', 'start_page', 'end_page', 'action', 'example']
         available_subtask_header = ['name', 'description', 'parameters', 'trigger_ui_index', 'exploration']
 
@@ -43,6 +43,22 @@ class PageManager:
             self.subtask_db['guideline'] = ''
         else:
             self.subtask_db['guideline'] = self.subtask_db['guideline'].fillna('')
+
+        # Fill missing 'trigger_ui_index', 'start_page', 'end_page' for backward compatibility
+        if 'trigger_ui_index' not in self.subtask_db.columns:
+            self.subtask_db['trigger_ui_index'] = -1
+        else:
+            self.subtask_db['trigger_ui_index'] = self.subtask_db['trigger_ui_index'].fillna(-1).astype(int)
+
+        if 'start_page' not in self.subtask_db.columns:
+            self.subtask_db['start_page'] = -1
+        else:
+            self.subtask_db['start_page'] = self.subtask_db['start_page'].fillna(-1).astype(int)
+
+        if 'end_page' not in self.subtask_db.columns:
+            self.subtask_db['end_page'] = -1
+        else:
+            self.subtask_db['end_page'] = self.subtask_db['end_page'].fillna(-1).astype(int)
 
         self.available_subtask_db_path = os.path.join(page_dir, "available_subtasks.csv")
         self.available_subtask_db = init_database(self.available_subtask_db_path, available_subtask_header)
@@ -144,10 +160,14 @@ class PageManager:
                 'parameters': subtask_row['parameters'] if isinstance(subtask_row['parameters'], dict) else {}
             }
 
-            # Generate guideline from UI info
+            # Generate guideline from UI info or action
             guideline = self._generate_guideline_from_ui(ui_info)
+            if not guideline and action:
+                guideline = self._generate_guideline_from_action(action)
 
-            self.save_subtask(subtask_data, {}, guideline)
+            self.save_subtask(subtask_data, {}, guideline,
+                             trigger_ui_index=trigger_ui_index,
+                             start_page=start_page, end_page=end_page)
             log(f"Subtask '{subtask_name}' marked as explored and registered in subtasks.csv")
 
             # === actions.csv에 액션 저장 ===
@@ -202,6 +222,34 @@ class PageManager:
             return f"Triggered by clicking {ui_tag} element"
         elif ui_class:
             return f"Triggered by clicking {ui_class} element"
+        return ""
+
+    def _generate_guideline_from_action(self, action: dict) -> str:
+        """액션 정보로부터 guideline 문자열 생성
+
+        action의 parameters에서 description을 추출하여 guideline 생성.
+        "Click to explore 'X'" → "Triggered by clicking 'X'" 변환
+        """
+        if not action:
+            return ""
+
+        params = action.get('parameters', {})
+        description = params.get('description', '')
+
+        if description:
+            # "Click to explore 'subtask_name'" → "Triggered by clicking to explore 'subtask_name'"
+            if "Click to explore" in description:
+                return description.replace("Click to explore", "Triggered by clicking to explore")
+            # 일반적인 description은 그대로 사용
+            return f"Triggered by: {description}"
+
+        # action name 기반 fallback
+        action_name = action.get('name', '')
+        if action_name == 'click':
+            index = params.get('index', -1)
+            if index >= 0:
+                return f"Triggered by clicking UI element at index {index}"
+
         return ""
 
     def mark_subtask_explored_multistep(self, page_index: int, subtask_name: str,
@@ -294,21 +342,40 @@ class PageManager:
             return row.to_dict()
         return None
 
-    def save_subtask(self, subtask_raw: dict, example: dict, guideline: str = ""):
-        """서브태스크 정보를 데이터베이스에 저장"""
-        filtered_subtask = self.subtask_db[(self.subtask_db['name'] == subtask_raw['name'])]
-        if len(filtered_subtask) == 0:
+    def save_subtask(self, subtask_raw: dict, example: dict, guideline: str = "",
+                     trigger_ui_index: int = -1, start_page: int = -1, end_page: int = -1):
+        """서브태스크 정보를 데이터베이스에 저장
+
+        Args:
+            subtask_raw: 서브태스크 정보 딕셔너리 (name, description, parameters)
+            example: 학습용 예시 데이터
+            guideline: 서브태스크 실행 가이드라인
+            trigger_ui_index: 트리거 UI 인덱스 (같은 이름이라도 다른 UI에서 시작 가능)
+            start_page: 서브태스크 시작 페이지 인덱스
+            end_page: 서브태스크 종료 페이지 인덱스
+
+        중복 체크: name + trigger_ui_index 기준
+        """
+        # 중복 체크: name + trigger_ui_index 기준
+        condition = (self.subtask_db['name'] == subtask_raw['name'])
+        if trigger_ui_index >= 0:
+            condition = condition & (self.subtask_db['trigger_ui_index'] == trigger_ui_index)
+
+        if not condition.any():
             subtask_data = {
                 "name": subtask_raw['name'],
                 "description": subtask_raw['description'],
                 "guideline": guideline,
+                "trigger_ui_index": trigger_ui_index,
+                "start_page": start_page,
+                "end_page": end_page,
                 "parameters": json.dumps(subtask_raw['parameters']),
                 "example": json.dumps(example)
             }
 
             self.subtask_db = pd.concat([self.subtask_db, pd.DataFrame([subtask_data])], ignore_index=True)
             self.subtask_db.to_csv(self.subtask_db_path, index=False)
-            log("added new subtask to the database")
+            log(f"added new subtask '{subtask_raw['name']}' (trigger_ui={trigger_ui_index}) to the database")
 
     def get_next_subtask_data(self, subtask_name: str) -> dict:
         """특정 서브태스크 데이터 반환"""
@@ -357,6 +424,54 @@ class PageManager:
             "traversed": True
         }
         self.action_data.append(new_action_data)
+
+    def update_end_page(self, subtask_name: str, trigger_ui_index: int, end_page: int) -> bool:
+        """서브태스크와 마지막 액션의 end_page를 업데이트
+
+        액션 실행 후 도착한 페이지 인덱스로 end_page를 업데이트합니다.
+
+        Args:
+            subtask_name: 서브태스크 이름
+            trigger_ui_index: 트리거 UI 인덱스
+            end_page: 액션 실행 후 도착한 페이지 인덱스
+
+        Returns:
+            bool: 업데이트 성공 여부
+        """
+        updated = False
+
+        # 1. subtasks.csv 업데이트
+        subtask_condition = (self.subtask_db['name'] == subtask_name)
+        if trigger_ui_index >= 0:
+            subtask_condition = subtask_condition & (self.subtask_db['trigger_ui_index'] == trigger_ui_index)
+
+        if subtask_condition.any():
+            self.subtask_db.loc[subtask_condition, 'end_page'] = end_page
+            self.subtask_db.to_csv(self.subtask_db_path, index=False)
+            updated = True
+
+        # 2. actions.csv에서 해당 서브태스크의 end_page=-1인 액션들 업데이트
+        action_condition = (
+            (self.action_db['subtask_name'] == subtask_name) &
+            (self.action_db['trigger_ui_index'] == trigger_ui_index) &
+            (self.action_db['end_page'] == -1)
+        )
+
+        if action_condition.any():
+            self.action_db.loc[action_condition, 'end_page'] = end_page
+            self.action_db.to_csv(self.action_db_path, index=False)
+
+            # 메모리 내 action_data도 업데이트
+            for action_data in self.action_data:
+                if (action_data.get('subtask_name') == subtask_name and
+                    action_data.get('trigger_ui_index') == trigger_ui_index and
+                    action_data.get('end_page') == -1):
+                    action_data['end_page'] = end_page
+
+            updated = True
+            log(f"Updated end_page={end_page} for subtask '{subtask_name}' (trigger_ui={trigger_ui_index})")
+
+        return updated
 
     def get_next_action(self, subtask: dict, screen: str, step: int):
         """현재 서브태스크에서 다음 액션 반환"""

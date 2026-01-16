@@ -75,14 +75,14 @@ def query(messages, model="gpt-5.2-chat-latest", is_list=False):
         response = client.chat.completions.create(
             model=model,
             messages=messages,
-            max_completion_tokens=900,
+            max_completion_tokens=2000,
         )
     else:
         response = client.chat.completions.create(
             model=model,
             messages=messages,
             temperature=0,
-            max_completion_tokens=900,
+            max_completion_tokens=2000,
         )
     result = response.choices[0].message.content
     log(result, 'green')
@@ -90,7 +90,11 @@ def query(messages, model="gpt-5.2-chat-latest", is_list=False):
     if json_formatted_response:
         return json.loads(json_formatted_response)
     else:
-        return result
+        # JSON 파싱 실패 시 타입에 맞는 기본값 반환
+        log(f":::QUERY WARNING::: Failed to parse JSON from response. Returning empty {'list' if is_list else 'dict'}.", "yellow")
+        if result:
+            log(f":::QUERY WARNING::: Response preview: {result[:200]}...", "yellow")
+        return [] if is_list else {}
 
 
 def parse_completion_rate(completion_rate) -> int:
@@ -114,13 +118,25 @@ def parse_completion_rate(completion_rate) -> int:
 
 
 def __parse_json(s: str, is_list=False):
+    """JSON 문자열을 파싱하여 추출.
+
+    Args:
+        s: 파싱할 문자열
+        is_list: True면 리스트 형태 [...], False면 딕셔너리 형태 {...} 검색
+
+    Returns:
+        str: 매칭된 JSON 문자열, 실패 시 None
+    """
+    if not s or not isinstance(s, str):
+        return None
+
     if is_list:
         matches = re.search(r'\[.*\]', s, re.DOTALL)
-
         if matches:
             return matches.group(0)
     else:
         matches = re.search(r'\{.*\}', s, re.DOTALL)
-
         if matches:
             return matches.group(0)
+
+    return None

@@ -133,7 +133,9 @@ def _get_dfs_action(state: ExploreState) -> dict:
             memory.mark_subtask_explored(
                 page_index=page_index,
                 subtask_name=subtask_name,
-                trigger_ui_index=trigger_ui
+                trigger_ui_index=trigger_ui,
+                action=action,
+                screen=current_xml
             )
             new_traversal = traversal_path.copy()
             new_traversal.append(page_index)
@@ -146,6 +148,10 @@ def _get_dfs_action(state: ExploreState) -> dict:
                 "last_action_was_back": False,
                 "status": "subtask_started",
                 "next_agent": "END",
+                # Track for end_page update after action execution
+                "last_explored_page_index": page_index,
+                "last_explored_subtask_name": subtask_name,
+                "last_explored_ui_index": trigger_ui,
             }
 
     # Stack empty but not at start - go back
@@ -259,7 +265,9 @@ def _get_bfs_action(state: ExploreState) -> dict:
             memory.mark_subtask_explored(
                 page_index=page_index,
                 subtask_name=subtask_name,
-                trigger_ui_index=trigger_ui
+                trigger_ui_index=trigger_ui,
+                action=action,
+                screen=current_xml
             )
             new_traversal = traversal_path.copy()
             new_traversal.append(page_index)
@@ -272,6 +280,10 @@ def _get_bfs_action(state: ExploreState) -> dict:
                 "last_action_was_back": False,
                 "status": "subtask_started",
                 "next_agent": "END",
+                # Track for end_page update after action execution
+                "last_explored_page_index": page_index,
+                "last_explored_subtask_name": subtask_name,
+                "last_explored_ui_index": trigger_ui,
             }
 
     log(":::BFS::: Exploration complete", "green")
@@ -353,7 +365,10 @@ def _get_greedy_bfs_action(state: ExploreState) -> dict:
         memory.mark_subtask_explored(
             page_index=page_index,
             subtask_name=subtask_name,
-            trigger_ui_index=trigger_ui
+            trigger_ui_index=trigger_ui,
+            action=action,
+            screen=current_xml,
+            start_page=page_index  # 현재 페이지 = 시작 페이지
         )
         new_traversal = traversal_path.copy()
         new_traversal.append(page_index)
@@ -366,6 +381,10 @@ def _get_greedy_bfs_action(state: ExploreState) -> dict:
             "last_action_was_back": False,
             "status": "subtask_started",
             "next_agent": "END",
+            # Track for end_page update after action execution
+            "last_explored_page_index": page_index,
+            "last_explored_subtask_name": subtask_name,
+            "last_explored_ui_index": trigger_ui,
         }
 
     return {
@@ -446,7 +465,10 @@ def _get_greedy_dfs_action(state: ExploreState) -> dict:
         memory.mark_subtask_explored(
             page_index=page_index,
             subtask_name=subtask_name,
-            trigger_ui_index=trigger_ui
+            trigger_ui_index=trigger_ui,
+            action=action,
+            screen=current_xml,
+            start_page=page_index  # 현재 페이지 = 시작 페이지
         )
         new_traversal = traversal_path.copy()
         new_traversal.append(page_index)
@@ -459,6 +481,10 @@ def _get_greedy_dfs_action(state: ExploreState) -> dict:
             "last_action_was_back": False,
             "status": "subtask_started",
             "next_agent": "END",
+            # Track for end_page update after action execution
+            "last_explored_page_index": page_index,
+            "last_explored_subtask_name": subtask_name,
+            "last_explored_ui_index": trigger_ui,
         }
 
     return {

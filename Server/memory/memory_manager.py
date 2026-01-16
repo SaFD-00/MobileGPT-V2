@@ -373,6 +373,27 @@ class Memory:
             start_page=start_page, end_page=end_page
         )
 
+    def update_end_page(self, page_index: int, subtask_name: str,
+                        trigger_ui_index: int, end_page: int) -> bool:
+        """서브태스크와 액션의 end_page 업데이트
+
+        액션 실행 후 도착한 페이지 인덱스로 end_page를 업데이트합니다.
+
+        Args:
+            page_index: 서브태스크가 속한 페이지 인덱스
+            subtask_name: 서브태스크 이름
+            trigger_ui_index: 트리거 UI 인덱스
+            end_page: 액션 실행 후 도착한 페이지 인덱스
+
+        Returns:
+            bool: 업데이트 성공 여부
+        """
+        if page_index not in self.page_managers:
+            return False
+        return self.page_managers[page_index].update_end_page(
+            subtask_name, trigger_ui_index, end_page
+        )
+
     def save_task_path(self, new_task_path: dict):
         """작업 경로 업데이트"""
         for page_index, subtasks in new_task_path.items():

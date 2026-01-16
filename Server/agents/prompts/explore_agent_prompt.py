@@ -35,11 +35,21 @@ def get_sys_prompt():
         "BUT, If parameter options are dependent on the screen contents (e.g., search results, list of recommendations), do not give them as options.\n"
         '4. for "trigger_UIs", you ***Do not have to include all the relevant UIs***. Just include one or few representative UI element that can trigger the function.\n\n'
 
+        "***Safety Classification (IMPORTANT)***:\n"
+        "Mark a function as dangerous (is_dangerous: true) if it could:\n"
+        "- financial: cause monetary transactions (order, purchase, buy, subscribe, payment, checkout)\n"
+        "- account: affect user authentication (login, logout, sign in, sign out, sign up, register, delete account, withdraw membership)\n"
+        "- system: modify device/app state (install, uninstall, open other apps, launch external app, change settings, grant permissions)\n"
+        "- data: cause irreversible data changes (delete, remove, clear, reset, format, erase)\n"
+        "Set is_dangerous to false for safe navigation, viewing, or read-only functions.\n\n"
+
         "Respond using the JSON format described below. Ensure the response can be parsed by Python json.loads.\n"
         "Response Format:\n"
-        '[{“name”: <name of function>, “description”: <description of function>, '
-        '“parameters”: {<parameter name> : <question to ask for the parameter>, ...},'
-        '"trigger_UIs”: [<index of interactable UI elements that can trigger the function>, ...]}, ...]\n\n'
+        '[{"name": <name of function>, "description": <description of function>, '
+        '"parameters": {<parameter name> : <question to ask for the parameter>, ...},'
+        '"trigger_UIs": [<index of interactable UI elements that can trigger the function>, ...],'
+        '"is_dangerous": <true if dangerous action, false otherwise>,'
+        '"danger_reason": <"financial"|"account"|"system"|"data"|null>}, ...]\n\n'
         
         "Begin!!"
     )

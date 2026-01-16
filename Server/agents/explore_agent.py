@@ -33,16 +33,39 @@ class ExploreAgent:
 
         # GPT를 통해 화면에서 가능한 서브태스크들 추출
         prompts = explore_agent_prompt.get_prompts(html_xml)
-        subtasks_raw = query(prompts, model=os.getenv("EXPLORE_AGENT_GPT_VERSION"), is_list=True)
+        model = os.getenv("EXPLORE_AGENT_GPT_VERSION", "gpt-5.2-chat-latest")
+        subtasks_raw = query(prompts, model=model, is_list=True)
+
+        # 타입 검증 - 리스트가 아닌 경우 빈 리스트로 초기화
+        if not isinstance(subtasks_raw, list):
+            log(f":::EXPLORE WARNING::: subtasks_raw is not a list (type: {type(subtasks_raw).__name__}), using empty list", "yellow")
+            subtasks_raw = []
+
         # 필수 필드가 없는 경우 기본값 설정
         for subtask in subtasks_raw:
             if "parameters" not in subtask:
                 subtask['parameters'] = {}
             if "trigger_UIs" not in subtask:
                 subtask['trigger_UIs'] = []
+            if "is_dangerous" not in subtask:
+                subtask['is_dangerous'] = False
+            if "danger_reason" not in subtask:
+                subtask['danger_reason'] = None
 
-        # 트리거 UI가 있는 서브태스크만 필터링 (go_back은 예외, 단 페이지 0에서는 go_back도 필터링)
+        # 위험 subtask 필터링 (auto-explore 가드레일)
         log(f"Raw Available Subtasks: {json.dumps(subtasks_raw, indent=2)}", "blue")
+        safe_subtasks = []
+        for subtask in subtasks_raw:
+            if subtask.get("is_dangerous", False):
+                log(f":::GUARDRAIL::: Skipping dangerous subtask: {subtask['name']} "
+                    f"(reason: {subtask.get('danger_reason', 'unknown')})", "yellow")
+            else:
+                safe_subtasks.append(subtask)
+
+        if len(subtasks_raw) != len(safe_subtasks):
+            log(f":::GUARDRAIL::: Filtered {len(subtasks_raw) - len(safe_subtasks)} dangerous subtasks, "
+                f"keeping {len(safe_subtasks)} safe subtasks", "green")
+        subtasks_raw = safe_subtasks
         is_first_page = (self.memory is None or self.memory.page_db is None
                          or len(self.memory.page_db) == 0)
         subtasks_raw = list(filter(lambda x: len(x["trigger_UIs"]) > 0, subtasks_raw))

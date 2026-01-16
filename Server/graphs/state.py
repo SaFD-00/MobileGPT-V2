@@ -85,9 +85,10 @@ class ExploreState(TypedDict, total=False):
     memory: Any  # Memory instance
     explore_agent: Any  # ExploreAgent instance
 
-    # Last action tracking (for marking explored)
+    # Last action tracking (for marking explored and updating end_page)
     last_explored_page_index: Optional[int]
     last_explored_ui_index: Optional[int]
+    last_explored_subtask_name: Optional[str]
     last_explored_action: Optional[dict]
     last_explored_screen: Optional[str]
 

@@ -13,6 +13,7 @@ def discover_node(state: ExploreState) -> dict:
     1. memory.search_node() to find current page
     2. explore_agent.explore() for new screens
     3. Updating visited_pages set
+    4. Updating end_page for last explored subtask
 
     Args:
         state: Current explore state
@@ -27,6 +28,11 @@ def discover_node(state: ExploreState) -> dict:
     encoded_xml = state.get("encoded_xml", "")
     visited_pages = state.get("visited_pages", set())
     last_action_was_back = state.get("last_action_was_back", False)
+
+    # Get last explored info for end_page update
+    last_explored_page = state.get("last_explored_page_index")
+    last_explored_subtask = state.get("last_explored_subtask_name")
+    last_explored_ui = state.get("last_explored_ui_index")
 
     log(":::DISCOVER::: Searching for page...", "blue")
 
@@ -59,11 +65,30 @@ def discover_node(state: ExploreState) -> dict:
 
     log(f":::DISCOVER::: Found page {page_index} (similarity: {similarity:.3f})", "green")
 
+    # Update end_page for last explored subtask (if any)
+    # This happens after action execution when we know the destination page
+    if last_explored_page is not None and last_explored_subtask and last_explored_ui is not None:
+        if not last_action_was_back:  # Don't update end_page for back actions
+            memory.update_end_page(
+                page_index=last_explored_page,
+                subtask_name=last_explored_subtask,
+                trigger_ui_index=last_explored_ui,
+                end_page=page_index
+            )
+            log(f":::DISCOVER::: Updated end_page={page_index} for subtask '{last_explored_subtask}'", "cyan")
+
     # Initialize page manager
     memory.init_page_manager(page_index)
 
     # Check if this is a new page
     is_new = page_index not in visited_pages
+
+    # Clear last explored info after processing
+    clear_last_explored = {
+        "last_explored_page_index": None,
+        "last_explored_subtask_name": None,
+        "last_explored_ui_index": None,
+    }
 
     if is_new:
         log(f":::DISCOVER::: New page {page_index}, will register subtasks", "cyan")
@@ -77,6 +102,7 @@ def discover_node(state: ExploreState) -> dict:
             "visited_pages": new_visited,
             "status": "page_discovered",
             "next_agent": "explore_action",
+            **clear_last_explored,
         }
 
     log(f":::DISCOVER::: Existing page {page_index}", "blue")
@@ -86,4 +112,5 @@ def discover_node(state: ExploreState) -> dict:
         "is_new_screen": False,
         "status": "page_found",
         "next_agent": "explore_action",
+        **clear_last_explored,
     }

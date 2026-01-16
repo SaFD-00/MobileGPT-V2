@@ -294,6 +294,10 @@ class AutoExplorer:
                 "navigation_plan": prev_state.get("navigation_plan", []),
                 "explored_subtasks": prev_state.get("explored_subtasks", {}),
                 "last_action_was_back": prev_state.get("last_action_was_back", False),
+                # Pass last explored info for end_page update in discover_node
+                "last_explored_page_index": prev_state.get("last_explored_page_index"),
+                "last_explored_subtask_name": prev_state.get("last_explored_subtask_name"),
+                "last_explored_ui_index": prev_state.get("last_explored_ui_index"),
             }, config=config)
 
             # Save exploration state back to session for next invocation
@@ -312,6 +316,10 @@ class AutoExplorer:
                     "traversal_path": result.get("traversal_path", []),
                     "navigation_plan": result.get("navigation_plan", []),
                     "last_action_was_back": result.get("last_action_was_back", False),
+                    # Track last explored subtask for end_page update
+                    "last_explored_page_index": result.get("last_explored_page_index"),
+                    "last_explored_subtask_name": result.get("last_explored_subtask_name"),
+                    "last_explored_ui_index": result.get("last_explored_ui_index"),
                 }
 
             # Extract result
