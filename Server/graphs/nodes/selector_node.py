@@ -1,6 +1,6 @@
 """Selector node for subtask selection (wraps SelectAgent)."""
 
-from typing import Any
+from typing import Any, Optional
 
 from agents.select_agent import SelectAgent
 from graphs.state import TaskState
@@ -10,7 +10,8 @@ from utils.utils import log
 def selector_node(state: TaskState) -> dict:
     """Selector agent node: select best subtask from available options.
 
-    Filters out rejected subtasks and uses SelectAgent to choose the best one.
+    If planned_path exists, selects the subtask from current step.
+    Otherwise, uses SelectAgent to choose the best one.
 
     Args:
         state: Current task state
@@ -23,8 +24,19 @@ def selector_node(state: TaskState) -> dict:
     available_subtasks = state["available_subtasks"]
     rejected_subtasks = state.get("rejected_subtasks", [])
     current_xml = state["current_xml"]
+    planned_path = state.get("planned_path")
+    path_step_index = state.get("path_step_index", 0)
 
     log(f":::SELECTOR::: Available: {len(available_subtasks)}, Rejected: {len(rejected_subtasks)}", "blue")
+
+    # Check if we have a planned path and should follow it
+    if planned_path and path_step_index < len(planned_path):
+        result = _select_from_planned_path(
+            planned_path, path_step_index, available_subtasks, rejected_subtasks
+        )
+        if result:
+            return result
+        # Fall through to standard selection if planned subtask not found
 
     # Filter out rejected subtasks
     rejected_names = {s.get("name") for s in rejected_subtasks}
@@ -70,3 +82,56 @@ def selector_node(state: TaskState) -> dict:
         "status": "subtask_selected",
         "next_agent": "verifier",
     }
+
+
+def _select_from_planned_path(
+    planned_path: list,
+    path_step_index: int,
+    available_subtasks: list,
+    rejected_subtasks: list
+) -> Optional[dict]:
+    """Select subtask from planned path if available.
+
+    Args:
+        planned_path: Planned subtask sequence
+        path_step_index: Current step index
+        available_subtasks: Subtasks available on current page
+        rejected_subtasks: Previously rejected subtasks
+
+    Returns:
+        dict with selected_subtask if found, None otherwise
+    """
+    if path_step_index >= len(planned_path):
+        return None
+
+    current_step = planned_path[path_step_index]
+    planned_subtask_name = current_step.get("subtask", "")
+
+    log(f":::SELECTOR::: Following planned path step {path_step_index}: '{planned_subtask_name}'", "cyan")
+
+    # Check if planned subtask is rejected
+    rejected_names = {s.get("name") for s in rejected_subtasks}
+    if planned_subtask_name in rejected_names:
+        log(f":::SELECTOR::: Planned subtask '{planned_subtask_name}' was rejected, falling back", "yellow")
+        return None
+
+    # Find the planned subtask in available subtasks
+    for subtask in available_subtasks:
+        if subtask.get("name") == planned_subtask_name:
+            log(f":::SELECTOR::: Selected planned subtask: {planned_subtask_name}", "green")
+
+            # Update path step status
+            updated_path = planned_path.copy()
+            updated_path[path_step_index]["status"] = "in_progress"
+
+            return {
+                "selected_subtask": subtask,
+                "planned_path": updated_path,
+                "path_step_index": path_step_index,
+                "verification_passed": None,
+                "status": "planned_subtask_selected",
+                "next_agent": "verifier",
+            }
+
+    log(f":::SELECTOR::: Planned subtask '{planned_subtask_name}' not found on this page, falling back", "yellow")
+    return None

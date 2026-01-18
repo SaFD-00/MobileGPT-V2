@@ -11,12 +11,13 @@ MAX_ITERATIONS = 5  # Maximum reselection attempts
 def supervisor_node(state: TaskState) -> dict:
     """Supervisor agent node: decide which agent to call next.
 
-    Implements the routing logic for the task graph:
+    Implements the routing logic for the extended 6-step task graph (UICompass):
     1. Initial state -> MemoryAgent (load page/state and subtasks)
-    2. Subtasks loaded -> SelectAgent (select best subtask)
-    3. Subtask selected -> VerifyAgent (verify next screen)
-    4. Verification passed -> DeriveAgent (derive action)
-    5. Verification failed -> SelectAgent (reselect with rejection)
+    2. Subtasks loaded -> PlannerAgent (plan path) or SelectAgent (fallback)
+    3. Path planned -> SelectAgent (select from planned path)
+    4. Subtask selected -> VerifyAgent (verify next screen)
+    5. Verification passed -> DeriveAgent (derive action)
+    6. Verification failed / Replan needed -> PlannerAgent or SelectAgent
 
     Args:
         state: Current task state
@@ -30,7 +31,16 @@ def supervisor_node(state: TaskState) -> dict:
     available_subtasks = state.get("available_subtasks", [])
     status = state.get("status", "")
 
+    # UICompass: Path Planning state
+    planned_path = state.get("planned_path")
+    replan_needed = state.get("replan_needed", False)
+    path_step_index = state.get("path_step_index", 0)
+    replan_count = state.get("replan_count", 0)
+    max_replan = state.get("max_replan", 5)
+
     log(f":::SUPERVISOR::: iteration={iteration}, status={status}, verified={verification_passed}", "magenta")
+    if planned_path is not None:
+        log(f":::SUPERVISOR::: path_step={path_step_index}/{len(planned_path)}, replan={replan_needed}", "magenta")
 
     # Check max iterations (prevent infinite loops)
     if iteration >= MAX_ITERATIONS:
@@ -42,19 +52,48 @@ def supervisor_node(state: TaskState) -> dict:
 
     # Check for terminal states
     if status in ["no_matching_page", "no_subtasks", "no_available_subtask",
-                  "action_derived", "no_subtask_to_verify", "no_subtask_for_derive"]:
+                  "action_derived", "no_subtask_to_verify", "no_subtask_for_derive",
+                  "max_replan_reached"]:
         log(f":::SUPERVISOR::: Terminal status '{status}', finishing", "yellow")
         return {
             "next_agent": "FINISH",
         }
 
+    # =========================================================================
+    # UICompass: Adaptive Replanning
+    # =========================================================================
+    if replan_needed:
+        if replan_count < max_replan:
+            log(f":::SUPERVISOR::: Replan needed ({replan_count + 1}/{max_replan}) -> PlannerAgent", "yellow")
+            return {
+                "next_agent": "planner",
+            }
+        else:
+            log(f":::SUPERVISOR::: Max replan ({max_replan}) reached, finishing", "red")
+            return {
+                "status": "max_replan_reached",
+                "next_agent": "FINISH",
+            }
+
+    # =========================================================================
+    # Standard Flow
+    # =========================================================================
+
     # Verification completed
     if verification_passed is True:
         # "간다" (should go) -> proceed to DeriveAgent
         log(":::SUPERVISOR::: Verification PASSED -> DeriveAgent", "green")
-        return {
-            "next_agent": "deriver",
-        }
+
+        # Update path step if using planned_path
+        updates = {"next_agent": "deriver"}
+        if planned_path and path_step_index < len(planned_path):
+            # Mark current step as completed and advance
+            updated_path = [step.copy() for step in planned_path]
+            updated_path[path_step_index]["status"] = "completed"
+            updates["planned_path"] = updated_path
+            updates["path_step_index"] = path_step_index + 1
+
+        return updates
 
     if verification_passed is False:
         # "가면 안된다" (shouldn't go) -> reselect with rejection
@@ -79,8 +118,19 @@ def supervisor_node(state: TaskState) -> dict:
             "next_agent": "verifier",
         }
 
-    # Subtasks available but none selected
+    # =========================================================================
+    # UICompass: Path Planning
+    # =========================================================================
+    # Check if we need to plan a path (subtasks available but no path yet)
     if available_subtasks and not selected_subtask:
+        # If no planned_path exists yet, try to create one
+        if planned_path is None:
+            log(":::SUPERVISOR::: No path yet, attempting planning -> PlannerAgent", "cyan")
+            return {
+                "next_agent": "planner",
+            }
+
+        # If planned_path exists (even if empty/failed), go to selector
         log(":::SUPERVISOR::: Subtasks available, need selection -> SelectAgent", "blue")
         return {
             "next_agent": "selector",

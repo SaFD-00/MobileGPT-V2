@@ -113,3 +113,83 @@ def _format_subtasks(subtasks: list) -> str:
         desc = s.get('description', 'N/A')
         lines.append(f"- {name}: {desc}")
     return "\n".join(lines)
+
+
+# ============================================================================
+# Adaptive Replanning (UICompass Integration)
+# ============================================================================
+
+class PathVerificationResult:
+    """Result of path-based verification."""
+    PROCEED = "proceed"  # Expected page reached, continue
+    SKIP = "skip"       # Ahead in path, skip intermediate steps
+    REPLAN = "replan"   # Unexpected page, need to replan
+
+
+def verify_with_path(
+    planned_path: List[dict],
+    current_step: int,
+    current_page: int
+) -> dict:
+    """Verify current position against planned path (Adaptive Replanning).
+
+    Compares actual page with expected page from planned_path and decides:
+    - PROCEED: On expected page, continue with planned steps
+    - SKIP: Jumped ahead in path, skip intermediate steps
+    - REPLAN: On unexpected page, need to replan from current position
+
+    Args:
+        planned_path: List of planned path steps
+        current_step: Current step index in planned_path
+        current_page: Actual current page index
+
+    Returns:
+        dict: {
+            "decision": "proceed" | "skip" | "replan",
+            "new_step_index": int (for skip),
+            "reason": str
+        }
+    """
+    if not planned_path or current_step >= len(planned_path):
+        return {
+            "decision": PathVerificationResult.PROCEED,
+            "reason": "No path or all steps completed"
+        }
+
+    expected_page = planned_path[current_step]["page"]
+
+    # Case 1: On expected page
+    if current_page == expected_page:
+        return {
+            "decision": PathVerificationResult.PROCEED,
+            "reason": f"On expected page {expected_page}"
+        }
+
+    # Case 2: Check if we jumped ahead in the path
+    future_pages = [
+        (i, step["page"])
+        for i, step in enumerate(planned_path[current_step + 1:], start=current_step + 1)
+    ]
+
+    for step_idx, page in future_pages:
+        if current_page == page:
+            return {
+                "decision": PathVerificationResult.SKIP,
+                "new_step_index": step_idx,
+                "reason": f"Skipped to page {current_page} (was step {step_idx})"
+            }
+
+    # Case 3: Completely unexpected page
+    return {
+        "decision": PathVerificationResult.REPLAN,
+        "reason": f"Unexpected page {current_page}, expected {expected_page}"
+    }
+
+
+def _find_step_index_for_page(planned_path: List[dict], target_page: int,
+                               start_from: int = 0) -> int:
+    """Find the step index for a given page in planned_path."""
+    for i, step in enumerate(planned_path[start_from:], start=start_from):
+        if step["page"] == target_page:
+            return i
+    return -1

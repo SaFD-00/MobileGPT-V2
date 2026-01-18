@@ -1,6 +1,12 @@
-"""Explore action node with 4 exploration algorithms.
+"""Explore action node with 3 exploration algorithms.
 
-Contains DFS, BFS, GREEDY_BFS, GREEDY_DFS algorithms unified in a single node.
+Algorithms:
+- DFS: Stack-based depth-first exploration with backtracking
+- BFS: Queue-based breadth-first exploration
+- GREEDY: App-wide shortest path to nearest unexplored (action-based distance)
+          Inspired by LLM-Explorer's App-wide Action Selector concept.
+
+Note: GREEDY_BFS and GREEDY_DFS are deprecated and mapped to GREEDY.
 """
 
 import re
@@ -11,14 +17,49 @@ from graphs.state import ExploreState
 from utils.utils import log
 
 
+def _ensure_unexplored_subtasks(
+    unexplored_subtasks: Dict,
+    explored_subtasks: Dict,
+    page_index: int,
+    memory: Any
+) -> Dict:
+    """Ensure unexplored_subtasks contains entries for the current page.
+
+    This is a defensive fallback for GREEDY algorithms in case
+    discover_node didn't initialize unexplored_subtasks properly.
+
+    Args:
+        unexplored_subtasks: Current unexplored subtasks dict
+        explored_subtasks: Current explored subtasks dict
+        page_index: Current page index
+        memory: Memory instance
+
+    Returns:
+        Dict: Updated unexplored_subtasks with current page initialized
+    """
+    if page_index in unexplored_subtasks:
+        return unexplored_subtasks
+
+    new_unexplored = unexplored_subtasks.copy()
+    available = memory.get_available_subtasks(page_index)
+    explored_set = set(explored_subtasks.get(page_index, []))
+    new_unexplored[page_index] = [
+        s for s in available
+        if (s.get("name"), s.get("trigger_ui_index", -1)) not in explored_set
+    ]
+    log(f":::EXPLORE_ACTION::: Defensive init: {len(new_unexplored[page_index])} unexplored subtasks for page {page_index}", "yellow")
+    return new_unexplored
+
+
 def explore_action_node(state: ExploreState) -> dict:
     """Explore action node: determine next exploration action based on algorithm.
 
     Routes to appropriate algorithm implementation:
-    - DFS: Depth-first search with stack
+    - DFS: Depth-first search with stack-based backtracking
     - BFS: Breadth-first search with queue
-    - GREEDY_BFS: BFS to find nearest unexplored
-    - GREEDY_DFS: DFS to find deepest unexplored
+    - GREEDY: App-wide shortest path to nearest unexplored (action-based distance)
+
+    Note: GREEDY_BFS and GREEDY_DFS are deprecated and mapped to GREEDY.
 
     Args:
         state: Current explore state
@@ -29,16 +70,19 @@ def explore_action_node(state: ExploreState) -> dict:
     algorithm = state.get("algorithm", "DFS")
     page_index = state["page_index"]
 
+    # Backward compatibility: map deprecated algorithms to GREEDY
+    if algorithm in ("GREEDY_BFS", "GREEDY_DFS"):
+        log(f":::EXPLORE_ACTION::: Mapping deprecated {algorithm} → GREEDY", "yellow")
+        algorithm = "GREEDY"
+
     log(f":::EXPLORE_ACTION::: Algorithm={algorithm}, page={page_index}", "blue")
 
     if algorithm == "DFS":
         return _get_dfs_action(state)
     elif algorithm == "BFS":
         return _get_bfs_action(state)
-    elif algorithm == "GREEDY_BFS":
-        return _get_greedy_bfs_action(state)
-    elif algorithm == "GREEDY_DFS":
-        return _get_greedy_dfs_action(state)
+    elif algorithm == "GREEDY":
+        return _get_greedy_action(state)
     else:
         log(f":::EXPLORE_ACTION::: Unknown algorithm: {algorithm}", "red")
         return {
@@ -236,9 +280,24 @@ def _get_bfs_action(state: ExploreState) -> dict:
                     "next_agent": "explore_action",  # Re-enter to execute navigation
                 }
             else:
-                log(f":::BFS::: No path to page {target_page}, skipping", "yellow")
-                exploration_queue.pop(0)
-                continue
+                # No path found - try going back first
+                if traversal_path:
+                    log(f":::BFS::: No path to page {target_page}, going back", "yellow")
+                    new_traversal = traversal_path.copy()
+                    new_traversal.pop()
+                    return {
+                        "action": {"name": "back", "parameters": {}},
+                        "exploration_queue": exploration_queue,  # Keep queue intact
+                        "traversal_path": new_traversal,
+                        "last_action_was_back": True,
+                        "status": "navigating_back",
+                        "next_agent": "END",
+                    }
+                else:
+                    # No traversal path - skip this subtask
+                    log(f":::BFS::: No path and no traversal history, skipping", "yellow")
+                    exploration_queue.pop(0)
+                    continue
 
         exploration_queue.pop(0)
 
@@ -294,8 +353,13 @@ def _get_bfs_action(state: ExploreState) -> dict:
     }
 
 
-def _get_greedy_bfs_action(state: ExploreState) -> dict:
-    """GREEDY_BFS: Find and explore nearest unexplored subtask.
+def _get_greedy_action(state: ExploreState) -> dict:
+    """GREEDY: Find and explore nearest unexplored subtask (App-wide Action Selector).
+
+    Uses BFS to find the closest unexplored subtask across all pages.
+    Distance is calculated based on action count (forward/back).
+
+    Inspired by LLM-Explorer's App-wide Action Selector concept.
 
     Args:
         state: Current explore state
@@ -314,17 +378,35 @@ def _get_greedy_bfs_action(state: ExploreState) -> dict:
     back_edges = state.get("back_edges", {})
     traversal_path = state.get("traversal_path", [])
 
+    # Defensive: ensure unexplored_subtasks is initialized for current page
+    unexplored_subtasks = _ensure_unexplored_subtasks(
+        unexplored_subtasks, explored_subtasks, page_index, memory
+    )
+
     # Execute navigation plan if exists
     if navigation_plan:
         return _execute_navigation_step(state)
 
-    # Find nearest unexplored subtask using BFS
+    # Find nearest unexplored subtask using BFS (action-based distance)
     target_page, target_subtask, path = _find_nearest_unexplored(
         page_index, unexplored_subtasks, page_graph, back_edges
     )
 
     if target_page is None:
-        log(":::GREEDY_BFS::: All subtasks explored", "green")
+        # No unexplored found - try going back to discover more
+        if traversal_path:
+            log(":::GREEDY::: No unexplored found, going back to explore more", "yellow")
+            new_traversal = traversal_path.copy()
+            new_traversal.pop()
+            return {
+                "action": {"name": "back", "parameters": {}},
+                "unexplored_subtasks": unexplored_subtasks,
+                "traversal_path": new_traversal,
+                "last_action_was_back": True,
+                "status": "navigating_back",
+                "next_agent": "END",
+            }
+        log(":::GREEDY::: All subtasks explored", "green")
         return {
             "action": None,
             "status": "exploration_complete",
@@ -332,18 +414,19 @@ def _get_greedy_bfs_action(state: ExploreState) -> dict:
         }
 
     subtask_name = target_subtask.get("name", "")
-    log(f":::GREEDY_BFS::: Nearest unexplored is '{subtask_name}' on page {target_page}", "cyan")
+    log(f":::GREEDY::: Nearest unexplored is '{subtask_name}' on page {target_page} (distance: {len(path)} actions)", "cyan")
 
-    # Need to navigate
+    # Need to navigate to target page
     if path:
-        log(f":::GREEDY_BFS::: Navigating via path: {path}", "cyan")
+        log(f":::GREEDY::: Navigating via path: {path}", "cyan")
         return {
             "navigation_plan": path,
+            "unexplored_subtasks": unexplored_subtasks,
             "status": "planning_navigation",
             "next_agent": "explore_action",
         }
 
-    # Remove from unexplored and explore
+    # Target is on current page - explore directly
     new_unexplored = unexplored_subtasks.copy()
     if page_index in new_unexplored:
         new_unexplored[page_index] = [
@@ -367,8 +450,7 @@ def _get_greedy_bfs_action(state: ExploreState) -> dict:
             subtask_name=subtask_name,
             trigger_ui_index=trigger_ui,
             action=action,
-            screen=current_xml,
-            start_page=page_index  # 현재 페이지 = 시작 페이지
+            screen=current_xml
         )
         new_traversal = traversal_path.copy()
         new_traversal.append(page_index)
@@ -387,6 +469,7 @@ def _get_greedy_bfs_action(state: ExploreState) -> dict:
             "last_explored_ui_index": trigger_ui,
         }
 
+    # Action creation failed - continue exploration
     return {
         "unexplored_subtasks": new_unexplored,
         "status": "action_failed",
@@ -394,8 +477,11 @@ def _get_greedy_bfs_action(state: ExploreState) -> dict:
     }
 
 
-def _get_greedy_dfs_action(state: ExploreState) -> dict:
-    """GREEDY_DFS: Find and explore deepest unexplored subtask.
+def _get_greedy_bfs_action(state: ExploreState) -> dict:
+    """GREEDY_BFS: Find and explore nearest unexplored subtask.
+
+    DEPRECATED: Use _get_greedy_action() instead.
+    This function is kept for backward compatibility.
 
     Args:
         state: Current explore state
@@ -403,95 +489,8 @@ def _get_greedy_dfs_action(state: ExploreState) -> dict:
     Returns:
         dict: Updated state with action
     """
-    unexplored_subtasks = state.get("unexplored_subtasks", {})
-    explored_subtasks = state.get("explored_subtasks", {})
-    navigation_plan = state.get("navigation_plan", [])
-    page_index = state["page_index"]
-    memory = state["memory"]
-    current_xml = state["current_xml"]
-    encoded_xml = state.get("encoded_xml", "")
-    page_graph = state.get("page_graph", {})
-    back_edges = state.get("back_edges", {})
-    traversal_path = state.get("traversal_path", [])
-
-    # Execute navigation plan if exists
-    if navigation_plan:
-        return _execute_navigation_step(state)
-
-    # Find deepest unexplored subtask using DFS
-    target_page, target_subtask, path = _find_deepest_unexplored(
-        page_index, unexplored_subtasks, page_graph, back_edges
-    )
-
-    if target_page is None:
-        log(":::GREEDY_DFS::: All subtasks explored", "green")
-        return {
-            "action": None,
-            "status": "exploration_complete",
-            "next_agent": "FINISH",
-        }
-
-    subtask_name = target_subtask.get("name", "")
-    log(f":::GREEDY_DFS::: Deepest unexplored is '{subtask_name}' on page {target_page}", "cyan")
-
-    # Need to navigate
-    if path:
-        log(f":::GREEDY_DFS::: Navigating via path: {path}", "cyan")
-        return {
-            "navigation_plan": path,
-            "status": "planning_navigation",
-            "next_agent": "explore_action",
-        }
-
-    # Remove from unexplored and explore
-    new_unexplored = unexplored_subtasks.copy()
-    if page_index in new_unexplored:
-        new_unexplored[page_index] = [
-            s for s in new_unexplored[page_index]
-            if s.get("name") != subtask_name
-        ]
-
-    # Mark as explored (in-memory)
-    new_explored = explored_subtasks.copy()
-    if page_index not in new_explored:
-        new_explored[page_index] = []
-    trigger_ui = target_subtask.get("trigger_ui_index", -1)
-    new_explored[page_index] = new_explored[page_index] + [(subtask_name, trigger_ui)]
-
-    action = _create_subtask_action(target_subtask, current_xml, encoded_xml, memory, page_index)
-
-    if action:
-        # Mark as explored in CSV file (persistent storage)
-        memory.mark_subtask_explored(
-            page_index=page_index,
-            subtask_name=subtask_name,
-            trigger_ui_index=trigger_ui,
-            action=action,
-            screen=current_xml,
-            start_page=page_index  # 현재 페이지 = 시작 페이지
-        )
-        new_traversal = traversal_path.copy()
-        new_traversal.append(page_index)
-
-        return {
-            "action": action,
-            "unexplored_subtasks": new_unexplored,
-            "explored_subtasks": new_explored,
-            "traversal_path": new_traversal,
-            "last_action_was_back": False,
-            "status": "subtask_started",
-            "next_agent": "END",
-            # Track for end_page update after action execution
-            "last_explored_page_index": page_index,
-            "last_explored_subtask_name": subtask_name,
-            "last_explored_ui_index": trigger_ui,
-        }
-
-    return {
-        "unexplored_subtasks": new_unexplored,
-        "status": "action_failed",
-        "next_agent": "explore_action",
-    }
+    # Delegate to the unified GREEDY implementation
+    return _get_greedy_action(state)
 
 
 def _execute_navigation_step(state: ExploreState) -> dict:
@@ -705,39 +704,3 @@ def _find_nearest_unexplored(
                 queue.append((next_page, path + [(next_page, "back", None)]))
 
     return None, None, []
-
-
-def _find_deepest_unexplored(
-    current_page: int,
-    unexplored_subtasks: Dict,
-    page_graph: Dict,
-    back_edges: Dict
-) -> Tuple[Optional[int], Optional[dict], List]:
-    """Find deepest unexplored subtask using DFS.
-
-    Returns:
-        Tuple of (page_index, subtask_info, path)
-    """
-    deepest_result = (None, None, [])
-    max_depth = -1
-
-    def dfs(page: int, path: List, depth: int, visited: Set):
-        nonlocal deepest_result, max_depth
-
-        # Check this page
-        if page in unexplored_subtasks and unexplored_subtasks[page]:
-            if depth > max_depth:
-                max_depth = depth
-                deepest_result = (page, unexplored_subtasks[page][0], path.copy())
-
-        # Continue DFS
-        for next_page, subtask_name in page_graph.get(page, []):
-            if next_page not in visited:
-                visited.add(next_page)
-                dfs(next_page, path + [(next_page, "forward", subtask_name)], depth + 1, visited)
-                visited.remove(next_page)
-
-    visited = {current_page}
-    dfs(current_page, [], 0, visited)
-
-    return deepest_result

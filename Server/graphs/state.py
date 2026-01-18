@@ -3,6 +3,46 @@
 from typing import Any, Dict, List, Literal, Optional, Set, TypedDict
 
 
+# ============================================================================
+# Page Transition Graph (PTG) - UICompass Integration
+# ============================================================================
+
+class PageTransitionEdge(TypedDict):
+    """Single edge in the Page Transition Graph.
+
+    Represents a transition from one page to another via a subtask.
+    """
+    from_page: int
+    to_page: int
+    subtask: str
+    trigger_ui_index: int
+    action_sequence: List[dict]  # [{name, parameters}, ...]
+    explored: bool
+
+
+class PageTransitionGraph(TypedDict):
+    """Page Transition Graph for Subtask Path Planning.
+
+    Stores the topology of page transitions discovered during exploration.
+    Used for BFS-based optimal path finding.
+    """
+    nodes: List[int]  # Page indices
+    edges: List[PageTransitionEdge]
+
+
+class PlannedPathStep(TypedDict, total=False):
+    """Single step in a planned path."""
+    page: int
+    subtask: str
+    instruction: str
+    trigger_ui_index: int
+    status: str  # pending | in_progress | completed | skipped
+
+
+# ============================================================================
+# Task Execution State
+# ============================================================================
+
 class TaskState(TypedDict, total=False):
     """Task execution graph state.
 
@@ -47,6 +87,20 @@ class TaskState(TypedDict, total=False):
     action: Optional[dict]
     status: str
     iteration: int  # Reselection loop count
+
+    # ========================================================================
+    # Subtask Path Planning (UICompass)
+    # ========================================================================
+    planned_path: Optional[List[PlannedPathStep]]  # Planned subtask sequence
+    path_step_index: int  # Current step in planned_path
+
+    # ========================================================================
+    # Adaptive Replanning
+    # ========================================================================
+    expected_page_index: Optional[int]  # Expected page after action
+    replan_count: int  # Number of replan attempts
+    replan_needed: bool  # Flag to trigger replanning
+    max_replan: int  # Maximum replan attempts (default: 5)
 
 
 class ExploreState(TypedDict, total=False):

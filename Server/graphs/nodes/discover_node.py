@@ -77,6 +77,20 @@ def discover_node(state: ExploreState) -> dict:
             )
             log(f":::DISCOVER::: Updated end_page={page_index} for subtask '{last_explored_subtask}'", "cyan")
 
+            # UICompass: Update PTG with new transition
+            # Get action sequence from the last explored action
+            last_action = state.get("last_explored_action")
+            action_sequence = [last_action] if last_action else []
+
+            memory.add_transition(
+                from_page=last_explored_page,
+                to_page=page_index,
+                subtask_name=last_explored_subtask,
+                trigger_ui_index=last_explored_ui,
+                action_sequence=action_sequence
+            )
+            log(f":::DISCOVER::: Added PTG transition: {last_explored_page} -> {page_index} via '{last_explored_subtask}'", "cyan")
+
     # Initialize page manager
     memory.init_page_manager(page_index)
 
@@ -96,10 +110,17 @@ def discover_node(state: ExploreState) -> dict:
         new_visited = visited_pages.copy()
         new_visited.add(page_index)
 
+        # Initialize unexplored_subtasks for GREEDY algorithms
+        new_unexplored = state.get("unexplored_subtasks", {}).copy()
+        available_subtasks = memory.get_available_subtasks(page_index)
+        new_unexplored[page_index] = available_subtasks
+        log(f":::DISCOVER::: Initialized {len(available_subtasks)} unexplored subtasks for page {page_index}", "cyan")
+
         return {
             "page_index": page_index,
             "is_new_screen": False,  # We've now processed it
             "visited_pages": new_visited,
+            "unexplored_subtasks": new_unexplored,
             "status": "page_discovered",
             "next_agent": "explore_action",
             **clear_last_explored,
@@ -107,9 +128,26 @@ def discover_node(state: ExploreState) -> dict:
 
     log(f":::DISCOVER::: Existing page {page_index}", "blue")
 
+    # Initialize unexplored_subtasks if not present (for GREEDY algorithms)
+    unexplored_subtasks = state.get("unexplored_subtasks", {})
+    if page_index not in unexplored_subtasks:
+        new_unexplored = unexplored_subtasks.copy()
+        available_subtasks = memory.get_available_subtasks(page_index)
+        explored_subtasks = state.get("explored_subtasks", {})
+        explored_set = set(explored_subtasks.get(page_index, []))
+        unexplored_list = [
+            s for s in available_subtasks
+            if (s.get("name"), s.get("trigger_ui_index", -1)) not in explored_set
+        ]
+        new_unexplored[page_index] = unexplored_list
+        log(f":::DISCOVER::: Initialized {len(unexplored_list)} unexplored subtasks for existing page {page_index}", "cyan")
+    else:
+        new_unexplored = unexplored_subtasks
+
     return {
         "page_index": page_index,
         "is_new_screen": False,
+        "unexplored_subtasks": new_unexplored,
         "status": "page_found",
         "next_agent": "explore_action",
         **clear_last_explored,

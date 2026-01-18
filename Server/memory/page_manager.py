@@ -429,6 +429,7 @@ class PageManager:
         """서브태스크와 마지막 액션의 end_page를 업데이트
 
         액션 실행 후 도착한 페이지 인덱스로 end_page를 업데이트합니다.
+        finish 액션의 start_page도 함께 업데이트합니다.
 
         Args:
             subtask_name: 서브태스크 이름
@@ -459,6 +460,14 @@ class PageManager:
 
         if action_condition.any():
             self.action_db.loc[action_condition, 'end_page'] = end_page
+
+            # finish 액션의 start_page도 업데이트
+            # finish 액션은 마지막 일반 액션이 도착한 페이지에서 시작함
+            for idx in self.action_db[action_condition].index:
+                action_str = str(self.action_db.loc[idx, 'action'])
+                if '"name": "finish"' in action_str or "'name': 'finish'" in action_str:
+                    self.action_db.loc[idx, 'start_page'] = end_page
+
             self.action_db.to_csv(self.action_db_path, index=False)
 
             # 메모리 내 action_data도 업데이트
@@ -467,6 +476,10 @@ class PageManager:
                     action_data.get('trigger_ui_index') == trigger_ui_index and
                     action_data.get('end_page') == -1):
                     action_data['end_page'] = end_page
+                    # finish 액션의 start_page도 업데이트
+                    action_str = str(action_data.get('action', ''))
+                    if '"name": "finish"' in action_str or "'name': 'finish'" in action_str:
+                        action_data['start_page'] = end_page
 
             updated = True
             log(f"Updated end_page={end_page} for subtask '{subtask_name}' (trigger_ui={trigger_ui_index})")

@@ -1,7 +1,7 @@
 import json
 import os
 from collections import defaultdict
-from typing import Dict
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -59,6 +59,211 @@ class Memory:
         self.page_managers: Dict[int, PageManager] = {}
         self.page_manager = None
         self.current_page_index = -1
+
+        # Page Transition Graph (PTG) for UICompass
+        self.page_graph_path = base_database_path + "page_graph.json"
+        self.page_graph = self._load_page_graph()
+
+    # ========================================================================
+    # Page Transition Graph (PTG) Methods - UICompass Integration
+    # ========================================================================
+
+    def _load_page_graph(self) -> dict:
+        """Load PTG from page_graph.json or rebuild from existing subtask data."""
+        if os.path.exists(self.page_graph_path):
+            try:
+                with open(self.page_graph_path, 'r') as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, IOError):
+                log("Failed to load page_graph.json, rebuilding...", "yellow")
+
+        return self._build_graph_from_subtasks()
+
+    def _save_page_graph(self):
+        """Save PTG to page_graph.json."""
+        try:
+            with open(self.page_graph_path, 'w') as f:
+                json.dump(self.page_graph, f, indent=2, ensure_ascii=False)
+            log(f"Saved page_graph.json with {len(self.page_graph.get('edges', []))} edges")
+        except IOError as e:
+            log(f"Failed to save page_graph.json: {e}", "red")
+
+    def _build_graph_from_subtasks(self) -> dict:
+        """Rebuild PTG from existing subtasks.csv and actions.csv data."""
+        graph = {"nodes": [], "edges": []}
+
+        # Collect all page indices
+        if os.path.exists(self.page_database_path):
+            for page_dir in os.listdir(self.page_database_path):
+                page_path = os.path.join(self.page_database_path, page_dir)
+                if os.path.isdir(page_path):
+                    try:
+                        page_index = int(page_dir)
+                        if page_index not in graph["nodes"]:
+                            graph["nodes"].append(page_index)
+
+                        # Read subtasks.csv for transition info
+                        subtasks_path = os.path.join(page_path, "subtasks.csv")
+                        if os.path.exists(subtasks_path):
+                            subtasks_df = pd.read_csv(subtasks_path)
+                            for _, row in subtasks_df.iterrows():
+                                start_page = int(row.get('start_page', page_index))
+                                end_page = int(row.get('end_page', -1))
+                                if end_page >= 0 and start_page != end_page:
+                                    edge = {
+                                        "from_page": start_page,
+                                        "to_page": end_page,
+                                        "subtask": row.get('name', ''),
+                                        "trigger_ui_index": int(row.get('trigger_ui_index', -1)),
+                                        "action_sequence": self._get_action_sequence(
+                                            page_path, row.get('name'), int(row.get('trigger_ui_index', -1))
+                                        ),
+                                        "explored": True
+                                    }
+                                    if not self._edge_exists(edge):
+                                        graph["edges"].append(edge)
+                                        if end_page not in graph["nodes"]:
+                                            graph["nodes"].append(end_page)
+                    except ValueError:
+                        continue
+
+        graph["nodes"].sort()
+        log(f"Built PTG with {len(graph['nodes'])} nodes and {len(graph['edges'])} edges")
+        return graph
+
+    def _get_action_sequence(self, page_path: str, subtask_name: str,
+                              trigger_ui_index: int) -> List[dict]:
+        """Get action sequence for a subtask from actions.csv."""
+        actions_path = os.path.join(page_path, "actions.csv")
+        if not os.path.exists(actions_path):
+            return []
+
+        try:
+            actions_df = pd.read_csv(actions_path)
+            condition = (actions_df['subtask_name'] == subtask_name)
+            if trigger_ui_index >= 0:
+                condition = condition & (actions_df['trigger_ui_index'] == trigger_ui_index)
+
+            subtask_actions = actions_df[condition].sort_values('step')
+            action_sequence = []
+            for _, row in subtask_actions.iterrows():
+                try:
+                    action = json.loads(row['action'])
+                    if action.get('name') != 'finish':
+                        action_sequence.append(action)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+            return action_sequence
+        except Exception:
+            return []
+
+    def _edge_exists(self, edge: dict) -> bool:
+        """Check if an equivalent edge already exists in PTG."""
+        for existing in self.page_graph.get("edges", []):
+            if (existing["from_page"] == edge["from_page"] and
+                existing["to_page"] == edge["to_page"] and
+                existing["subtask"] == edge["subtask"] and
+                existing["trigger_ui_index"] == edge["trigger_ui_index"]):
+                return True
+        return False
+
+    def add_transition(self, from_page: int, to_page: int, subtask_name: str,
+                       trigger_ui_index: int, action_sequence: List[dict] = None):
+        """Add a new transition edge to PTG.
+
+        Args:
+            from_page: Source page index
+            to_page: Destination page index
+            subtask_name: Name of the subtask causing transition
+            trigger_ui_index: UI index that triggers the subtask
+            action_sequence: List of actions to execute
+        """
+        if from_page == to_page:
+            return  # Same page, no transition
+
+        edge = {
+            "from_page": from_page,
+            "to_page": to_page,
+            "subtask": subtask_name,
+            "trigger_ui_index": trigger_ui_index,
+            "action_sequence": action_sequence or [],
+            "explored": True
+        }
+
+        if not self._edge_exists(edge):
+            # Ensure nodes exist
+            if from_page not in self.page_graph["nodes"]:
+                self.page_graph["nodes"].append(from_page)
+                self.page_graph["nodes"].sort()
+            if to_page not in self.page_graph["nodes"]:
+                self.page_graph["nodes"].append(to_page)
+                self.page_graph["nodes"].sort()
+
+            self.page_graph["edges"].append(edge)
+            self._save_page_graph()
+            log(f"Added PTG edge: {from_page} -> {to_page} via '{subtask_name}'")
+
+    def get_path_to_page(self, from_page: int, to_page: int) -> Optional[List[dict]]:
+        """Find shortest path between pages using BFS.
+
+        Args:
+            from_page: Starting page index
+            to_page: Target page index
+
+        Returns:
+            List of edges forming the path, or None if no path exists
+        """
+        if from_page == to_page:
+            return []
+
+        # BFS for shortest path
+        queue = [(from_page, [])]
+        visited = {from_page}
+
+        while queue:
+            current, path = queue.pop(0)
+
+            for edge in self.page_graph.get("edges", []):
+                if edge["from_page"] == current and edge["to_page"] not in visited:
+                    new_path = path + [edge]
+                    if edge["to_page"] == to_page:
+                        return new_path
+                    visited.add(edge["to_page"])
+                    queue.append((edge["to_page"], new_path))
+
+        return None  # No path found
+
+    def get_all_available_subtasks(self) -> Dict[int, List[dict]]:
+        """Get all available subtasks for all pages.
+
+        Returns:
+            Dict mapping page_index to list of available subtasks
+        """
+        result = {}
+        if os.path.exists(self.page_database_path):
+            for page_dir in os.listdir(self.page_database_path):
+                page_path = os.path.join(self.page_database_path, page_dir)
+                if os.path.isdir(page_path):
+                    try:
+                        page_index = int(page_dir)
+                        result[page_index] = self.get_available_subtasks(page_index)
+                    except ValueError:
+                        continue
+        return result
+
+    def get_outgoing_edges(self, page_index: int) -> List[dict]:
+        """Get all outgoing edges from a page.
+
+        Args:
+            page_index: Source page index
+
+        Returns:
+            List of edges originating from the page
+        """
+        return [
+            edge for edge in self.page_graph.get("edges", [])
+            if edge["from_page"] == page_index
+        ]
 
     def init_page_manager(self, page_index: int):
         """페이지 관리자 초기화

@@ -1,4 +1,7 @@
-"""LangGraph task graph for subtask selection and verification."""
+"""LangGraph task graph for subtask selection and verification.
+
+Extended with UICompass integration for Subtask Path Planning and Adaptive Replanning.
+"""
 
 from typing import Literal
 
@@ -8,12 +11,13 @@ from langgraph.checkpoint.memory import MemorySaver
 from graphs.state import TaskState
 from graphs.nodes.supervisor import supervisor_node
 from graphs.nodes.memory_node import memory_node
+from graphs.nodes.planner_node import planner_node
 from graphs.nodes.selector_node import selector_node
 from graphs.nodes.verifier_node import verifier_node
 from graphs.nodes.deriver_node import deriver_node
 
 
-def route_next_agent(state: TaskState) -> Literal["memory", "selector", "verifier", "deriver", "FINISH"]:
+def route_next_agent(state: TaskState) -> Literal["memory", "planner", "selector", "verifier", "deriver", "FINISH"]:
     """Route to the next agent based on state.
 
     Args:
@@ -32,34 +36,40 @@ def route_next_agent(state: TaskState) -> Literal["memory", "selector", "verifie
 
 
 def build_task_graph() -> StateGraph:
-    """Build the task workflow graph.
+    """Build the task workflow graph with UICompass integration.
 
-    Graph structure:
+    Graph structure (6-step process):
         START -> supervisor -> (conditional routing)
                     |
-                    ├── memory -> supervisor
-                    ├── selector -> supervisor
-                    ├── verifier -> supervisor
-                    ├── deriver -> END
+                    ├── memory -> supervisor      # Page matching, PTG loading
+                    ├── planner -> supervisor     # [NEW] Path planning
+                    ├── selector -> supervisor    # [MODIFIED] planned_path-based selection
+                    ├── verifier -> supervisor    # [EXTENDED] Adaptive Replanning
+                    ├── deriver -> END            # Action derivation
                     └── FINISH -> END
 
     Flow:
         1. supervisor decides next agent
         2. memory: load page/state and available subtasks
-        3. selector: select best subtask (excluding rejected ones)
-        4. verifier: verify if selected subtask leads to good path
-           - If rejected: back to selector (via supervisor)
-           - If approved: proceed to deriver
-        5. deriver: derive concrete action and END
+        3. planner: (UICompass) plan optimal subtask path using PTG
+           - If PTG has path: create planned_path
+           - If no path: fallback to selector
+        4. selector: select subtask from planned_path or use LLM
+        5. verifier: verify selected subtask
+           - PROCEED: continue to deriver
+           - SKIP: jump ahead in path
+           - REPLAN: trigger replanning
+        6. deriver: derive concrete action and END
 
     Returns:
         StateGraph: Compiled task graph
     """
     graph = StateGraph(TaskState)
 
-    # Add nodes
+    # Add nodes (including new planner node)
     graph.add_node("supervisor", supervisor_node)
     graph.add_node("memory", memory_node)
+    graph.add_node("planner", planner_node)  # NEW: UICompass path planning
     graph.add_node("selector", selector_node)
     graph.add_node("verifier", verifier_node)
     graph.add_node("deriver", deriver_node)
@@ -73,6 +83,7 @@ def build_task_graph() -> StateGraph:
         route_next_agent,
         {
             "memory": "memory",
+            "planner": "planner",  # NEW: planner routing
             "selector": "selector",
             "verifier": "verifier",
             "deriver": "deriver",
@@ -82,6 +93,7 @@ def build_task_graph() -> StateGraph:
 
     # All agents return to supervisor for next routing decision
     graph.add_edge("memory", "supervisor")
+    graph.add_edge("planner", "supervisor")  # NEW: planner -> supervisor
     graph.add_edge("selector", "supervisor")
     graph.add_edge("verifier", "supervisor")
 
