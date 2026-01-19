@@ -29,7 +29,7 @@
 │  │  ┌─────────────────────────────────┐  │       │  │ Input │  │        │
 │  │  │       Memory Manager            │  │       │  │Dispatch│ │        │
 │  │  │  ┌───────┐ ┌───────┐ ┌───────┐  │  │       │  └───────┘  │        │
-│  │  │  │ PTG   │ │ Pages │ │Subtask│  │  │       │             │        │
+│  │  │  │ STG   │ │ Pages │ │Subtask│  │  │       │             │        │
 │  │  │  │.json  │ │ .csv  │ │ .csv  │  │  │       └─────────────┘        │
 │  │  │  └───────┘ └───────┘ └───────┘  │  │                              │
 │  │  └─────────────────────────────────┘  │                              │
@@ -47,7 +47,7 @@ Auto-Explore → Plan → Select → Derive → Verify → Recall
 | 단계 | 노드 | 에이전트 | 역할 |
 |------|------|---------|------|
 | **Auto-Explore** | discover_node, explore_action_node | ExploreAgent | UI 자동 탐색 및 학습 |
-| **Plan** | planner_node | PlannerAgent | PTG 기반 경로 계획 |
+| **Plan** | planner_node | PlannerAgent | STG 기반 경로 계획 |
 | **Select** | selector_node | SelectAgent | Subtask 선택 |
 | **Derive** | deriver_node | DeriveAgent | 액션 도출 |
 | **Verify** | verifier_node | VerifyAgent | 결과 검증 및 재계획 |
@@ -73,14 +73,14 @@ Auto-Explore → Plan → Select → Derive → Verify → Recall
 |---------|---------|------|
 | **DFS** | 스택 | 깊이 우선, 한 경로를 끝까지 탐색 후 백트래킹 |
 | **BFS** | 큐 | 너비 우선, 현재 레벨의 모든 subtask 탐색 후 다음 레벨 |
-| **GREEDY_BFS** | 큐 + PTG | 전체 앱에서 가장 가까운 미탐색 subtask로 이동 |
-| **GREEDY_DFS** | 스택 + PTG | 깊이 우선으로 가장 가까운 미탐색 subtask로 이동 |
+| **GREEDY_BFS** | 큐 + STG | 전체 앱에서 가장 가까운 미탐색 subtask로 이동 |
+| **GREEDY_DFS** | 스택 + STG | 깊이 우선으로 가장 가까운 미탐색 subtask로 이동 |
 
 **출력 데이터**:
 - `pages.csv` - 페이지 레지스트리
 - `subtasks.csv` - 학습된 subtask
 - `actions.csv` - 액션 시퀀스
-- `page_graph.json` - Page Transition Graph (PTG)
+- `subtask_graph.json` - Subtask Transition Graph (STG)
 
 #### OLD MobileGPT vs NEW MobileGPT-V2 비교
 
@@ -89,7 +89,7 @@ Auto-Explore → Plan → Select → Derive → Verify → Recall
 | **프레임워크** | 순차적 서버 루프 (소켓 기반) | LangGraph 상태 머신 + MemorySaver |
 | **탐색 흐름** | 선형: Server → ExploreAgent → Memory | 다중 노드: Supervisor → Discover → ExploreAction |
 | **탐색 알고리즘** | 암시적 선형 탐색 | 명시적: DFS, BFS, GREEDY (런타임 선택 가능) |
-| **Page Graph** | 없음 (CSV에 암시적) | **page_graph.json (PTG)** - 명시적 그래프 |
+| **Page Graph** | 없음 (CSV에 암시적) | **subtask_graph.json (STG)** - 명시적 그래프 |
 | **End-Page 추적** | 수동 | 자동 (`update_end_page()`) |
 | **백트래킹** | 단순 Back 버튼 | 지능형 경로 계획 (BFS) |
 | **상태 지속성** | 연결 해제 시 소실 | MemorySaver로 보존 |
@@ -98,10 +98,10 @@ Auto-Explore → Plan → Select → Derive → Verify → Recall
 
 #### 핵심 개선사항
 
-1. **PTG (Page Transition Graph)**: 페이지 간 전이를 명시적 그래프로 관리
+1. **STG (Page Transition Graph)**: 페이지 간 전이를 명시적 그래프로 관리
 2. **다중 탐색 알고리즘**: DFS(깊이 우선), BFS(너비 우선), GREEDY(최근접 미탐색)
 3. **Subtask 탐색 추적**: `trigger_ui_index`, `start_page`, `end_page`, `exploration` 상태
-4. **지능형 내비게이션**: PTG 기반 최적 경로 탐색으로 효율적 백트래킹
+4. **지능형 내비게이션**: STG 기반 최적 경로 탐색으로 효율적 백트래킹
 
 #### Auto-Explore 가드레일 (Safety Guardrails)
 
@@ -129,7 +129,7 @@ Auto-Explore → Plan → Select → Derive → Verify → Recall
 
 ### 2.2 Plan (경로 계획) - UICompass
 
-**목적**: PTG 기반 최적 subtask 경로 계획
+**목적**: STG 기반 최적 subtask 경로 계획
 
 **구현 파일**:
 - `Server/graphs/nodes/planner_node.py`
@@ -139,7 +139,7 @@ Auto-Explore → Plan → Select → Derive → Verify → Recall
 **알고리즘**: BFS 최단 경로 탐색
 
 ```python
-def plan_path(current_page, page_graph, instruction):
+def plan_path(current_page, subtask_graph, instruction):
     # 1. LLM으로 목표 subtask 분석
     goal_analysis = analyze_goal(instruction, all_subtasks)
 
@@ -147,7 +147,7 @@ def plan_path(current_page, page_graph, instruction):
     target_pages = find_target_pages(goal_analysis.target_subtasks)
 
     # 3. BFS로 최단 경로 탐색
-    best_path = bfs_find_path(current_page, target_pages, page_graph)
+    best_path = bfs_find_path(current_page, target_pages, subtask_graph)
 
     # 4. planned_path 생성
     return build_planned_path(best_path, goal_analysis.final_subtask)
@@ -168,7 +168,7 @@ planned_path = [
 ]
 ```
 
-**Fallback**: PTG에 경로가 없으면 Select 단계로 직접 이동 (LLM 기반 선택)
+**Fallback**: STG에 경로가 없으면 Select 단계로 직접 이동 (LLM 기반 선택)
 
 ---
 
@@ -272,7 +272,7 @@ def verify_with_path(planned_path, step_index, current_page):
 **기능**:
 1. **페이지 매칭**: 임베딩 유사도로 현재 화면이 어떤 페이지인지 식별
 2. **available_subtasks 로드**: 현재 페이지에서 사용 가능한 subtask 목록
-3. **PTG 로드**: Page Transition Graph 정보 로드
+3. **STG 로드**: Page Transition Graph 정보 로드
 
 **페이지 매칭 알고리즘**:
 
@@ -373,7 +373,7 @@ discover   explore_action ───────► FINISH     │
 **Explore Action Node**:
 - 알고리즘(DFS/BFS/GREEDY)에 따라 다음 탐색 액션 결정
 - 탐색 완료된 subtask 마킹
-- PTG 업데이트
+- STG 업데이트
 
 ---
 
@@ -393,8 +393,8 @@ memory/{app_name}/
 ├── tasks.csv                    # 태스크 경로 캐시
 │   └── name, path
 │
-├── page_graph.json              # Page Transition Graph (PTG)
-│   └── {nodes: [int], edges: [PageTransitionEdge]}
+├── subtask_graph.json              # Subtask Transition Graph (STG)
+│   └── {nodes: [int], edges: [SubtaskTransitionEdge]}
 │
 └── pages/{page_index}/          # 페이지별 데이터
     ├── available_subtasks.csv
@@ -408,7 +408,7 @@ memory/{app_name}/
     └── screen/                  # 스크린샷
 ```
 
-### 4.2 Page Transition Graph (PTG)
+### 4.2 Subtask Transition Graph (STG)
 
 **구조**:
 
@@ -434,8 +434,8 @@ memory/{app_name}/
 
 | 메서드 | 설명 |
 |--------|------|
-| `_load_page_graph()` | PTG JSON 로드 |
-| `_save_page_graph()` | PTG JSON 저장 |
+| `_load_subtask_graph()` | STG JSON 로드 |
+| `_save_subtask_graph()` | STG JSON 저장 |
 | `add_transition()` | 새 페이지 전이 추가 |
 | `get_path_to_page()` | BFS로 두 페이지 간 최단 경로 |
 | `get_all_available_subtasks()` | 모든 페이지의 subtask 반환 |
@@ -682,7 +682,7 @@ class ExploreState(TypedDict, total=False):
     unexplored_subtasks: Dict
 
     # 그래프
-    page_graph: Dict
+    subtask_graph: Dict
     back_edges: Dict
 
     # 경로 추적

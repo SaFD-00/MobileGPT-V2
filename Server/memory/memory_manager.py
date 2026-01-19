@@ -60,36 +60,36 @@ class Memory:
         self.page_manager = None
         self.current_page_index = -1
 
-        # Page Transition Graph (PTG) for UICompass
-        self.page_graph_path = base_database_path + "page_graph.json"
-        self.page_graph = self._load_page_graph()
+        # Subtask Transition Graph (STG) for UICompass
+        self.subtask_graph_path = base_database_path + "subtask_graph.json"
+        self.subtask_graph = self._load_subtask_graph()
 
     # ========================================================================
-    # Page Transition Graph (PTG) Methods - UICompass Integration
+    # Subtask Transition Graph (STG) Methods - UICompass Integration
     # ========================================================================
 
-    def _load_page_graph(self) -> dict:
-        """Load PTG from page_graph.json or rebuild from existing subtask data."""
-        if os.path.exists(self.page_graph_path):
+    def _load_subtask_graph(self) -> dict:
+        """Load STG from subtask_graph.json or rebuild from existing subtask data."""
+        if os.path.exists(self.subtask_graph_path):
             try:
-                with open(self.page_graph_path, 'r') as f:
+                with open(self.subtask_graph_path, 'r') as f:
                     return json.load(f)
             except (json.JSONDecodeError, IOError):
-                log("Failed to load page_graph.json, rebuilding...", "yellow")
+                log("Failed to load subtask_graph.json, rebuilding...", "yellow")
 
-        return self._build_graph_from_subtasks()
+        return self._build_subtask_graph()
 
-    def _save_page_graph(self):
-        """Save PTG to page_graph.json."""
+    def _save_subtask_graph(self):
+        """Save STG to subtask_graph.json."""
         try:
-            with open(self.page_graph_path, 'w') as f:
-                json.dump(self.page_graph, f, indent=2, ensure_ascii=False)
-            log(f"Saved page_graph.json with {len(self.page_graph.get('edges', []))} edges")
+            with open(self.subtask_graph_path, 'w') as f:
+                json.dump(self.subtask_graph, f, indent=2, ensure_ascii=False)
+            log(f"Saved subtask_graph.json with {len(self.subtask_graph.get('edges', []))} edges")
         except IOError as e:
-            log(f"Failed to save page_graph.json: {e}", "red")
+            log(f"Failed to save subtask_graph.json: {e}", "red")
 
-    def _build_graph_from_subtasks(self) -> dict:
-        """Rebuild PTG from existing subtasks.csv and actions.csv data."""
+    def _build_subtask_graph(self) -> dict:
+        """Rebuild STG from existing subtasks.csv and actions.csv data."""
         graph = {"nodes": [], "edges": []}
 
         # Collect all page indices
@@ -128,7 +128,7 @@ class Memory:
                         continue
 
         graph["nodes"].sort()
-        log(f"Built PTG with {len(graph['nodes'])} nodes and {len(graph['edges'])} edges")
+        log(f"Built STG with {len(graph['nodes'])} nodes and {len(graph['edges'])} edges")
         return graph
 
     def _get_action_sequence(self, page_path: str, subtask_name: str,
@@ -158,8 +158,8 @@ class Memory:
             return []
 
     def _edge_exists(self, edge: dict) -> bool:
-        """Check if an equivalent edge already exists in PTG."""
-        for existing in self.page_graph.get("edges", []):
+        """Check if an equivalent edge already exists in STG."""
+        for existing in self.subtask_graph.get("edges", []):
             if (existing["from_page"] == edge["from_page"] and
                 existing["to_page"] == edge["to_page"] and
                 existing["subtask"] == edge["subtask"] and
@@ -169,7 +169,7 @@ class Memory:
 
     def add_transition(self, from_page: int, to_page: int, subtask_name: str,
                        trigger_ui_index: int, action_sequence: List[dict] = None):
-        """Add a new transition edge to PTG.
+        """Add a new transition edge to STG.
 
         Args:
             from_page: Source page index
@@ -192,16 +192,16 @@ class Memory:
 
         if not self._edge_exists(edge):
             # Ensure nodes exist
-            if from_page not in self.page_graph["nodes"]:
-                self.page_graph["nodes"].append(from_page)
-                self.page_graph["nodes"].sort()
-            if to_page not in self.page_graph["nodes"]:
-                self.page_graph["nodes"].append(to_page)
-                self.page_graph["nodes"].sort()
+            if from_page not in self.subtask_graph["nodes"]:
+                self.subtask_graph["nodes"].append(from_page)
+                self.subtask_graph["nodes"].sort()
+            if to_page not in self.subtask_graph["nodes"]:
+                self.subtask_graph["nodes"].append(to_page)
+                self.subtask_graph["nodes"].sort()
 
-            self.page_graph["edges"].append(edge)
-            self._save_page_graph()
-            log(f"Added PTG edge: {from_page} -> {to_page} via '{subtask_name}'")
+            self.subtask_graph["edges"].append(edge)
+            self._save_subtask_graph()
+            log(f"Added STG edge: {from_page} -> {to_page} via '{subtask_name}'")
 
     def get_path_to_page(self, from_page: int, to_page: int) -> Optional[List[dict]]:
         """Find shortest path between pages using BFS.
@@ -223,7 +223,7 @@ class Memory:
         while queue:
             current, path = queue.pop(0)
 
-            for edge in self.page_graph.get("edges", []):
+            for edge in self.subtask_graph.get("edges", []):
                 if edge["from_page"] == current and edge["to_page"] not in visited:
                     new_path = path + [edge]
                     if edge["to_page"] == to_page:
@@ -261,7 +261,7 @@ class Memory:
             List of edges originating from the page
         """
         return [
-            edge for edge in self.page_graph.get("edges", [])
+            edge for edge in self.subtask_graph.get("edges", [])
             if edge["from_page"] == page_index
         ]
 

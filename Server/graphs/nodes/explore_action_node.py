@@ -243,7 +243,7 @@ def _get_bfs_action(state: ExploreState) -> dict:
     memory = state["memory"]
     current_xml = state["current_xml"]
     encoded_xml = state.get("encoded_xml", "")
-    page_graph = state.get("page_graph", {})
+    subtask_graph = state.get("subtask_graph", {})
     back_edges = state.get("back_edges", {})
     traversal_path = state.get("traversal_path", [])
 
@@ -269,7 +269,7 @@ def _get_bfs_action(state: ExploreState) -> dict:
 
         # Need to navigate to target page
         if target_page != page_index:
-            path = _find_path_to_page(page_graph, back_edges, page_index, target_page)
+            path = _find_path_to_page(subtask_graph, back_edges, page_index, target_page)
 
             if path:
                 log(f":::BFS::: Found path from {page_index} to {target_page}: {path}", "cyan")
@@ -374,7 +374,7 @@ def _get_greedy_action(state: ExploreState) -> dict:
     memory = state["memory"]
     current_xml = state["current_xml"]
     encoded_xml = state.get("encoded_xml", "")
-    page_graph = state.get("page_graph", {})
+    subtask_graph = state.get("subtask_graph", {})
     back_edges = state.get("back_edges", {})
     traversal_path = state.get("traversal_path", [])
 
@@ -389,7 +389,7 @@ def _get_greedy_action(state: ExploreState) -> dict:
 
     # Find nearest unexplored subtask using BFS (action-based distance)
     target_page, target_subtask, path = _find_nearest_unexplored(
-        page_index, unexplored_subtasks, page_graph, back_edges
+        page_index, unexplored_subtasks, subtask_graph, back_edges
     )
 
     if target_page is None:
@@ -617,7 +617,7 @@ def _create_subtask_action(
 
 
 def _find_path_to_page(
-    page_graph: Dict,
+    subtask_graph: Dict,
     back_edges: Dict,
     from_page: int,
     to_page: int
@@ -625,7 +625,7 @@ def _find_path_to_page(
     """Find path from one page to another using BFS.
 
     Args:
-        page_graph: Forward edges {from: [(to, subtask_name), ...]}
+        subtask_graph: Forward edges {from: [(to, subtask_name), ...]}
         back_edges: Backward edges {from: [to, ...]}
         from_page: Starting page
         to_page: Target page
@@ -646,7 +646,7 @@ def _find_path_to_page(
         current, path = queue.popleft()
 
         # Check forward edges
-        for next_page, subtask_name in page_graph.get(current, []):
+        for next_page, subtask_name in subtask_graph.get(current, []):
             if next_page == to_page:
                 return path + [(next_page, "forward", subtask_name)]
             if next_page not in visited:
@@ -667,7 +667,7 @@ def _find_path_to_page(
 def _find_nearest_unexplored(
     current_page: int,
     unexplored_subtasks: Dict,
-    page_graph: Dict,
+    subtask_graph: Dict,
     back_edges: Dict
 ) -> Tuple[Optional[int], Optional[dict], List]:
     """Find nearest unexplored subtask using BFS.
@@ -693,7 +693,7 @@ def _find_nearest_unexplored(
             return page, unexplored_subtasks[page][0], path
 
         # Add neighbors
-        for next_page, subtask_name in page_graph.get(page, []):
+        for next_page, subtask_name in subtask_graph.get(page, []):
             if next_page not in visited:
                 visited.add(next_page)
                 queue.append((next_page, path + [(next_page, "forward", subtask_name)]))

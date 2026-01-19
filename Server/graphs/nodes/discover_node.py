@@ -77,7 +77,7 @@ def discover_node(state: ExploreState) -> dict:
             )
             log(f":::DISCOVER::: Updated end_page={page_index} for subtask '{last_explored_subtask}'", "cyan")
 
-            # UICompass: Update PTG with new transition
+            # UICompass: Update STG with new transition
             # Get action sequence from the last explored action
             last_action = state.get("last_explored_action")
             action_sequence = [last_action] if last_action else []
@@ -89,7 +89,7 @@ def discover_node(state: ExploreState) -> dict:
                 trigger_ui_index=last_explored_ui,
                 action_sequence=action_sequence
             )
-            log(f":::DISCOVER::: Added PTG transition: {last_explored_page} -> {page_index} via '{last_explored_subtask}'", "cyan")
+            log(f":::DISCOVER::: Added STG transition: {last_explored_page} -> {page_index} via '{last_explored_subtask}'", "cyan")
 
     # Initialize page manager
     memory.init_page_manager(page_index)

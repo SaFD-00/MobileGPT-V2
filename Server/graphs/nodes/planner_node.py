@@ -11,7 +11,7 @@ def planner_node(state: TaskState) -> dict:
     """Planner node: create or update subtask path plan.
 
     This node implements UICompass's Subtask Path Planning:
-    - Initial planning: Analyze instruction and PTG to create optimal path
+    - Initial planning: Analyze instruction and STG to create optimal path
     - Replanning: After unexpected transitions, replan from current position
 
     Args:
@@ -24,13 +24,13 @@ def planner_node(state: TaskState) -> dict:
     instruction = state["instruction"]
     current_page = state.get("page_index", -1)
 
-    # Check if PTG has data
-    if not memory.page_graph.get("edges"):
-        log(":::PLANNER::: No PTG edges, fallback to Select mode", "yellow")
+    # Check if STG has data
+    if not memory.subtask_graph.get("edges"):
+        log(":::PLANNER::: No STG edges, fallback to Select mode", "yellow")
         return {
             "planned_path": None,
             "path_step_index": 0,
-            "status": "no_ptg_data",
+            "status": "no_stg_data",
         }
 
     # Get all available subtasks for planning
@@ -62,7 +62,7 @@ def planner_node(state: TaskState) -> dict:
         new_path = replan_from_current(
             instruction=instruction,
             current_page=current_page,
-            page_graph=memory.page_graph,
+            subtask_graph=memory.subtask_graph,
             all_subtasks=all_subtasks
         )
 
@@ -92,7 +92,7 @@ def planner_node(state: TaskState) -> dict:
     planner = PlannerAgent(instruction)
     planned_path = planner.plan(
         current_page=current_page,
-        page_graph=memory.page_graph,
+        subtask_graph=memory.subtask_graph,
         all_subtasks=all_subtasks
     )
 

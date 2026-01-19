@@ -1,6 +1,6 @@
 """Planner Agent for UICompass-style Subtask Path Planning.
 
-This agent analyzes user instructions and PTG (Page Transition Graph) to plan
+This agent analyzes user instructions and STG (Subtask Transition Graph) to plan
 an optimal sequence of subtasks for task completion.
 """
 
@@ -12,24 +12,24 @@ from utils.utils import log, query
 
 
 class PlannerAgent:
-    """Plans optimal subtask paths using Page Transition Graph.
+    """Plans optimal subtask paths using Subtask Transition Graph.
 
     Implements UICompass's UI Path Planning concept:
     1. Analyze user instruction to identify goal subtasks
-    2. Use BFS on PTG to find shortest path to goal
+    2. Use BFS on STG to find shortest path to goal
     3. Generate planned_path with step-by-step instructions
     """
 
     def __init__(self, instruction: str):
         self.instruction = instruction
 
-    def plan(self, current_page: int, page_graph: dict,
+    def plan(self, current_page: int, subtask_graph: dict,
              all_subtasks: Dict[int, List[dict]]) -> Optional[List[dict]]:
         """Plan the full subtask path to achieve the instruction.
 
         Args:
             current_page: Current page index
-            page_graph: Page Transition Graph with nodes and edges
+            subtask_graph: Subtask Transition Graph with nodes and edges
             all_subtasks: Dict mapping page_index to available subtasks
 
         Returns:
@@ -37,9 +37,9 @@ class PlannerAgent:
         """
         log(f":::PLANNER::: Planning path from page {current_page}", "cyan")
 
-        # Check if PTG has enough data
-        if not page_graph.get("edges"):
-            log(":::PLANNER::: PTG empty, falling back to Select", "yellow")
+        # Check if STG has enough data
+        if not subtask_graph.get("edges"):
+            log(":::PLANNER::: STG empty, falling back to Select", "yellow")
             return None
 
         # Step 1: Analyze goal to identify target subtasks/pages
@@ -67,14 +67,14 @@ class PlannerAgent:
         best_path = None
         best_target = None
         for target_page in target_pages:
-            path = self._bfs_find_path(current_page, target_page, page_graph)
+            path = self._bfs_find_path(current_page, target_page, subtask_graph)
             if path is not None:
                 if best_path is None or len(path) < len(best_path):
                     best_path = path
                     best_target = target_page
 
         if best_path is None:
-            log(f":::PLANNER::: No PTG path from {current_page} to targets {target_pages}", "yellow")
+            log(f":::PLANNER::: No STG path from {current_page} to targets {target_pages}", "yellow")
             return None
 
         # Step 4: Convert edges to planned_path steps
@@ -126,8 +126,8 @@ class PlannerAgent:
         return pages
 
     def _bfs_find_path(self, from_page: int, to_page: int,
-                       page_graph: dict) -> Optional[List[dict]]:
-        """BFS to find shortest path in PTG."""
+                       subtask_graph: dict) -> Optional[List[dict]]:
+        """BFS to find shortest path in STG."""
         if from_page == to_page:
             return []
 
@@ -137,7 +137,7 @@ class PlannerAgent:
         while queue:
             current, path = queue.pop(0)
 
-            for edge in page_graph.get("edges", []):
+            for edge in subtask_graph.get("edges", []):
                 if edge["from_page"] == current and edge["to_page"] not in visited:
                     new_path = path + [edge]
                     if edge["to_page"] == to_page:
@@ -149,7 +149,7 @@ class PlannerAgent:
 
     def _build_planned_path(self, edges: List[dict], final_subtask: Optional[str],
                             goal_analysis: dict) -> List[dict]:
-        """Convert PTG edges to planned_path format."""
+        """Convert STG edges to planned_path format."""
         planned_path = []
 
         # Add navigation steps
@@ -178,7 +178,7 @@ class PlannerAgent:
         return planned_path
 
 
-def replan_from_current(instruction: str, current_page: int, page_graph: dict,
+def replan_from_current(instruction: str, current_page: int, subtask_graph: dict,
                         all_subtasks: Dict[int, List[dict]],
                         remaining_goal: str = None) -> Optional[List[dict]]:
     """Replan path from current position after unexpected transition.
@@ -186,7 +186,7 @@ def replan_from_current(instruction: str, current_page: int, page_graph: dict,
     Args:
         instruction: Original user instruction
         current_page: Current page after unexpected transition
-        page_graph: Page Transition Graph
+        subtask_graph: Subtask Transition Graph
         all_subtasks: All available subtasks by page
         remaining_goal: Optional remaining goal description
 
@@ -194,4 +194,4 @@ def replan_from_current(instruction: str, current_page: int, page_graph: dict,
         New planned path or None
     """
     planner = PlannerAgent(remaining_goal or instruction)
-    return planner.plan(current_page, page_graph, all_subtasks)
+    return planner.plan(current_page, subtask_graph, all_subtasks)

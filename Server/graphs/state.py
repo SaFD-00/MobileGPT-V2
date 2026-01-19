@@ -4,11 +4,11 @@ from typing import Any, Dict, List, Literal, Optional, Set, TypedDict
 
 
 # ============================================================================
-# Page Transition Graph (PTG) - UICompass Integration
+# Subtask Transition Graph (STG) - UICompass Integration
 # ============================================================================
 
-class PageTransitionEdge(TypedDict):
-    """Single edge in the Page Transition Graph.
+class SubtaskTransitionEdge(TypedDict):
+    """Single edge in the Subtask Transition Graph.
 
     Represents a transition from one page to another via a subtask.
     """
@@ -20,14 +20,14 @@ class PageTransitionEdge(TypedDict):
     explored: bool
 
 
-class PageTransitionGraph(TypedDict):
-    """Page Transition Graph for Subtask Path Planning.
+class SubtaskTransitionGraph(TypedDict):
+    """Subtask Transition Graph for Subtask Path Planning.
 
     Stores the topology of page transitions discovered during exploration.
     Used for BFS-based optimal path finding.
     """
     nodes: List[int]  # Page indices
-    edges: List[PageTransitionEdge]
+    edges: List[SubtaskTransitionEdge]
 
 
 class PlannedPathStep(TypedDict, total=False):
@@ -130,7 +130,7 @@ class ExploreState(TypedDict, total=False):
     explored_subtasks: Dict  # {page: [(subtask_name, trigger_ui), ...]}
     exploration_stack: List  # DFS stack
     exploration_queue: List  # BFS queue
-    page_graph: Dict  # Page connection graph {from: [(to, subtask_name), ...]}
+    subtask_graph: Dict  # Subtask Transition Graph {from: [(to, subtask_name), ...]}
     back_edges: Dict  # Back action edges {from: [to, ...]}
     unexplored_subtasks: Dict  # {page: [subtask_info, ...]}
     traversal_path: List  # Current path for backtracking
