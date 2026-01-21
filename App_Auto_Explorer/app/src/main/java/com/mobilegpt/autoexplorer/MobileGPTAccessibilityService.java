@@ -51,6 +51,10 @@ public class MobileGPTAccessibilityService extends AccessibilityService {
     private Runnable screenUpdateTimeoutRunnable;
     private Runnable clickRetryRunnable;
 
+    // External app handling
+    private static final int MAX_EXTERNAL_APP_RETRIES = 3;
+    private int externalAppRetryCount = 0;
+
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
@@ -163,7 +167,65 @@ public class MobileGPTAccessibilityService extends AccessibilityService {
         AccessibilityNodeInfo rootNode = getRootForActiveApp();
         if (rootNode != null) {
             currentScreenXML = AccessibilityNodeInfoDumper.dumpWindow(rootNode, nodeMap, fileDirectory);
+            externalAppRetryCount = 0;  // Reset retry count on success
+        } else {
+            // External app detected - handle transition
+            handleExternalAppTransition();
         }
+    }
+
+    /**
+     * Handle transition to external app (Camera, Photos, etc.)
+     * Notifies server to cleanup subtask data and performs back action to return.
+     */
+    private void handleExternalAppTransition() {
+        String detectedPackage = getCurrentForegroundPackage();
+        Log.w(TAG, "External app detected: " + detectedPackage + " (target: " + finalTargetPackageName + ")");
+
+        // Notify server about external app (server will cleanup subtask data)
+        if (mClient != null && detectedPackage != null) {
+            mExecutorService.execute(() ->
+                mClient.sendExternalApp(detectedPackage, finalTargetPackageName)
+            );
+        }
+
+        // Perform back to return to target app
+        InputDispatcher.performBack(this);
+
+        // Retry with delay
+        externalAppRetryCount++;
+        if (externalAppRetryCount <= MAX_EXTERNAL_APP_RETRIES) {
+            Log.d(TAG, "External app retry " + externalAppRetryCount + "/" + MAX_EXTERNAL_APP_RETRIES);
+            mainThreadHandler.postDelayed(() -> {
+                saveCurrScreenXML();
+                // Only proceed with screenshot if XML was captured successfully
+                if (!currentScreenXML.isEmpty()) {
+                    saveCurrentScreenShot();
+                }
+            }, 500);
+        } else {
+            Log.e(TAG, "Max external app retries exceeded, giving up");
+            externalAppRetryCount = 0;
+        }
+    }
+
+    /**
+     * Get the package name of the current foreground app.
+     * @return Package name or null if not found
+     */
+    private String getCurrentForegroundPackage() {
+        List<AccessibilityWindowInfo> windows = getWindows();
+        for (AccessibilityWindowInfo window : windows) {
+            AccessibilityNodeInfo root = window.getRoot();
+            if (root != null && root.getPackageName() != null) {
+                String pkg = root.getPackageName().toString();
+                // Skip our own app
+                if (!pkg.equals("com.mobilegpt.autoexplorer")) {
+                    return pkg;
+                }
+            }
+        }
+        return null;
     }
 
     private void saveCurrentScreenShot() {

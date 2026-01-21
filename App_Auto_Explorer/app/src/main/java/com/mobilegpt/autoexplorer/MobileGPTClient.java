@@ -3,6 +3,9 @@ package com.mobilegpt.autoexplorer;
 import android.graphics.Bitmap;
 import android.util.Log;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -100,6 +103,35 @@ public class MobileGPTClient {
             }
         } catch (IOException e) {
             Log.e(TAG, "Server offline");
+        }
+    }
+
+    /**
+     * Send external app detection notification to server.
+     * Called when exploration transitions to an external app (Camera, Photos, etc.)
+     *
+     * @param detectedPackage The package name of the detected external app
+     * @param targetPackage   The original target app being explored
+     */
+    public void sendExternalApp(String detectedPackage, String targetPackage) {
+        try {
+            if (socket != null) {
+                dos.writeByte('E');
+
+                JSONObject payload = new JSONObject();
+                payload.put("detected_package", detectedPackage);
+                payload.put("target_package", targetPackage);
+                payload.put("timestamp", System.currentTimeMillis());
+
+                dos.write((payload.toString() + "\n").getBytes(StandardCharsets.UTF_8));
+                dos.flush();
+
+                Log.v(TAG, "External app notification sent: " + detectedPackage);
+            }
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to send external app notification: " + e.getMessage());
+        } catch (JSONException e) {
+            Log.e(TAG, "Failed to create JSON payload: " + e.getMessage());
         }
     }
 

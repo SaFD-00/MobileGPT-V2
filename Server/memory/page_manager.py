@@ -556,3 +556,71 @@ class PageManager:
         end_page = int(last_action.get('end_page', -1))
 
         return end_page
+
+    def delete_subtask_data(self, subtask_name: str, trigger_ui_index: int = -1,
+                            reason: str = "unknown") -> bool:
+        """Delete subtask data from this page's CSV files.
+
+        Performs deletion across:
+        1. available_subtasks.csv - update exploration status to reason
+        2. subtasks.csv - remove the row
+        3. actions.csv - remove related actions
+
+        Args:
+            subtask_name: Name of the subtask to delete
+            trigger_ui_index: UI index that triggers the subtask (-1 to match all)
+            reason: Reason for deletion (stored in exploration field)
+
+        Returns:
+            bool: True if any data was deleted
+        """
+        deleted_any = False
+
+        # === 1. available_subtasks.csv 처리 ===
+        # exploration 필드를 reason으로 업데이트 (행 보존, 재탐색 방지)
+        condition = (self.available_subtask_db['name'] == subtask_name)
+        if trigger_ui_index >= 0:
+            condition = condition & (self.available_subtask_db['trigger_ui_index'] == trigger_ui_index)
+
+        if condition.any():
+            self.available_subtask_db.loc[condition, 'exploration'] = reason
+            self.available_subtask_db.to_csv(self.available_subtask_db_path, index=False)
+            deleted_any = True
+            log(f":::DELETE::: Marked subtask '{subtask_name}' as '{reason}' in available_subtasks.csv")
+
+        # === 2. subtasks.csv 처리 ===
+        subtask_condition = (self.subtask_db['name'] == subtask_name)
+        if trigger_ui_index >= 0:
+            subtask_condition = subtask_condition & (self.subtask_db['trigger_ui_index'] == trigger_ui_index)
+
+        rows_before = len(self.subtask_db)
+        self.subtask_db = self.subtask_db[~subtask_condition]
+        rows_after = len(self.subtask_db)
+
+        if rows_before > rows_after:
+            self.subtask_db.to_csv(self.subtask_db_path, index=False)
+            deleted_any = True
+            log(f":::DELETE::: Deleted {rows_before - rows_after} row(s) from subtasks.csv for '{subtask_name}'")
+
+        # === 3. actions.csv 처리 ===
+        action_condition = (self.action_db['subtask_name'] == subtask_name)
+        if trigger_ui_index >= 0:
+            action_condition = action_condition & (self.action_db['trigger_ui_index'] == trigger_ui_index)
+
+        actions_before = len(self.action_db)
+        self.action_db = self.action_db[~action_condition]
+        actions_after = len(self.action_db)
+
+        if actions_before > actions_after:
+            self.action_db.to_csv(self.action_db_path, index=False)
+            deleted_any = True
+            log(f":::DELETE::: Deleted {actions_before - actions_after} action(s) from actions.csv for '{subtask_name}'")
+
+            # 메모리 내 action_data도 업데이트
+            self.action_data = [
+                action for action in self.action_data
+                if not (action.get('subtask_name') == subtask_name and
+                       (trigger_ui_index < 0 or action.get('trigger_ui_index') == trigger_ui_index))
+            ]
+
+        return deleted_any

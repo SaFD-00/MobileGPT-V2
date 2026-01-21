@@ -50,11 +50,12 @@ Auto-Explore → Plan → Select → Derive → Verify → Recall
 - PROCEED (정상 진행) / SKIP (건너뛰기) / REPLAN (재계획) 결정
 - 최대 5회 재계획으로 강건한 실행
 
-### 4가지 탐색 알고리즘
+### 3가지 탐색 알고리즘
 - **DFS**: 깊이 우선 탐색, 스택 기반
 - **BFS**: 너비 우선 탐색, 큐 기반
-- **GREEDY_BFS**: 최근접 미탐색 subtask로 BFS
-- **GREEDY_DFS**: 최근접 미탐색 subtask로 DFS
+- **GREEDY**: 앱 전체 최단 경로로 가장 가까운 미탐색 subtask 탐색 (권장)
+
+> Note: `GREEDY_BFS`, `GREEDY_DFS`는 deprecated되어 `GREEDY`로 자동 매핑됩니다.
 
 ### Auto-Explore 가드레일
 자동 탐색 중 위험한 액션을 자동으로 필터링:
@@ -140,7 +141,7 @@ export OPENAI_API_KEY="your-api-key"
 학습된 정보를 기반으로 사용자 태스크 실행:
 
 ```bash
-python Server/main.py --mode task --port 12345
+python main.py --mode task --port 12345
 ```
 
 ### Explore 모드 (수동 탐색)
@@ -148,7 +149,7 @@ python Server/main.py --mode task --port 12345
 수동으로 UI를 탐색하며 학습:
 
 ```bash
-python Server/main.py --mode explore --port 12345
+python main.py --mode explore --port 12345
 ```
 
 ### Auto-Explore 모드 (자동 학습)
@@ -157,13 +158,13 @@ python Server/main.py --mode explore --port 12345
 
 ```bash
 # DFS 알고리즘
-python Server/main.py --mode auto_explore --algorithm DFS --port 12345
+python main.py --mode auto_explore --algorithm DFS --port 12345
 
 # BFS 알고리즘
-python Server/main.py --mode auto_explore --algorithm BFS --port 12345
+python main.py --mode auto_explore --algorithm BFS --port 12345
 
-# GREEDY (최근접 미탐색)
-python Server/main.py --mode auto_explore --algorithm GREEDY_BFS --port 12345
+# GREEDY (최근접 미탐색, 권장)
+python main.py --mode auto_explore --algorithm GREEDY --port 12345
 ```
 
 ---

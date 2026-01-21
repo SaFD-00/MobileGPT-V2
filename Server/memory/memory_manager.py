@@ -203,6 +203,90 @@ class Memory:
             self._save_subtask_graph()
             log(f"Added STG edge: {from_page} -> {to_page} via '{subtask_name}'")
 
+    def delete_subtask(self, page_index: int, subtask_name: str,
+                       trigger_ui_index: int = -1, reason: str = "unknown") -> bool:
+        """Delete a subtask from memory due to external app transition or failure.
+
+        This method performs coordinated deletion across:
+        1. PageManager CSV files (available_subtasks, subtasks, actions)
+        2. STG transitions
+
+        Args:
+            page_index: Page index where the subtask exists
+            subtask_name: Name of the subtask to delete
+            trigger_ui_index: UI index that triggers the subtask (-1 to match all)
+            reason: Reason for deletion ("external_app", "failure", etc.)
+
+        Returns:
+            bool: True if deletion was successful
+        """
+        log(f":::DELETE::: Deleting subtask '{subtask_name}' from page {page_index} "
+            f"(trigger_ui={trigger_ui_index}, reason={reason})", "yellow")
+
+        try:
+            # 1. PageManager를 통해 CSV 데이터 삭제/업데이트
+            if page_index not in self.page_managers:
+                self.init_page_manager(page_index)
+
+            page_manager = self.page_managers.get(page_index)
+            if page_manager:
+                page_manager.delete_subtask_data(
+                    subtask_name=subtask_name,
+                    trigger_ui_index=trigger_ui_index,
+                    reason=reason
+                )
+
+            # 2. STG에서 관련 엣지 삭제
+            self.remove_transition(
+                from_page=page_index,
+                subtask_name=subtask_name,
+                trigger_ui_index=trigger_ui_index
+            )
+
+            log(f":::DELETE::: Successfully deleted subtask '{subtask_name}' from page {page_index}", "green")
+            return True
+
+        except Exception as e:
+            log(f":::DELETE::: Failed to delete subtask: {str(e)}", "red")
+            return False
+
+    def remove_transition(self, from_page: int, subtask_name: str,
+                          trigger_ui_index: int = -1) -> bool:
+        """Remove transition edge(s) from STG.
+
+        Args:
+            from_page: Source page index
+            subtask_name: Name of the subtask
+            trigger_ui_index: UI index (-1 to remove all edges with matching subtask)
+
+        Returns:
+            bool: True if any edges were removed
+        """
+        edges_before = len(self.subtask_graph.get("edges", []))
+
+        # 조건에 맞는 엣지 필터링하여 제거
+        def should_keep(edge: dict) -> bool:
+            if edge["from_page"] != from_page:
+                return True
+            if edge["subtask"] != subtask_name:
+                return True
+            if trigger_ui_index >= 0 and edge.get("trigger_ui_index", -1) != trigger_ui_index:
+                return True
+            return False  # 조건에 맞으면 제거
+
+        self.subtask_graph["edges"] = [
+            edge for edge in self.subtask_graph.get("edges", [])
+            if should_keep(edge)
+        ]
+
+        edges_removed = edges_before - len(self.subtask_graph.get("edges", []))
+
+        if edges_removed > 0:
+            self._save_subtask_graph()
+            log(f":::DELETE::: Removed {edges_removed} edge(s) from STG for subtask '{subtask_name}' at page {from_page}")
+
+        return edges_removed > 0
+
     def get_path_to_page(self, from_page: int, to_page: int) -> Optional[List[dict]]:
         """Find shortest path between pages using BFS.
 

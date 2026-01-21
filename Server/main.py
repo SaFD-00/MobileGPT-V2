@@ -45,9 +45,9 @@ def main():
     )
     parser.add_argument(
         '--algorithm',
-        choices=['DFS', 'BFS', 'GREEDY_BFS', 'GREEDY_DFS'],
-        default='GREEDY_BFS',
-        help='Exploration algorithm for auto_explore mode (default: GREEDY_BFS)'
+        choices=['DFS', 'BFS', 'GREEDY', 'GREEDY_BFS', 'GREEDY_DFS'],
+        default='GREEDY',
+        help='Exploration algorithm for auto_explore mode (default: GREEDY). GREEDY_BFS/GREEDY_DFS are deprecated.'
     )
     parser.add_argument(
         '--port',
@@ -78,8 +78,8 @@ def main():
         # Exploration algorithm (all use LangGraph):
         # - DFS: Depth-first search, explores one path fully then backtracks
         # - BFS: Breadth-first search, explores all UI at same level first
-        # - GREEDY_BFS: BFS to nearest unexplored subtask (shortest path)
-        # - GREEDY_DFS: DFS to deepest unexplored subtask (depth priority)
+        # - GREEDY: App-wide shortest path to nearest unexplored (recommended)
+        # - GREEDY_BFS/GREEDY_DFS: Deprecated, mapped to GREEDY
         auto_explorer = AutoExplorer(
             host=server_ip,
             port=server_port,

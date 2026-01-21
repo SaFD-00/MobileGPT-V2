@@ -16,6 +16,7 @@ from handlers.message_handlers import (
     handle_app_list,
     handle_package_name,
     handle_screenshot,
+    handle_external_app,
 )
 from memory.memory_manager import Memory
 from screenParser.Encoder import xmlEncoder
@@ -177,6 +178,11 @@ class AutoExplorer:
                     log_directory, screen_count
                 )
                 log("Screenshot saved successfully", "green")
+
+            elif message_type == MessageType.EXTERNAL_APP:
+                external_info = handle_external_app(client_socket)
+                if external_info and session_id and memory:
+                    self._handle_external_app_cleanup(memory, session_id, external_info)
 
             elif message_type == MessageType.FINISH:
                 self._handle_finish(client_socket, screens)
@@ -362,3 +368,51 @@ class AutoExplorer:
             "screens_explored": len(screens)
         }
         send_json_response(client_socket, finish_message)
+
+    def _handle_external_app_cleanup(
+        self,
+        memory: Memory,
+        session_id: str,
+        external_info: dict
+    ) -> None:
+        """Cleanup subtask data when external app is detected.
+
+        When the client detects a transition to an external app (e.g., Camera,
+        Photos), this method removes the subtask that triggered the transition
+        from all CSV files and the STG.
+
+        Args:
+            memory: Memory manager instance
+            session_id: Current session ID
+            external_info: Dict with detected_package, target_package, timestamp
+        """
+        state = self._sessions.get(session_id, {})
+        page_idx = state.get("last_explored_page_index")
+        subtask = state.get("last_explored_subtask_name")
+        ui_idx = state.get("last_explored_ui_index")
+
+        detected_pkg = external_info.get("detected_package", "unknown")
+        target_pkg = external_info.get("target_package", "unknown")
+
+        log(f":::EXTERNAL_APP::: Detected '{detected_pkg}' while exploring '{target_pkg}'", "yellow")
+
+        if page_idx is None or subtask is None:
+            log(":::EXTERNAL_APP::: No last explored subtask to cleanup", "yellow")
+            return
+
+        log(f":::EXTERNAL_APP::: Cleaning up subtask '{subtask}' (page={page_idx}, ui_idx={ui_idx})", "yellow")
+
+        # Delete subtask from CSV files and STG
+        memory.delete_subtask(
+            page_index=page_idx,
+            subtask_name=subtask,
+            trigger_ui_index=ui_idx if ui_idx is not None else -1,
+            reason="external_app"
+        )
+
+        # Clear last explored info from session state
+        self._sessions[session_id]["last_explored_page_index"] = None
+        self._sessions[session_id]["last_explored_subtask_name"] = None
+        self._sessions[session_id]["last_explored_ui_index"] = None
+
+        log(f":::EXTERNAL_APP::: Cleanup complete for subtask '{subtask}'", "green")

@@ -15,6 +15,7 @@ class MessageType:
     XML = 'X'
     SCREENSHOT = 'S'
     FINISH = 'F'
+    EXTERNAL_APP = 'E'
 
 
 def handle_app_list(client_socket, app_agent) -> List[str]:
@@ -128,3 +129,32 @@ def handle_xml_message(
 
     parsed_xml, hierarchy_xml, encoded_xml = screen_parser.encode(raw_xml, screen_count)
     return raw_xml, parsed_xml, hierarchy_xml, encoded_xml
+
+
+def handle_external_app(client_socket) -> dict:
+    """Handle external app detection message (type 'E').
+
+    Called when the Android client detects transition to an external app
+    (e.g., Camera, Photos) while exploring the target app.
+
+    Args:
+        client_socket: Connected client socket
+
+    Returns:
+        Dict with external app info: {detected_package, target_package, timestamp}
+    """
+    import json
+
+    payload_str = recv_text_line(client_socket)
+    log(f":::EXTERNAL_APP::: Detected: {payload_str}", "yellow")
+
+    try:
+        payload = json.loads(payload_str)
+        return {
+            "detected_package": payload.get("detected_package", ""),
+            "target_package": payload.get("target_package", ""),
+            "timestamp": payload.get("timestamp", 0)
+        }
+    except json.JSONDecodeError:
+        log(":::EXTERNAL_APP::: Failed to parse payload", "red")
+        return {}
