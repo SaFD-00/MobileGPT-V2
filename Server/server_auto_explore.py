@@ -180,7 +180,6 @@ class AutoExplorer:
                 # 세션에 스크린샷 경로 저장 (Vision API용)
                 if session_id and session_id in self._sessions:
                     self._sessions[session_id]["last_screenshot_path"] = screenshot_path
-                log(f"Screenshot saved: {screenshot_path}", "green")
 
             elif message_type == MessageType.EXTERNAL_APP:
                 external_info = handle_external_app(client_socket)
