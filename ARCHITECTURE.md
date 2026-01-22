@@ -125,6 +125,63 @@ Auto-Explore → Plan → Select → Derive → Verify → Recall
 - `Server/agents/explore_agent.py` (필터링 로직)
 - `Server/agents/prompts/explore_agent_prompt.py` (LLM 프롬프트)
 
+#### Vision API 통합 (Screenshot Input)
+
+**목적**: 스크린샷 이미지를 LLM에 함께 전달하여 UI 인식 정확도 향상
+
+**적용 에이전트**:
+
+| 에이전트 | 스크린샷 활용 | 효과 |
+|---------|-------------|------|
+| **ExploreAgent** | subtask 추출 시 | 시각적 UI 요소/레이아웃 인식 향상 |
+| **SelectAgent** | subtask 선택 시 | 시각적 컨텍스트 기반 판단 향상 |
+| **DeriveAgent** | 액션 도출 시 | UI 요소 위치/힌트 인식 향상 |
+
+**구현 방식**: Chat Completions API Vision 형식
+
+```python
+# 기존 (텍스트 전용)
+{"role": "user", "content": "텍스트 내용"}
+
+# Vision API (이미지 포함)
+{"role": "user", "content": [
+    {"type": "text", "text": "텍스트 내용"},
+    {"type": "image_url", "image_url": {
+        "url": "data:image/jpeg;base64,{base64_data}",
+        "detail": "high"  # low/high/auto
+    }}
+]}
+```
+
+**핵심 함수** (`Server/utils/utils.py`):
+
+| 함수 | 설명 |
+|------|------|
+| `encode_image_to_base64()` | 이미지 파일을 Base64로 인코딩 |
+| `_add_image_to_messages()` | 마지막 user 메시지에 이미지 추가 |
+| `query_with_vision()` | Vision API 지원 query 함수 (하위 호환) |
+
+**데이터 흐름**:
+
+```
+Client                              Server
+  │                                   │
+  ├──[S] Screenshot──────────────────►│  (세션에 경로 저장)
+  │                                   │
+  ├──[X] UI XML──────────────────────►│
+  │                                   │
+  │         ┌─────────────────────────┤
+  │         │ LangGraph Exploration   │
+  │         │ ┌─────────────────────┐ │
+  │         │ │ discover_node()     │ │
+  │         │ │   └► explore()      │ │
+  │         │ │       + screenshot  │ │
+  │         │ └─────────────────────┘ │
+  │         └─────────────────────────┤
+  │                                   │
+  │◄──────────────────── Action JSON──┤
+```
+
 ---
 
 ### 2.2 Plan (경로 계획) - UICompass

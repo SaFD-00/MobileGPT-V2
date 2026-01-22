@@ -3,7 +3,7 @@ import os
 
 from agents.prompts import select_agent_prompt
 from memory.memory_manager import Memory
-from utils.utils import query, log, parse_completion_rate
+from utils.utils import query, query_with_vision, log, parse_completion_rate
 
 
 class SelectAgent:
@@ -15,16 +15,30 @@ class SelectAgent:
         self.memory = memory
         self.instruction = instruction
 
-    def select(self, available_subtasks: list, subtask_history: list, qa_history: list, screen: str) -> (dict, dict):
+    def select(self, available_subtasks: list, subtask_history: list, qa_history: list,
+               screen: str, screenshot_path: str = None) -> (dict, dict):
         """
         주어진 옵션 중 최적의 서브태스크 선택
+        Args:
+            available_subtasks: 사용 가능한 서브태스크 목록
+            subtask_history: 서브태스크 실행 히스토리
+            qa_history: Q&A 히스토리
+            screen: 현재 화면 XML
+            screenshot_path: 스크린샷 파일 경로 (Vision API용)
         Returns:
             response: 선택 결과 응답
             new_action: 새로 생성된 액션 (있을 경우)
         """
         log(f":::SELECT:::", "blue")
-        select_prompts = select_agent_prompt.get_prompts(self.instruction, available_subtasks, subtask_history, qa_history, screen)
-        response = query(select_prompts, model=os.getenv("SELECT_AGENT_GPT_VERSION"))
+        has_screenshot = screenshot_path is not None
+        select_prompts = select_agent_prompt.get_prompts(
+            self.instruction, available_subtasks, subtask_history,
+            qa_history, screen, has_screenshot=has_screenshot
+        )
+        response = query_with_vision(
+            select_prompts, model=os.getenv("SELECT_AGENT_GPT_VERSION"),
+            screenshot_path=screenshot_path
+        )
         # 유효한 응답이 나올 때까지 재시도
         while not self.__check_response_validity(response, available_subtasks):
             assistant_msg = {"role": "assistant", "content": json.dumps(response)}

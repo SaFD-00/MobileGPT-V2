@@ -67,6 +67,19 @@ Auto-Explore → Plan → Select → Derive → Verify → Recall
 | `system` | 시스템 변경 | 앱 설치/제거, 설정 변경 |
 | `data` | 비가역적 데이터 | 삭제, 초기화, 포맷 |
 
+### Vision API 통합 (Screenshot Input)
+스크린샷 이미지를 함께 분석하여 UI 인식 정확도 향상:
+
+| 에이전트 | 활용 | 효과 |
+|---------|------|------|
+| **ExploreAgent** | subtask 추출 | 시각적 UI 요소 인식 향상 |
+| **SelectAgent** | subtask 선택 | 시각적 컨텍스트 판단 향상 |
+| **DeriveAgent** | 액션 도출 | UI 요소 위치/힌트 인식 향상 |
+
+- GPT-5.2 Vision 기능 활용 (Chat Completions API)
+- 스크린샷은 선택적 (없으면 텍스트 전용으로 동작)
+- Base64 인코딩으로 이미지 전달
+
 ---
 
 ## 시스템 아키텍처 개요
@@ -176,11 +189,11 @@ python main.py --mode auto_explore --algorithm GREEDY --port 12345
 `Server/main.py`에서 각 에이전트의 LLM 모델 설정:
 
 ```python
-os.environ["TASK_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
-os.environ["EXPLORE_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
-os.environ["PLANNER_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
-os.environ["VERIFY_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
-os.environ["SELECT_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
+os.environ["TASK_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["EXPLORE_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["PLANNER_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["VERIFY_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["SELECT_AGENT_GPT_VERSION"] = "gpt-5.2"
 ```
 
 ### 네트워크 설정

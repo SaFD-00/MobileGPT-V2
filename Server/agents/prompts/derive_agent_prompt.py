@@ -98,7 +98,7 @@ def get_sys_prompt():
     return sys_msg
 
 
-def get_usr_prompt(instruction, subtask, history, screen, examples):
+def get_usr_prompt(instruction, subtask, history, screen, examples, has_screenshot=False):
     if len(history) == 0:
         numbered_history = "0. No event yet.\n"
     else:
@@ -138,6 +138,13 @@ def get_usr_prompt(instruction, subtask, history, screen, examples):
     if isinstance(subtask, dict) and subtask.get("guideline"):
         guideline_info = f"Guideline: {subtask.get('guideline')}\n"
 
+    screenshot_hint = ""
+    if has_screenshot:
+        screenshot_hint = (
+            "\n[A screenshot of the current screen is also provided for visual reference. "
+            "Use the visual layout to better identify UI elements and their positions.]\n"
+        )
+
     usr_msg += (
         f"User's final goal (instruction): {instruction}\n"
         "(Only complete the below subtask given to you. You can ignore parameters with unknown values. But Do not proceed further steps)\n"
@@ -150,7 +157,8 @@ def get_usr_prompt(instruction, subtask, history, screen, examples):
         f"'''\n\n"
 
         "HTML code of the current app screen delimited by <screen> </screen>:\n"
-        f"<screen>{screen}</screen>\n\n"
+        f"<screen>{screen}</screen>\n"
+        f"{screenshot_hint}\n"
 
         "Response:\n"
     )
@@ -158,9 +166,10 @@ def get_usr_prompt(instruction, subtask, history, screen, examples):
     return usr_msg
 
 
-def get_prompts(instruction: str, subtask: dict, history: list, screen: str, examples: list):
+def get_prompts(instruction: str, subtask: dict, history: list, screen: str,
+                examples: list, has_screenshot: bool = False):
     sys_msg = get_sys_prompt()
-    usr_msg = get_usr_prompt(instruction, subtask, history, screen, examples)
+    usr_msg = get_usr_prompt(instruction, subtask, history, screen, examples, has_screenshot)
     messages = [{"role": "system", "content": sys_msg},
                 {"role": "user", "content": usr_msg}]
     return messages

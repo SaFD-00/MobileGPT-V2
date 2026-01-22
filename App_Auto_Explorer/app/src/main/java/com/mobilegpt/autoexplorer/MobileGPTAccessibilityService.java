@@ -33,6 +33,14 @@ import com.mobilegpt.autoexplorer.response.GPTMessage;
 
 public class MobileGPTAccessibilityService extends AccessibilityService {
     private static final String TAG = "MobileGPT_Service";
+
+    // Excluded packages (MobileGPT apps that should not be considered as top window)
+    private static final String[] EXCLUDED_PACKAGES = {
+        "com.mobilegpt.autoexplorer",  // App_Auto_Explorer
+        "com.example.MobileGPT",        // App
+        "com.example.hardcode"          // App_Explorer
+    };
+
     private MobileGPTClient mClient;
     public FloatingButtonManager mFloatingButtonManager;
     private HashMap<Integer, AccessibilityNodeInfo> nodeMap;
@@ -51,9 +59,8 @@ public class MobileGPTAccessibilityService extends AccessibilityService {
     private Runnable screenUpdateTimeoutRunnable;
     private Runnable clickRetryRunnable;
 
-    // External app handling
-    private static final int MAX_EXTERNAL_APP_RETRIES = 3;
-    private int externalAppRetryCount = 0;
+    // Current top window package (updated in saveCurrScreenXML)
+    private String currentTopPackage = null;
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
@@ -115,18 +122,47 @@ public class MobileGPTAccessibilityService extends AccessibilityService {
         };
     }
 
-    private AccessibilityNodeInfo getRootForActiveApp() {
+    /**
+     * Check if a package is a MobileGPT app (should be excluded from top window).
+     */
+    private boolean isMobileGPTPackage(String packageName) {
+        if (packageName == null) return false;
+        for (String excluded : EXCLUDED_PACKAGES) {
+            if (packageName.equals(excluded)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Get the top interactable window's root, excluding MobileGPT apps and system UI.
+     * Returns the first application window, which may be an overlay or external app.
+     */
+    private AccessibilityNodeInfo getTopInteractableRoot() {
         List<AccessibilityWindowInfo> windows = getWindows();
 
         for (AccessibilityWindowInfo window : windows) {
+            // Only consider application windows (skip SystemUI, IME, etc.)
+            if (window.getType() != AccessibilityWindowInfo.TYPE_APPLICATION) {
+                continue;
+            }
+
             AccessibilityNodeInfo root = window.getRoot();
-            if (root != null) {
-                if (root.getPackageName().equals(finalTargetPackageName)) {
-                    return root;
-                }
+            if (root == null) continue;
+
+            CharSequence pkgName = root.getPackageName();
+            if (pkgName == null) continue;
+
+            String pkg = pkgName.toString();
+
+            if (!isMobileGPTPackage(pkg)) {
+                Log.d(TAG, "Top interactable window: " + pkg + " (type: APPLICATION)");
+                return root;
             }
         }
-        Log.d(TAG, "No appropriate root found in this screen");
+
+        Log.d(TAG, "No interactable window found");
         return null;
     }
 
@@ -164,68 +200,22 @@ public class MobileGPTAccessibilityService extends AccessibilityService {
     private void saveCurrScreenXML() {
         nodeMap = new HashMap<>();
         Log.d(TAG, "Node map renewed");
-        AccessibilityNodeInfo rootNode = getRootForActiveApp();
-        if (rootNode != null) {
-            currentScreenXML = AccessibilityNodeInfoDumper.dumpWindow(rootNode, nodeMap, fileDirectory);
-            externalAppRetryCount = 0;  // Reset retry count on success
-        } else {
-            // External app detected - handle transition
-            handleExternalAppTransition();
-        }
-    }
 
-    /**
-     * Handle transition to external app (Camera, Photos, etc.)
-     * Notifies server to cleanup subtask data and performs back action to return.
-     */
-    private void handleExternalAppTransition() {
-        String detectedPackage = getCurrentForegroundPackage();
-        Log.w(TAG, "External app detected: " + detectedPackage + " (target: " + finalTargetPackageName + ")");
+        AccessibilityNodeInfo topRoot = getTopInteractableRoot();
 
-        // Notify server about external app (server will cleanup subtask data)
-        if (mClient != null && detectedPackage != null) {
-            mExecutorService.execute(() ->
-                mClient.sendExternalApp(detectedPackage, finalTargetPackageName)
-            );
+        if (topRoot == null) {
+            Log.e(TAG, "No interactable window found");
+            currentScreenXML = "";
+            currentTopPackage = null;
+            return;
         }
 
-        // Perform back to return to target app
-        InputDispatcher.performBack(this);
+        currentTopPackage = topRoot.getPackageName().toString();
+        Log.d(TAG, "Top: " + currentTopPackage + ", Target: " + finalTargetPackageName);
 
-        // Retry with delay
-        externalAppRetryCount++;
-        if (externalAppRetryCount <= MAX_EXTERNAL_APP_RETRIES) {
-            Log.d(TAG, "External app retry " + externalAppRetryCount + "/" + MAX_EXTERNAL_APP_RETRIES);
-            mainThreadHandler.postDelayed(() -> {
-                saveCurrScreenXML();
-                // Only proceed with screenshot if XML was captured successfully
-                if (!currentScreenXML.isEmpty()) {
-                    saveCurrentScreenShot();
-                }
-            }, 500);
-        } else {
-            Log.e(TAG, "Max external app retries exceeded, giving up");
-            externalAppRetryCount = 0;
-        }
-    }
-
-    /**
-     * Get the package name of the current foreground app.
-     * @return Package name or null if not found
-     */
-    private String getCurrentForegroundPackage() {
-        List<AccessibilityWindowInfo> windows = getWindows();
-        for (AccessibilityWindowInfo window : windows) {
-            AccessibilityNodeInfo root = window.getRoot();
-            if (root != null && root.getPackageName() != null) {
-                String pkg = root.getPackageName().toString();
-                // Skip our own app
-                if (!pkg.equals("com.mobilegpt.autoexplorer")) {
-                    return pkg;
-                }
-            }
-        }
-        return null;
+        currentScreenXML = AccessibilityNodeInfoDumper.dumpWindow(
+            topRoot, nodeMap, fileDirectory
+        );
     }
 
     private void saveCurrentScreenShot() {
@@ -247,7 +237,11 @@ public class MobileGPTAccessibilityService extends AccessibilityService {
 
     private void sendScreen() {
         mExecutorService.execute(() -> mClient.sendScreenshot(currentScreenShot));
-        mExecutorService.execute(() -> mClient.sendXML(currentScreenXML));
+        mExecutorService.execute(() -> mClient.sendXMLWithPackage(
+            currentScreenXML,
+            currentTopPackage != null ? currentTopPackage : "",
+            finalTargetPackageName != null ? finalTargetPackageName : ""
+        ));
     }
 
     @Override
@@ -293,7 +287,11 @@ public class MobileGPTAccessibilityService extends AccessibilityService {
             String action = gptMessage.getActionName();
             JSONObject args = gptMessage.getArgs();
 
-            if (action.equals("back")) {
+            if (action.equals("retry")) {
+                Log.d(TAG, "Retry requested, recapturing after delay");
+                mainThreadHandler.postDelayed(() -> autoCapture(), 500);
+                return;
+            } else if (action.equals("back")) {
                 Log.d(TAG, "Performing back action");
                 InputDispatcher.performBack(this);
                 screenNeedUpdate = true;

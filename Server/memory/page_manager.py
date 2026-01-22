@@ -398,32 +398,64 @@ class PageManager:
         """
         if example is None:
             example = {}
-        new_action_db = {
-            "subtask_name": subtask_name,
-            "trigger_ui_index": trigger_ui_index,
-            'step': step,
-            "start_page": start_page,
-            "end_page": end_page,
-            "action": json.dumps(action),
-            "example": json.dumps(example)
-        }
 
-        # CSV 파일에 기록
-        self.action_db = pd.concat([self.action_db, pd.DataFrame([new_action_db])], ignore_index=True)
-        self.action_db.to_csv(self.action_db_path, index=False)
+        # 동일한 (subtask_name, trigger_ui_index, step) 존재 여부 확인
+        existing_mask = (
+            (self.action_db['subtask_name'] == subtask_name) &
+            (self.action_db['trigger_ui_index'] == trigger_ui_index) &
+            (self.action_db['step'] == step)
+        )
 
-        # 액션 데이터에 추가
+        action_json = json.dumps(action)
+        example_json = json.dumps(example)
+
+        if existing_mask.any():
+            # 기존 행 업데이트 (더 상세한 정보로 덮어쓰기)
+            self.action_db.loc[existing_mask, 'action'] = action_json
+            self.action_db.loc[existing_mask, 'example'] = example_json
+            if start_page != -1:
+                self.action_db.loc[existing_mask, 'start_page'] = start_page
+            if end_page != -1:
+                self.action_db.loc[existing_mask, 'end_page'] = end_page
+            self.action_db.to_csv(self.action_db_path, index=False)
+        else:
+            # 새 행 추가
+            new_action_db = {
+                "subtask_name": subtask_name,
+                "trigger_ui_index": trigger_ui_index,
+                'step': step,
+                "start_page": start_page,
+                "end_page": end_page,
+                "action": action_json,
+                "example": example_json
+            }
+            self.action_db = pd.concat([self.action_db, pd.DataFrame([new_action_db])], ignore_index=True)
+            self.action_db.to_csv(self.action_db_path, index=False)
+
+        # 액션 데이터에 추가/업데이트
+        existing_idx = None
+        for i, existing_action in enumerate(self.action_data):
+            if (existing_action['subtask_name'] == subtask_name and
+                existing_action['trigger_ui_index'] == trigger_ui_index and
+                existing_action['step'] == step):
+                existing_idx = i
+                break
+
         new_action_data = {
             "subtask_name": subtask_name,
             "trigger_ui_index": trigger_ui_index,
             'step': step,
-            "start_page": start_page,
-            "end_page": end_page,
-            "action": json.dumps(action),
-            "example": json.dumps(example),
+            "start_page": start_page if start_page != -1 else (self.action_data[existing_idx]['start_page'] if existing_idx is not None else start_page),
+            "end_page": end_page if end_page != -1 else (self.action_data[existing_idx]['end_page'] if existing_idx is not None else end_page),
+            "action": action_json,
+            "example": example_json,
             "traversed": True
         }
-        self.action_data.append(new_action_data)
+
+        if existing_idx is not None:
+            self.action_data[existing_idx] = new_action_data
+        else:
+            self.action_data.append(new_action_data)
 
     def update_end_page(self, subtask_name: str, trigger_ui_index: int, end_page: int) -> bool:
         """서브태스크와 마지막 액션의 end_page를 업데이트

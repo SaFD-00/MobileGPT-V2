@@ -26,6 +26,7 @@ def discover_node(state: ExploreState) -> dict:
     current_xml = state["current_xml"]
     hierarchy_xml = state.get("hierarchy_xml", "")
     encoded_xml = state.get("encoded_xml", "")
+    screenshot_path = state.get("screenshot_path")  # Vision API용
     visited_pages = state.get("visited_pages", set())
     last_action_was_back = state.get("last_action_was_back", False)
 
@@ -46,7 +47,8 @@ def discover_node(state: ExploreState) -> dict:
         log(f":::DISCOVER::: No matching page found (similarity: {similarity}), exploring new screen", "yellow")
 
         explore_result = explore_agent.explore(
-            encoded_xml, hierarchy_xml, current_xml
+            encoded_xml, hierarchy_xml, current_xml,
+            screenshot_path=screenshot_path  # Vision API 활용
         )
 
         # Re-search after exploration

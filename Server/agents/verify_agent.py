@@ -71,7 +71,7 @@ def verify_path(
         next_subtasks=next_subtasks
     )
 
-    model = os.getenv("VERIFY_AGENT_GPT_VERSION", os.getenv("SELECT_AGENT_GPT_VERSION", "gpt-5.2-chat-latest"))
+    model = os.getenv("VERIFY_AGENT_GPT_VERSION", os.getenv("SELECT_AGENT_GPT_VERSION", "gpt-5.2"))
     response = query(verify_prompts, model=model)
 
     should_proceed = response.get("should_proceed", True)

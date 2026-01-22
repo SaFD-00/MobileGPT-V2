@@ -18,21 +18,21 @@ load_dotenv()
 # ============================================================================
 # Supported models:
 #   - gpt-5.2            : GPT-5.2 Thinking (reasoning model, complex tasks)
-#   - gpt-5.2-chat-latest: GPT-5.2 Instant (fast chat, optimized for speed)
+#   - gpt-5.2-mini       : GPT-5.2 Mini (fast chat, optimized for speed)
 # ============================================================================
 
 # Agent-specific model configuration
-os.environ["TASK_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
-os.environ["APP_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
-os.environ["SELECT_AGENT_HISTORY_GPT_VERSION"] = "gpt-5.2-chat-latest"
-os.environ["EXPLORE_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
-os.environ["SELECT_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
-os.environ["DERIVE_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
-os.environ["PARAMETER_FILLER_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
-os.environ["ACTION_SUMMARIZE_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
-os.environ["SUBTASK_MERGE_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
-os.environ["GUIDELINE_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
-os.environ["VERIFY_AGENT_GPT_VERSION"] = "gpt-5.2-chat-latest"
+os.environ["TASK_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["APP_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["SELECT_AGENT_HISTORY_GPT_VERSION"] = "gpt-5.2"
+os.environ["EXPLORE_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["SELECT_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["DERIVE_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["PARAMETER_FILLER_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["ACTION_SUMMARIZE_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["SUBTASK_MERGE_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["GUIDELINE_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["VERIFY_AGENT_GPT_VERSION"] = "gpt-5.2"
 
 
 def main():

@@ -5,7 +5,7 @@ from agents.prompts import subtask_extraction_prompt
 from agents.prompts import trigger_ui_selection_prompt
 from memory.memory_manager import Memory
 from utils.parsing_utils import get_trigger_ui_attributes, get_extra_ui_attributes
-from utils.utils import query, log
+from utils.utils import query, query_with_vision, log
 
 import xml.etree.ElementTree as ET
 
@@ -20,7 +20,8 @@ class ExploreAgent:
     def __init__(self, memory: Memory):
         self.memory = memory
 
-    def explore(self, parsed_xml, hierarchy_xml, html_xml, screen_num=None) -> int:
+    def explore(self, parsed_xml, hierarchy_xml, html_xml,
+                screen_num=None, screenshot_path=None) -> int:
         """
         주어진 화면 XML을 분석하여 새로운 노드 생성
         Args:
@@ -28,19 +29,26 @@ class ExploreAgent:
             hierarchy_xml: 계층 구조 XML
             html_xml: HTML 형식 XML
             screen_num: 화면 번호
+            screenshot_path: 스크린샷 파일 경로 (Vision API용)
         Returns:
             생성된 노드의 인덱스
         """
 
         log(f":::EXPLORE:::", "blue")
-        model = os.getenv("EXPLORE_AGENT_GPT_VERSION", "gpt-5.2-chat-latest")
+        model = os.getenv("EXPLORE_AGENT_GPT_VERSION", "gpt-5.2")
+        has_screenshot = screenshot_path is not None
 
         # ============================================
-        # Step 1: Subtask 추출 (triggerUI 없이)
+        # Step 1: Subtask 추출 (Vision API 활용)
         # ============================================
         log(f":::EXPLORE STEP 1::: Extracting high-level subtasks", "cyan")
-        subtask_prompts = subtask_extraction_prompt.get_prompts(html_xml)
-        subtasks_raw = query(subtask_prompts, model=model, is_list=True)
+        subtask_prompts = subtask_extraction_prompt.get_prompts(
+            html_xml, has_screenshot=has_screenshot
+        )
+        subtasks_raw = query_with_vision(
+            subtask_prompts, model=model,
+            screenshot_path=screenshot_path, is_list=True
+        )
 
         # 타입 검증 - 리스트가 아닌 경우 빈 리스트로 초기화
         if not isinstance(subtasks_raw, list):
@@ -72,11 +80,16 @@ class ExploreAgent:
             return new_node_index
 
         # ============================================
-        # Step 2: TriggerUI 선택 (각 subtask당 1개)
+        # Step 2: TriggerUI 선택 (Vision API 활용)
         # ============================================
         log(f":::EXPLORE STEP 2::: Selecting trigger UIs for {len(safe_subtasks)} subtasks", "cyan")
-        trigger_prompts = trigger_ui_selection_prompt.get_prompts(html_xml, safe_subtasks)
-        trigger_ui_mapping = query(trigger_prompts, model=model, is_list=False)
+        trigger_prompts = trigger_ui_selection_prompt.get_prompts(
+            html_xml, safe_subtasks, has_screenshot=has_screenshot
+        )
+        trigger_ui_mapping = query_with_vision(
+            trigger_prompts, model=model,
+            screenshot_path=screenshot_path, is_list=False
+        )
 
         # trigger_ui_mapping 검증
         if not isinstance(trigger_ui_mapping, dict):

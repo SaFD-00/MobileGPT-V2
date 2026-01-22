@@ -20,7 +20,7 @@ from handlers.message_handlers import (
 )
 from memory.memory_manager import Memory
 from screenParser.Encoder import xmlEncoder
-from utils.network import get_local_ip, recv_xml, send_json_response
+from utils.network import get_local_ip, recv_xml, recv_xml_with_package, send_json_response
 from utils.utils import log
 
 
@@ -173,11 +173,14 @@ class AutoExplorer:
 
             elif message_type == MessageType.SCREENSHOT:
                 log(f"Receiving screenshot for screen #{screen_count}", "blue")
-                handle_screenshot(
+                screenshot_path = handle_screenshot(
                     client_socket, self.buffer_size,
                     log_directory, screen_count
                 )
-                log("Screenshot saved successfully", "green")
+                # 세션에 스크린샷 경로 저장 (Vision API용)
+                if session_id and session_id in self._sessions:
+                    self._sessions[session_id]["last_screenshot_path"] = screenshot_path
+                log(f"Screenshot saved: {screenshot_path}", "green")
 
             elif message_type == MessageType.EXTERNAL_APP:
                 external_info = handle_external_app(client_socket)
@@ -255,7 +258,36 @@ class AutoExplorer:
         try:
             log(f"Receiving XML for screen #{screen_count}", "blue")
             xml_path = f"{log_directory}/xmls/{screen_count}.xml"
-            raw_xml = recv_xml(client_socket, self.buffer_size, xml_path)
+            raw_xml, top_package, target_package = recv_xml_with_package(
+                client_socket, self.buffer_size, xml_path
+            )
+            log(f"XML received - top: {top_package}, target: {target_package}", "blue")
+
+            # Handle empty top_package (no application window found - transition state)
+            if not top_package or not raw_xml.strip():
+                log(":::TRANSITION::: No application window found, requesting retry", "yellow")
+                send_json_response(client_socket, {"name": "retry", "parameters": {}})
+                return screen_count
+
+            # Handle package mismatch (overlay or external app)
+            if top_package and target_package and top_package != target_package:
+                log(f":::OTHER_APP::: Detected '{top_package}' instead of '{target_package}'", "yellow")
+
+                # Record external app subtask
+                state = self._sessions.get(session_id, {})
+                last_page = state.get("last_explored_page_index")
+                last_subtask = state.get("last_explored_subtask_name")
+                last_ui = state.get("last_explored_ui_index")
+
+                if last_page is not None and last_subtask and last_ui is not None:
+                    self._record_external_app_subtask(
+                        memory, last_page, last_subtask, last_ui, top_package
+                    )
+
+                # Send back action to return to target app
+                send_json_response(client_socket, {"name": "back", "parameters": {}})
+                return screen_count
+
             log("XML received, parsing...", "blue")
 
             parsed_xml, hierarchy_xml, encoded_xml = screen_parser.encode(
@@ -279,6 +311,12 @@ class AutoExplorer:
             log("Starting LangGraph exploration...", "cyan")
             log(f":::DEBUG::: prev_state explored_subtasks = {prev_state.get('explored_subtasks', {})}", "yellow")
             log(f":::DEBUG::: prev_state visited_pages = {prev_state.get('visited_pages', set())}", "yellow")
+
+            # Vision API용 스크린샷 경로 가져오기
+            screenshot_path = prev_state.get("last_screenshot_path")
+            if screenshot_path:
+                log(f":::VISION::: Using screenshot: {screenshot_path}", "magenta")
+
             result = self._explore_graph.invoke({
                 "session_id": session_id,
                 "app_name": app_name,
@@ -286,6 +324,7 @@ class AutoExplorer:
                 "current_xml": parsed_xml,
                 "hierarchy_xml": hierarchy_xml,
                 "encoded_xml": encoded_xml,
+                "screenshot_path": screenshot_path,  # Vision API용 스크린샷 경로
                 "memory": memory,
                 "explore_agent": explore_agent,
                 # Load persisted state from session (or use defaults)
@@ -368,6 +407,66 @@ class AutoExplorer:
             "screens_explored": len(screens)
         }
         send_json_response(client_socket, finish_message)
+
+    def _record_external_app_subtask(
+        self,
+        memory: Memory,
+        page_index: int,
+        subtask_name: str,
+        trigger_ui_index: int,
+        external_package: str
+    ) -> None:
+        """Record external app transition as a subtask.
+
+        - subtasks.csv: end_page=-1, guideline=EXTERNAL_APP: {pkg}
+        - actions.csv: click + immediate finish
+
+        Args:
+            memory: Memory manager instance
+            page_index: Page where the subtask was triggered
+            subtask_name: Name of the subtask
+            trigger_ui_index: UI element index that triggered the transition
+            external_package: Package name of the external app
+        """
+        log(f"Recording external app subtask: {subtask_name} -> {external_package}", "yellow")
+
+        if page_index not in memory.page_managers:
+            memory.init_page_manager(page_index)
+
+        page_manager = memory.page_managers.get(page_index)
+        if not page_manager:
+            log(f"Failed to get page manager for page {page_index}", "red")
+            return
+
+        # Record to subtasks.csv with end_page=-1
+        subtask_data = {
+            'name': subtask_name,
+            'description': f'Opens external app ({external_package})',
+            'parameters': {}
+        }
+        guideline = f'EXTERNAL_APP: {external_package}'
+
+        page_manager.save_subtask(
+            subtask_data, {}, guideline,
+            trigger_ui_index=trigger_ui_index,
+            start_page=page_index,
+            end_page=-1
+        )
+
+        # Add finish action to actions.csv (step 1)
+        finish_action = {
+            "name": "finish",
+            "parameters": {
+                "reason": "external_app",
+                "package": external_package
+            }
+        }
+        page_manager.save_action(
+            subtask_name, trigger_ui_index, 1, finish_action, {},
+            start_page=-1, end_page=-1
+        )
+
+        log(f"External app subtask recorded: {subtask_name}", "green")
 
     def _handle_external_app_cleanup(
         self,

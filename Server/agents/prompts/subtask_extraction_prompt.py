@@ -85,10 +85,18 @@ def get_sys_prompt():
     return sys_msg
 
 
-def get_usr_prompt(screen):
+def get_usr_prompt(screen, has_screenshot=False):
+    screenshot_hint = ""
+    if has_screenshot:
+        screenshot_hint = (
+            "\n[A screenshot of the current screen is also provided for visual reference. "
+            "Use both the HTML structure and the visual context to identify subtasks more accurately.]\n"
+        )
+
     usr_msg = (
         "HTML code of the current app screen delimited by <screen></screen>:\n"
-        f"<screen>{screen}</screen>\n\n"
+        f"<screen>{screen}</screen>\n"
+        f"{screenshot_hint}\n"
         "List the high-level subtasks (user goals) that can be performed on this screen.\n"
         "Remember: Do NOT include simple click/tap actions. Focus on meaningful user goals.\n\n"
         "Response:\n"
@@ -96,9 +104,9 @@ def get_usr_prompt(screen):
     return usr_msg
 
 
-def get_prompts(screen: str):
+def get_prompts(screen: str, has_screenshot: bool = False):
     sys_msg = get_sys_prompt()
-    usr_msg = get_usr_prompt(screen)
+    usr_msg = get_usr_prompt(screen, has_screenshot)
     messages = [
         {"role": "system", "content": sys_msg},
         {"role": "user", "content": usr_msg}

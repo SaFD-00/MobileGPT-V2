@@ -21,7 +21,7 @@ def summarize_guideline(subtask: dict, action_history: list) -> str:
         return ""
 
     prompts = guideline_agent_prompt.get_prompts(subtask, action_history)
-    response = query(prompts, model=os.getenv("GUIDELINE_AGENT_GPT_VERSION", "gpt-5.2-chat-latest"))
+    response = query(prompts, model=os.getenv("GUIDELINE_AGENT_GPT_VERSION", "gpt-5.2"))
 
     # response가 문자열인지 확인하고 반환
     if isinstance(response, str):

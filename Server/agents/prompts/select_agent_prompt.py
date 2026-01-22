@@ -78,7 +78,7 @@ def get_sys_prompt(available_subtasks):
     return sys_msg
 
 
-def get_usr_prompt(instruction, subtask_history, qa_history, screen):
+def get_usr_prompt(instruction, subtask_history, qa_history, screen, has_screenshot=False):
     if len(subtask_history) == 0:
         numbered_subtask_history = "0. No event yet.\n"
     else:
@@ -88,6 +88,13 @@ def get_usr_prompt(instruction, subtask_history, qa_history, screen):
         numbered_qa_history = "No QA at this point."
     else:
         numbered_qa_history = generate_numbered_list(qa_history)
+
+    screenshot_hint = ""
+    if has_screenshot:
+        screenshot_hint = (
+            "\n[A screenshot of the current screen is also provided for visual reference. "
+            "Use the visual context to better understand the current app state and available options.]\n"
+        )
 
     usr_msg = (
         f"User's Request: {instruction}\n\n"
@@ -102,7 +109,8 @@ def get_usr_prompt(instruction, subtask_history, qa_history, screen):
         f"{numbered_subtask_history}'''\n\n"
 
         "HTML code of the current app screen delimited by <screen> </screen>:\n"
-        f"<screen>{screen}</screen>\n\n"
+        f"<screen>{screen}</screen>\n"
+        f"{screenshot_hint}\n"
 
         "Constructively self-evaluate how close you are to completing the request. "
         "If past events indicate that the user's request has been accomplished, You must select the 'finish' action. Do not proceed further steps.\n\n"
@@ -112,9 +120,10 @@ def get_usr_prompt(instruction, subtask_history, qa_history, screen):
     return usr_msg
 
 
-def get_prompts(instruction: str, available_subtasks: list, subtask_history: list, qa_history: list, screen: str):
+def get_prompts(instruction: str, available_subtasks: list, subtask_history: list,
+                qa_history: list, screen: str, has_screenshot: bool = False):
     sys_msg = get_sys_prompt(available_subtasks)
-    usr_msg = get_usr_prompt(instruction, subtask_history, qa_history, screen)
+    usr_msg = get_usr_prompt(instruction, subtask_history, qa_history, screen, has_screenshot)
     messages = [{"role": "system", "content": sys_msg},
                 {"role": "user", "content": usr_msg}]
     return messages

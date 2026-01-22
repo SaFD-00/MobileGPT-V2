@@ -1,11 +1,13 @@
 import os, csv, re
+import base64
+import copy
 import numpy as np
 import json
 import pandas as pd
 
 from termcolor import colored
 from openai import OpenAI
-from typing import List
+from typing import List, Optional
 from ast import literal_eval
 
 
@@ -56,12 +58,12 @@ def generate_numbered_list(data: list) -> str:
 
 
 def _is_fixed_temperature_model(model: str) -> bool:
-    """Check if the model doesn't support temperature parameter (o1, o3, gpt-5.2 series)."""
+    """Check if the model doesn't support temperature parameter (gpt-5.2 series)."""
     model_lower = model.lower()
-    return model_lower.startswith(('o1', 'o3', 'gpt-5.2'))
+    return model_lower.startswith(('gpt-5.2'))
 
 
-def query(messages, model="gpt-5.2-chat-latest", is_list=False):
+def query(messages, model="gpt-5.2", is_list=False):
     client = OpenAI()
 
     for message in messages:
@@ -75,14 +77,14 @@ def query(messages, model="gpt-5.2-chat-latest", is_list=False):
         response = client.chat.completions.create(
             model=model,
             messages=messages,
-            max_completion_tokens=2000,
+            max_completion_tokens=4096,
         )
     else:
         response = client.chat.completions.create(
             model=model,
             messages=messages,
             temperature=0,
-            max_completion_tokens=2000,
+            max_completion_tokens=4096,
         )
     result = response.choices[0].message.content
     log(result, 'green')
@@ -95,6 +97,69 @@ def query(messages, model="gpt-5.2-chat-latest", is_list=False):
         if result:
             log(f":::QUERY WARNING::: Response preview: {result[:200]}...", "yellow")
         return [] if is_list else {}
+
+
+def encode_image_to_base64(image_path: str) -> str:
+    """이미지 파일을 Base64로 인코딩"""
+    with open(image_path, "rb") as image_file:
+        return base64.standard_b64encode(image_file.read()).decode("utf-8")
+
+
+def _add_image_to_messages(messages: list, image_path: str,
+                           detail: str = "high") -> list:
+    """마지막 user 메시지에 이미지 추가
+
+    Chat Completions API Vision 형식:
+    {"type": "text", "text": "..."}
+    {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,..."}}
+    """
+    new_messages = copy.deepcopy(messages)
+
+    # 마지막 user 메시지 찾기
+    for i in range(len(new_messages) - 1, -1, -1):
+        if new_messages[i]["role"] == "user":
+            content = new_messages[i]["content"]
+
+            # 이미지 Base64 인코딩
+            base64_image = encode_image_to_base64(image_path)
+
+            # Vision API 형식으로 변환
+            if isinstance(content, str):
+                new_messages[i]["content"] = [
+                    {"type": "text", "text": content},
+                    {"type": "image_url", "image_url": {
+                        "url": f"data:image/jpeg;base64,{base64_image}",
+                        "detail": detail
+                    }}
+                ]
+            break
+
+    return new_messages
+
+
+def query_with_vision(messages, model: str = "gpt-5.2",
+                      screenshot_path: Optional[str] = None,
+                      is_list: bool = False,
+                      image_detail: str = "high"):
+    """Vision API를 지원하는 query 함수
+
+    Args:
+        messages: 프롬프트 메시지 리스트
+        model: 사용할 모델명 (default: gpt-5.2)
+        screenshot_path: 스크린샷 파일 경로 (Optional)
+        is_list: 응답이 리스트인지 여부
+        image_detail: 이미지 디테일 레벨 (low/high/auto)
+
+    Returns:
+        파싱된 JSON 응답 (dict 또는 list)
+    """
+    # 스크린샷이 있으면 Vision API 형식으로 변환
+    if screenshot_path and os.path.exists(screenshot_path):
+        log(f":::VISION::: Adding screenshot: {screenshot_path}", "magenta")
+        messages = _add_image_to_messages(messages, screenshot_path, image_detail)
+
+    # 기존 query 로직 사용
+    return query(messages, model=model, is_list=is_list)
 
 
 def parse_completion_rate(completion_rate) -> int:

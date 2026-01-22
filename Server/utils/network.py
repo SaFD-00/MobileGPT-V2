@@ -3,7 +3,7 @@
 import json
 import os
 import socket
-from typing import Optional
+from typing import Optional, Tuple
 
 
 def get_local_ip() -> str:
@@ -81,6 +81,36 @@ def recv_xml(
         f.write(raw_xml)
 
     return raw_xml
+
+
+def recv_xml_with_package(
+    client_socket: socket.socket,
+    buffer_size: int,
+    save_path: str
+) -> Tuple[str, str, str]:
+    """Receive XML with package information.
+
+    Protocol: top_pkg + '\n' + target_pkg + '\n' + size + '\n' + xml
+
+    Args:
+        client_socket: Connected client socket
+        buffer_size: Chunk size for receiving data
+        save_path: Full path to save the XML file
+
+    Returns:
+        Tuple of (raw_xml, top_package, target_package)
+    """
+    top_package = recv_text_line(client_socket)
+    target_package = recv_text_line(client_socket)
+
+    raw_data = recv_binary_file(client_socket, buffer_size)
+    raw_xml = raw_data.decode().strip().replace('class=""', 'class="unknown"')
+
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    with open(save_path, 'w', encoding='utf-8') as f:
+        f.write(raw_xml)
+
+    return raw_xml, top_package, target_package
 
 
 def save_screenshot(

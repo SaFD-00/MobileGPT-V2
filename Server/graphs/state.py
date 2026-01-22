@@ -124,6 +124,7 @@ class ExploreState(TypedDict, total=False):
     hierarchy_xml: str
     encoded_xml: str
     page_index: int
+    screenshot_path: Optional[str]  # Vision API용 스크린샷 경로
 
     # Exploration state (persisted across invocations via MemorySaver)
     visited_pages: Set[int]  # page indices

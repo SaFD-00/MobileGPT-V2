@@ -22,5 +22,5 @@ def parm_fill_subtask(instruction: str, subtask: dict, qa_history: list, screen:
     if len(example) > 0:
      response = query(prompts, model=os.getenv("PARAMETER_FILLER_AGENT_GPT_VERSION"))
     else:
-        response = query(prompts, model="gpt-5.2-chat-latest")
+        response = query(prompts, model="gpt-5.2")
     return response

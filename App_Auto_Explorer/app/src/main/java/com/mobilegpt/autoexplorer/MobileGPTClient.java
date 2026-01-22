@@ -3,9 +3,6 @@ package com.mobilegpt.autoexplorer;
 import android.graphics.Bitmap;
 import android.util.Log;
 
-import org.json.JSONException;
-import org.json.JSONObject;
-
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -107,31 +104,33 @@ public class MobileGPTClient {
     }
 
     /**
-     * Send external app detection notification to server.
-     * Called when exploration transitions to an external app (Camera, Photos, etc.)
+     * Send XML with package information.
      *
-     * @param detectedPackage The package name of the detected external app
-     * @param targetPackage   The original target app being explored
+     * Protocol: 'X' + top_pkg + '\n' + target_pkg + '\n' + size + '\n' + xml
+     *
+     * @param xml           XML content
+     * @param topPackage    Package name of the top interactable window
+     * @param targetPackage Original target package being explored
      */
-    public void sendExternalApp(String detectedPackage, String targetPackage) {
+    public void sendXMLWithPackage(String xml, String topPackage, String targetPackage) {
         try {
             if (socket != null) {
-                dos.writeByte('E');
+                dos.writeByte('X');
 
-                JSONObject payload = new JSONObject();
-                payload.put("detected_package", detectedPackage);
-                payload.put("target_package", targetPackage);
-                payload.put("timestamp", System.currentTimeMillis());
+                // Package information
+                dos.write((topPackage + "\n").getBytes(StandardCharsets.UTF_8));
+                dos.write((targetPackage + "\n").getBytes(StandardCharsets.UTF_8));
 
-                dos.write((payload.toString() + "\n").getBytes(StandardCharsets.UTF_8));
+                // XML data
+                byte[] xmlBytes = xml.getBytes(StandardCharsets.UTF_8);
+                dos.write((xmlBytes.length + "\n").getBytes(StandardCharsets.UTF_8));
+                dos.write(xmlBytes);
                 dos.flush();
 
-                Log.v(TAG, "External app notification sent: " + detectedPackage);
+                Log.v(TAG, "XML sent - top: " + topPackage + ", target: " + targetPackage);
             }
         } catch (IOException e) {
-            Log.e(TAG, "Failed to send external app notification: " + e.getMessage());
-        } catch (JSONException e) {
-            Log.e(TAG, "Failed to create JSON payload: " + e.getMessage());
+            Log.e(TAG, "Failed to send XML", e);
         }
     }
 

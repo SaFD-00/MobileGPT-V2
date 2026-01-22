@@ -5,7 +5,7 @@ from copy import deepcopy
 from agents import action_summarize_agent, guideline_agent
 from agents.prompts import derive_agent_prompt
 from memory.memory_manager import Memory
-from utils.utils import query, log, parse_completion_rate
+from utils.utils import query, query_with_vision, log, parse_completion_rate
 from utils import action_utils, parsing_utils
 
 
@@ -28,9 +28,13 @@ class DeriveAgent:
         self.subtask_history = subtask_history
         self.action_history = []
 
-    def derive(self, screen: str, examples=None) -> (dict, dict):
+    def derive(self, screen: str, examples=None, screenshot_path: str = None) -> (dict, dict):
         """
         현재 화면 상태에서 서브태스크를 수행할 구체적 액션 도출
+        Args:
+            screen: 현재 화면 XML
+            examples: 학습용 예시 데이터
+            screenshot_path: 스크린샷 파일 경로 (Vision API용)
         Returns:
             action: 실행할 액션 정보
             example: 학습용 예시 데이터
@@ -38,9 +42,16 @@ class DeriveAgent:
         if examples is None:
             examples = []
 
-        derive_prompt = derive_agent_prompt.get_prompts(self.instruction, self.subtask,
-                                                        self.subtask_history + self.action_history, screen, examples)
-        response = query(derive_prompt, model=os.getenv("DERIVE_AGENT_GPT_VERSION"))
+        has_screenshot = screenshot_path is not None
+        derive_prompt = derive_agent_prompt.get_prompts(
+            self.instruction, self.subtask,
+            self.subtask_history + self.action_history, screen, examples,
+            has_screenshot=has_screenshot
+        )
+        response = query_with_vision(
+            derive_prompt, model=os.getenv("DERIVE_AGENT_GPT_VERSION"),
+            screenshot_path=screenshot_path
+        )
         response['completion_rate'] = parse_completion_rate(response['completion_rate'])
         self.response_history.append(response)
 

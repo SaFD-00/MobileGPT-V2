@@ -46,7 +46,7 @@ def get_sys_prompt():
     return sys_msg
 
 
-def get_usr_prompt(screen: str, subtasks: list):
+def get_usr_prompt(screen: str, subtasks: list, has_screenshot: bool = False):
     # subtask 이름과 설명만 추출하여 전달
     subtask_info = []
     for st in subtasks:
@@ -57,9 +57,17 @@ def get_usr_prompt(screen: str, subtasks: list):
         }
         subtask_info.append(info)
 
+    screenshot_hint = ""
+    if has_screenshot:
+        screenshot_hint = (
+            "\n[A screenshot of the current screen is also provided for visual reference. "
+            "Use the visual layout to better identify which UI element best triggers each subtask.]\n"
+        )
+
     usr_msg = (
         "HTML code of the current app screen:\n"
-        f"<screen>{screen}</screen>\n\n"
+        f"<screen>{screen}</screen>\n"
+        f"{screenshot_hint}\n"
         "Subtasks to map:\n"
         f"<subtasks>{json.dumps(subtask_info, indent=2)}</subtasks>\n\n"
         "For each subtask, select the SINGLE BEST trigger UI element (by index attribute).\n"
@@ -69,9 +77,9 @@ def get_usr_prompt(screen: str, subtasks: list):
     return usr_msg
 
 
-def get_prompts(screen: str, subtasks: list):
+def get_prompts(screen: str, subtasks: list, has_screenshot: bool = False):
     sys_msg = get_sys_prompt()
-    usr_msg = get_usr_prompt(screen, subtasks)
+    usr_msg = get_usr_prompt(screen, subtasks, has_screenshot)
     messages = [
         {"role": "system", "content": sys_msg},
         {"role": "user", "content": usr_msg}
