@@ -56,31 +56,20 @@ MobileGPT-V2 follows these core principles:
 4. **Adaptive Execution**: Verification-driven replanning for robust task completion
 5. **Safety-First Exploration**: Built-in guardrails prevent dangerous actions
 
-### 1.3 Comparison with Mobile-Agent-v3
-
-| Component | Mobile-Agent-v3 | MobileGPT-V2 |
-|-----------|-----------------|--------------|
-| **Core Model** | GUI-Owl (Qwen2.5-VL) | GPT-5.2 + LangGraph |
-| **Architecture** | End-to-end multimodal | Multi-agent pipeline |
-| **Learning** | Manual/Pre-defined | **Auto-Explore (DFS/BFS/GREEDY)** |
-| **Knowledge** | Implicit | **Explicit STG** |
-| **Planning** | Single-pass | **UICompass with BFS** |
-| **Verification** | Reflection agent | **PROCEED/SKIP/REPLAN decisions** |
-
 ---
 
 ## 2. Multi-Agent Framework
 
 ### 2.1 Agent Definitions
 
-| Agent | Mobile-Agent-v3 Role | Input | Output | Key Function |
-|-------|---------------------|-------|--------|--------------|
-| **ExploreAgent** | Perception + Grounding | XML, Screenshot | Subtasks, TriggerUIs | `explore()` |
-| **PlannerAgent** | Planning | Instruction, STG | planned_path | `plan()` |
-| **SelectAgent** | Reasoning | available_subtasks | selected_subtask | `select()` |
-| **DeriveAgent** | Action | subtask, XML | Action JSON | `derive()` |
-| **VerifyAgent** | Reflection | expected_page, current_page | Decision | `verify()` |
-| **MemoryManager** | Memory | XML | page_index, subtasks | `search_node()` |
+| Agent | Input | Output | Key Function |
+|-------|-------|--------|--------------|
+| **ExploreAgent** | XML, Screenshot | Subtasks, TriggerUIs | `explore()` |
+| **PlannerAgent** | Instruction, STG | planned_path | `plan()` |
+| **SelectAgent** | available_subtasks | selected_subtask | `select()` |
+| **DeriveAgent** | subtask, XML | Action JSON | `derive()` |
+| **VerifyAgent** | expected_page, current_page | Decision | `verify()` |
+| **MemoryManager** | XML | page_index, subtasks | `search_node()` |
 
 ### 2.2 Inter-Agent Communication
 
@@ -852,6 +841,5 @@ class ExploreState(TypedDict, total=False):
 ## 11. References
 
 - **LangGraph**: https://github.com/langchain-ai/langgraph
-- **Mobile-Agent-v3**: GUI-Owl based multi-agent mobile automation
 - **MobileGPT**: Original LLM-based mobile automation research
 - **Android Accessibility**: https://developer.android.com/guide/topics/ui/accessibility

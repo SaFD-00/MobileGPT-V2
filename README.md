@@ -12,18 +12,7 @@ MobileGPT-V2 is an intelligent automation system that performs complex tasks on 
 
 The system leverages LLM-based multi-agent coordination through LangGraph workflows, enabling sophisticated task planning, execution, and adaptive replanning capabilities.
 
-### 1.2 Relation to Mobile-Agent-v3
-
-MobileGPT-V2 shares conceptual foundations with the Mobile-Agent-v3 framework, which utilizes GUI-Owl for end-to-end multimodal perception, grounding, reasoning, planning, and action generation. The key distinction lies in our approach:
-
-| Aspect | Mobile-Agent-v3 | MobileGPT-V2 |
-|--------|-----------------|--------------|
-| **Learning** | Manual annotation | **Autonomous exploration** |
-| **Knowledge Base** | Pre-defined | **Self-constructed STG** |
-| **Exploration** | N/A | **DFS / BFS / GREEDY algorithms** |
-| **Architecture** | End-to-end model | **Multi-agent pipeline** |
-
-### 1.3 Key Contributions
+### 1.2 Key Contributions
 
 1. **Auto-Explore Module**: Autonomous UI exploration with three configurable algorithms (DFS, BFS, GREEDY)
 2. **Subtask Transition Graph (STG)**: Explicit graph-based representation of app navigation structure
@@ -75,7 +64,7 @@ MobileGPT-V2 employs a collaborative multi-agent architecture where specialized 
 
 ### 2.2 Auto-Explore Module (Unique Contribution)
 
-The Auto-Explore module is MobileGPT-V2's distinctive feature that enables **autonomous app structure learning** without manual intervention. Unlike Mobile-Agent-v3 which requires pre-defined knowledge, our system automatically:
+The Auto-Explore module is MobileGPT-V2's distinctive feature that enables **autonomous app structure learning** without manual intervention. The system automatically:
 
 1. **Discovers** new screens and extracts available subtasks
 2. **Explores** each subtask systematically using configurable algorithms
@@ -111,16 +100,16 @@ Auto-Explore → Plan → Select → Derive → Verify → Recall
 
 ## 3. Agents & Roles
 
-Each agent in MobileGPT-V2 corresponds to specific functional modules in the Mobile-Agent-v3 conceptual framework:
+MobileGPT-V2 employs specialized agents for different aspects of task execution:
 
-| Agent | Mobile-Agent-v3 Mapping | Responsibility |
-|-------|------------------------|----------------|
-| **ExploreAgent** | Perception + Grounding | UI recognition, subtask extraction, element localization |
-| **PlannerAgent** | Planning | Goal analysis, BFS path planning, route optimization |
-| **SelectAgent** | Reasoning | Subtask selection, context-aware decision making |
-| **DeriveAgent** | Action | Action parameterization, UI element targeting |
-| **VerifyAgent** | Reflection | Execution verification, PROCEED/SKIP/REPLAN decisions |
-| **MemoryManager** | Memory | STG management, page matching, knowledge persistence |
+| Agent | Responsibility |
+|-------|----------------|
+| **ExploreAgent** | UI recognition, subtask extraction, element localization |
+| **PlannerAgent** | Goal analysis, BFS path planning, route optimization |
+| **SelectAgent** | Subtask selection, context-aware decision making |
+| **DeriveAgent** | Action parameterization, UI element targeting |
+| **VerifyAgent** | Execution verification, PROCEED/SKIP/REPLAN decisions |
+| **MemoryManager** | STG management, page matching, knowledge persistence |
 
 ---
 
@@ -250,7 +239,6 @@ If you use MobileGPT-V2 in your research, please cite:
 
 ## 9. Related Work
 
-- **Mobile-Agent-v3**: GUI-Owl based multi-agent framework for mobile task automation
 - **MobileGPT**: Original research on LLM-based mobile automation
 - **LangGraph**: Framework for building stateful, multi-actor applications with LLMs
 
