@@ -1,359 +1,126 @@
-# MobileGPT-V2 아키텍처
+# MobileGPT-V2 Architecture
 
-## 1. 시스템 개요
-
-### 1.1 고수준 아키텍처 다이어그램
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                            MobileGPT-V2                                 │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  ┌───────────────────────────────────────┐                              │
-│  │           Python Server               │                              │
-│  │  ┌─────────────────────────────────┐  │         TCP Socket           │
-│  │  │      LangGraph Pipeline         │  │       ┌─────────────┐        │
-│  │  │  ┌───────────────────────────┐  │  │       │             │        │
-│  │  │  │  Task Graph (6-step)      │  │  │◄─────►│   Android   │        │
-│  │  │  │  supervisor → memory →    │  │  │ XML   │   Client    │        │
-│  │  │  │  planner → selector →     │  │  │ JSON  │             │        │
-│  │  │  │  verifier → deriver       │  │  │ Image │             │        │
-│  │  │  └───────────────────────────┘  │  │       │             │        │
-│  │  │  ┌───────────────────────────┐  │  │       │  ┌───────┐  │        │
-│  │  │  │  Explore Graph            │  │  │       │  │Access-│  │        │
-│  │  │  │  supervisor → discover →  │  │  │       │  │ibility│  │        │
-│  │  │  │  explore_action           │  │  │       │  │Service│  │        │
-│  │  │  └───────────────────────────┘  │  │       │  └───────┘  │        │
-│  │  └─────────────────────────────────┘  │       │             │        │
-│  │                                       │       │  ┌───────┐  │        │
-│  │  ┌─────────────────────────────────┐  │       │  │ Input │  │        │
-│  │  │       Memory Manager            │  │       │  │Dispatch│ │        │
-│  │  │  ┌───────┐ ┌───────┐ ┌───────┐  │  │       │  └───────┘  │        │
-│  │  │  │ STG   │ │ Pages │ │Subtask│  │  │       │             │        │
-│  │  │  │.json  │ │ .csv  │ │ .csv  │  │  │       └─────────────┘        │
-│  │  │  └───────┘ └───────┘ └───────┘  │  │                              │
-│  │  └─────────────────────────────────┘  │                              │
-│  └───────────────────────────────────────┘                              │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-### 1.2 6단계 핵심 프로세스
-
-```
-Auto-Explore → Plan → Select → Derive → Verify → Recall
-```
-
-| 단계 | 노드 | 에이전트 | 역할 |
-|------|------|---------|------|
-| **Auto-Explore** | discover_node, explore_action_node | ExploreAgent | UI 자동 탐색 및 학습 |
-| **Plan** | planner_node | PlannerAgent | STG 기반 경로 계획 |
-| **Select** | selector_node | SelectAgent | Subtask 선택 |
-| **Derive** | deriver_node | DeriveAgent | 액션 도출 |
-| **Verify** | verifier_node | VerifyAgent | 결과 검증 및 재계획 |
-| **Recall** | memory_node | - | 메모리에서 정보 로드 |
+A Technical Deep-Dive into the Multi-Agent Mobile Automation Framework
 
 ---
 
-## 2. 6단계 프로세스 상세
+## 1. System Overview
 
-### 2.1 Auto-Explore (탐색 및 학습)
+### 1.1 High-Level Architecture
 
-**목적**: UI 자동 탐색으로 페이지/subtask/액션 학습
+MobileGPT-V2 implements a distributed client-server architecture where:
+- **Python Server**: Hosts LangGraph-based multi-agent pipelines for decision-making
+- **Android Client**: Captures UI state and executes actions via Accessibility Service
 
-**구현 파일**:
-- `Server/graphs/explore_graph.py` - LangGraph 탐색 파이프라인
-- `Server/graphs/nodes/discover_node.py` - 화면 발견 노드
-- `Server/graphs/nodes/explore_action_node.py` - 탐색 액션 노드
-- `Server/agents/explore_agent.py` - 탐색 에이전트
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              MobileGPT-V2                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────────────────────────────────┐     TCP Socket                 │
+│  │           Python Server                 │    ┌─────────────────┐         │
+│  │  ┌───────────────────────────────────┐  │    │                 │         │
+│  │  │        LangGraph Pipeline         │  │    │  Android Client │         │
+│  │  │  ┌─────────────────────────────┐  │  │◄──►│                 │         │
+│  │  │  │     Task Graph (6-step)     │  │  │XML │  ┌───────────┐  │         │
+│  │  │  │  supervisor → memory →      │  │  │JSON│  │Accessibility│ │         │
+│  │  │  │  planner → selector →       │  │  │IMG │  │  Service   │ │         │
+│  │  │  │  verifier → deriver         │  │  │    │  └───────────┘  │         │
+│  │  │  └─────────────────────────────┘  │  │    │                 │         │
+│  │  │  ┌─────────────────────────────┐  │  │    │  ┌───────────┐  │         │
+│  │  │  │     Explore Graph           │  │  │    │  │  Input    │  │         │
+│  │  │  │  supervisor → discover →    │  │  │    │  │ Dispatcher│  │         │
+│  │  │  │  explore_action             │  │  │    │  └───────────┘  │         │
+│  │  │  └─────────────────────────────┘  │  │    │                 │         │
+│  │  └───────────────────────────────────┘  │    └─────────────────┘         │
+│  │                                         │                                │
+│  │  ┌───────────────────────────────────┐  │                                │
+│  │  │        Memory Manager             │  │                                │
+│  │  │  ┌─────────┐ ┌───────┐ ┌───────┐  │  │                                │
+│  │  │  │  STG    │ │ Pages │ │Subtask│  │  │                                │
+│  │  │  │  .json  │ │ .csv  │ │ .csv  │  │  │                                │
+│  │  │  └─────────┘ └───────┘ └───────┘  │  │                                │
+│  │  └───────────────────────────────────┘  │                                │
+│  └─────────────────────────────────────────┘                                │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
-**탐색 알고리즘**:
+### 1.2 Design Philosophy
 
-| 알고리즘 | 자료구조 | 특징 |
-|---------|---------|------|
-| **DFS** | 스택 | 깊이 우선, 한 경로를 끝까지 탐색 후 백트래킹 |
-| **BFS** | 큐 | 너비 우선, 현재 레벨의 모든 subtask 탐색 후 다음 레벨 |
-| **GREEDY_BFS** | 큐 + STG | 전체 앱에서 가장 가까운 미탐색 subtask로 이동 |
-| **GREEDY_DFS** | 스택 + STG | 깊이 우선으로 가장 가까운 미탐색 subtask로 이동 |
+MobileGPT-V2 follows these core principles:
 
-**출력 데이터**:
-- `pages.csv` - 페이지 레지스트리
-- `subtasks.csv` - 학습된 subtask
-- `actions.csv` - 액션 시퀀스
-- `subtask_graph.json` - Subtask Transition Graph (STG)
+1. **Modular Agent Design**: Each agent handles a specific aspect of task execution
+2. **Explicit State Management**: LangGraph StateGraph with typed state dictionaries
+3. **Graph-Based Knowledge**: STG enables efficient path planning and reuse
+4. **Adaptive Execution**: Verification-driven replanning for robust task completion
+5. **Safety-First Exploration**: Built-in guardrails prevent dangerous actions
 
-#### OLD MobileGPT vs NEW MobileGPT-V2 비교
+### 1.3 Comparison with Mobile-Agent-v3
 
-| 항목 | OLD MobileGPT | NEW MobileGPT-V2 |
-|------|---------------|------------------|
-| **프레임워크** | 순차적 서버 루프 (소켓 기반) | LangGraph 상태 머신 + MemorySaver |
-| **탐색 흐름** | 선형: Server → ExploreAgent → Memory | 다중 노드: Supervisor → Discover → ExploreAction |
-| **탐색 알고리즘** | 암시적 선형 탐색 | 명시적: DFS, BFS, GREEDY (런타임 선택 가능) |
-| **Page Graph** | 없음 (CSV에 암시적) | **subtask_graph.json (STG)** - 명시적 그래프 |
-| **End-Page 추적** | 수동 | 자동 (`update_end_page()`) |
-| **백트래킹** | 단순 Back 버튼 | 지능형 경로 계획 (BFS) |
-| **상태 지속성** | 연결 해제 시 소실 | MemorySaver로 보존 |
-| **코드 구조** | 단일 ExploreAgent | 모듈형 노드 (Discover/ExploreAction 분리) |
-| **안전 장치** | 없음 | Dangerous subtask 필터링 |
+| Component | Mobile-Agent-v3 | MobileGPT-V2 |
+|-----------|-----------------|--------------|
+| **Core Model** | GUI-Owl (Qwen2.5-VL) | GPT-5.2 + LangGraph |
+| **Architecture** | End-to-end multimodal | Multi-agent pipeline |
+| **Learning** | Manual/Pre-defined | **Auto-Explore (DFS/BFS/GREEDY)** |
+| **Knowledge** | Implicit | **Explicit STG** |
+| **Planning** | Single-pass | **UICompass with BFS** |
+| **Verification** | Reflection agent | **PROCEED/SKIP/REPLAN decisions** |
 
-#### 핵심 개선사항
+---
 
-1. **STG (Page Transition Graph)**: 페이지 간 전이를 명시적 그래프로 관리
-2. **다중 탐색 알고리즘**: DFS(깊이 우선), BFS(너비 우선), GREEDY(최근접 미탐색)
-3. **Subtask 탐색 추적**: `trigger_ui_index`, `start_page`, `end_page`, `exploration` 상태
-4. **지능형 내비게이션**: STG 기반 최적 경로 탐색으로 효율적 백트래킹
+## 2. Multi-Agent Framework
 
-#### Auto-Explore 가드레일 (Safety Guardrails)
+### 2.1 Agent Definitions
 
-**목적**: 자동 탐색 중 위험한 액션 자동 필터링으로 안전한 탐색 보장
+| Agent | Mobile-Agent-v3 Role | Input | Output | Key Function |
+|-------|---------------------|-------|--------|--------------|
+| **ExploreAgent** | Perception + Grounding | XML, Screenshot | Subtasks, TriggerUIs | `explore()` |
+| **PlannerAgent** | Planning | Instruction, STG | planned_path | `plan()` |
+| **SelectAgent** | Reasoning | available_subtasks | selected_subtask | `select()` |
+| **DeriveAgent** | Action | subtask, XML | Action JSON | `derive()` |
+| **VerifyAgent** | Reflection | expected_page, current_page | Decision | `verify()` |
+| **MemoryManager** | Memory | XML | page_index, subtasks | `search_node()` |
 
-**위험 분류 (danger_reason)**:
+### 2.2 Inter-Agent Communication
 
-| 분류 | 설명 | 예시 |
-|------|------|------|
-| `financial` | 금전 거래 | 주문, 구매, 결제, 구독, 체크아웃 |
-| `account` | 인증/계정 | 로그인, 로그아웃, 회원가입, 계정 삭제, 탈퇴 |
-| `system` | 시스템 변경 | 앱 설치/제거, 설정 변경, 권한 부여, 외부 앱 실행 |
-| `data` | 비가역적 데이터 | 삭제, 초기화, 포맷, 리셋 |
-
-**동작 방식**:
-1. ExploreAgent가 LLM으로 subtask 추출 시 `is_dangerous` 필드 판단
-2. `is_dangerous: true`인 subtask는 탐색 대상에서 자동 제외
-3. 로그에 `:::GUARDRAIL:::` 태그로 필터링된 subtask 기록
-
-**구현 위치**:
-- `Server/agents/explore_agent.py` (필터링 로직)
-- `Server/agents/prompts/explore_agent_prompt.py` (LLM 프롬프트)
-
-#### Vision API 통합 (Screenshot Input)
-
-**목적**: 스크린샷 이미지를 LLM에 함께 전달하여 UI 인식 정확도 향상
-
-**적용 에이전트**:
-
-| 에이전트 | 스크린샷 활용 | 효과 |
-|---------|-------------|------|
-| **ExploreAgent** | subtask 추출 시 | 시각적 UI 요소/레이아웃 인식 향상 |
-| **SelectAgent** | subtask 선택 시 | 시각적 컨텍스트 기반 판단 향상 |
-| **DeriveAgent** | 액션 도출 시 | UI 요소 위치/힌트 인식 향상 |
-
-**구현 방식**: Chat Completions API Vision 형식
+Agents communicate through the shared **StateGraph** managed by LangGraph:
 
 ```python
-# 기존 (텍스트 전용)
-{"role": "user", "content": "텍스트 내용"}
+class TaskState(TypedDict, total=False):
+    # Session
+    session_id: str
+    instruction: str
 
-# Vision API (이미지 포함)
-{"role": "user", "content": [
-    {"type": "text", "text": "텍스트 내용"},
-    {"type": "image_url", "image_url": {
-        "url": "data:image/jpeg;base64,{base64_data}",
-        "detail": "high"  # low/high/auto
-    }}
-]}
+    # Memory
+    memory: Memory
+    page_index: int
+    current_xml: str
+
+    # Subtask tracking
+    selected_subtask: Optional[dict]
+    available_subtasks: List[dict]
+
+    # Path planning (UICompass)
+    planned_path: List[PlannedPathStep]
+    path_step_index: int
+
+    # Adaptive replanning
+    replan_count: int
+    replan_needed: bool
+    max_replan: int  # default: 5
+
+    # Routing
+    next_agent: str
+
+    # Output
+    action: Optional[dict]
+    status: str
 ```
 
-**핵심 함수** (`Server/utils/utils.py`):
+### 2.3 State Management (LangGraph)
 
-| 함수 | 설명 |
-|------|------|
-| `encode_image_to_base64()` | 이미지 파일을 Base64로 인코딩 |
-| `_add_image_to_messages()` | 마지막 user 메시지에 이미지 추가 |
-| `query_with_vision()` | Vision API 지원 query 함수 (하위 호환) |
-
-**데이터 흐름**:
-
-```
-Client                              Server
-  │                                   │
-  ├──[S] Screenshot──────────────────►│  (세션에 경로 저장)
-  │                                   │
-  ├──[X] UI XML──────────────────────►│
-  │                                   │
-  │         ┌─────────────────────────┤
-  │         │ LangGraph Exploration   │
-  │         │ ┌─────────────────────┐ │
-  │         │ │ discover_node()     │ │
-  │         │ │   └► explore()      │ │
-  │         │ │       + screenshot  │ │
-  │         │ └─────────────────────┘ │
-  │         └─────────────────────────┤
-  │                                   │
-  │◄──────────────────── Action JSON──┤
-```
-
----
-
-### 2.2 Plan (경로 계획) - UICompass
-
-**목적**: STG 기반 최적 subtask 경로 계획
-
-**구현 파일**:
-- `Server/graphs/nodes/planner_node.py`
-- `Server/agents/planner_agent.py`
-- `Server/agents/prompts/planner_agent_prompt.py`
-
-**알고리즘**: BFS 최단 경로 탐색
-
-```python
-def plan_path(current_page, subtask_graph, instruction):
-    # 1. LLM으로 목표 subtask 분석
-    goal_analysis = analyze_goal(instruction, all_subtasks)
-
-    # 2. 목표 subtask가 있는 페이지 탐색
-    target_pages = find_target_pages(goal_analysis.target_subtasks)
-
-    # 3. BFS로 최단 경로 탐색
-    best_path = bfs_find_path(current_page, target_pages, subtask_graph)
-
-    # 4. planned_path 생성
-    return build_planned_path(best_path, goal_analysis.final_subtask)
-```
-
-**출력**: `planned_path` (subtask 시퀀스)
-
-```python
-planned_path = [
-    {
-        "page": 0,
-        "subtask": "open_settings",
-        "instruction": "설정 메뉴 열기",
-        "trigger_ui_index": 5,
-        "status": "pending"  # pending | in_progress | completed | skipped
-    },
-    ...
-]
-```
-
-**Fallback**: STG에 경로가 없으면 Select 단계로 직접 이동 (LLM 기반 선택)
-
----
-
-### 2.3 Select (Subtask 선택)
-
-**목적**: 다음 실행할 subtask 결정
-
-**구현 파일**:
-- `Server/graphs/nodes/selector_node.py`
-- `Server/agents/select_agent.py`
-
-**로직**:
-```
-planned_path 존재?
-├── YES → planned_path[path_step_index] 선택
-└── NO → SelectAgent(LLM)로 최적 subtask 선택
-```
-
-**출력**: `selected_subtask`
-
----
-
-### 2.4 Derive (액션 도출)
-
-**목적**: subtask를 구체적 UI 액션으로 변환
-
-**구현 파일**:
-- `Server/graphs/nodes/deriver_node.py`
-- `Server/agents/derive_agent.py`
-
-**출력**: Action JSON
-
-```json
-{
-    "name": "click",
-    "parameters": {
-        "index": 5,
-        "description": "Settings 버튼 클릭"
-    }
-}
-```
-
-**지원 액션**:
-| 액션 | 설명 |
-|------|------|
-| `click` | 단일 탭 |
-| `long-click` | 길게 누르기 (2000ms) |
-| `input` | 텍스트 입력 |
-| `scroll` | 스크롤 (up/down) |
-| `back` | 시스템 뒤로가기 |
-| `home` | 시스템 홈 |
-| `finish` | 세션 종료 |
-
----
-
-### 2.5 Verify (결과 검증) - Adaptive Replanning
-
-**목적**: 액션 결과 검증 및 경로 조정
-
-**구현 파일**:
-- `Server/graphs/nodes/verifier_node.py`
-- `Server/agents/verify_agent.py`
-
-**검증 로직**:
-
-```python
-def verify_with_path(planned_path, step_index, current_page):
-    expected_page = planned_path[step_index]["page"]
-
-    if current_page == expected_page:
-        return "PROCEED"  # 정상 진행
-
-    # 경로상 앞선 페이지로 점프했는지 확인
-    future_pages = [s["page"] for s in planned_path[step_index + 1:]]
-    if current_page in future_pages:
-        return "SKIP", new_step_index  # 건너뛰기
-
-    return "REPLAN"  # 예상과 다른 페이지, 재계획 필요
-```
-
-**결정 유형**:
-
-| 결정 | 조건 | 동작 |
-|------|------|------|
-| **PROCEED** | 예상 페이지 도착 | 다음 단계 진행 |
-| **SKIP** | 경로상 앞선 페이지 | path_step_index 점프 |
-| **REPLAN** | 예상과 다른 페이지 | Plan 단계로 돌아가 재계획 |
-
-**최대 재계획**: 5회 (`max_replan`)
-
----
-
-### 2.6 Recall (메모리 회상)
-
-**목적**: 현재 화면에서 학습된 정보 로드
-
-**구현 파일**:
-- `Server/graphs/nodes/memory_node.py`
-- `Server/memory/memory_manager.py`
-
-**기능**:
-1. **페이지 매칭**: 임베딩 유사도로 현재 화면이 어떤 페이지인지 식별
-2. **available_subtasks 로드**: 현재 페이지에서 사용 가능한 subtask 목록
-3. **STG 로드**: Page Transition Graph 정보 로드
-
-**페이지 매칭 알고리즘**:
-
-```python
-def search_most_similar_hierarchy_node(hierarchy):
-    # 1. 현재 화면의 임베딩 계산
-    embedding = get_openai_embedding(hierarchy)
-
-    # 2. 저장된 임베딩과 코사인 유사도 비교
-    similarity = cosine_similarity(embedding, stored_embeddings)
-
-    # 3. 유사도 0.95 이상이면 매칭
-    if similarity > 0.95:
-        return page_index, similarity
-    return -1, 0.0  # 새 페이지
-```
-
----
-
-## 3. LangGraph 구현
-
-### 3.1 Task Graph (태스크 실행)
-
-**파일**: `Server/graphs/task_graph.py`
+**Task Graph Structure**:
 
 ```
 START
@@ -373,101 +140,158 @@ memory   planner   selector   verifier   deriver → END   │
                       └───────────────────────────────────┘
 ```
 
-**라우팅 로직** (`supervisor_node.py`):
+**Routing Logic** (supervisor_node.py):
 
 ```python
 def route_next_agent(state: TaskState) -> str:
     if state.get("page_index") is None:
-        return "memory"  # Recall 단계
+        return "memory"      # Recall step
 
-    if state.get("planned_path") is None and state.get("available_subtasks"):
-        return "planner"  # Plan 단계
+    if state.get("planned_path") is None:
+        return "planner"     # Plan step
 
     if state.get("replan_needed"):
-        return "planner"  # 재계획
+        return "planner"     # Replan
 
     if state.get("selected_subtask") is None:
-        return "selector"  # Select 단계
+        return "selector"    # Select step
 
     if state.get("verification_passed") is None:
-        return "verifier"  # Verify 단계
+        return "verifier"    # Verify step
 
     if state.get("verification_passed"):
-        return "deriver"  # Derive 단계
+        return "deriver"     # Derive step
 
-    # REPLAN 처리
     if state.get("replan_count", 0) < 5:
-        return "planner"
+        return "planner"     # Retry planning
+
     return "FINISH"
 ```
 
-### 3.2 Explore Graph (자동 탐색)
-
-**파일**: `Server/graphs/explore_graph.py`
-
-```
-START
-  │
-  ▼
-┌─────────────────┐
-│ supervisor      │◄──────────────────────────┐
-└────────┬────────┘                           │
-         │ route_explore()                    │
-    ┌────┴────┐                               │
-    ▼         ▼                               │
-discover   explore_action ───────► FINISH     │
-    │         │                               │
-    └─────────┘                               │
-              │                               │
-              └───────────────────────────────┘
-```
-
-**Discover Node**:
-- 현재 화면이 기존 페이지인지 확인
-- 새 페이지면 ExploreAgent로 subtask 추출
-- `unexplored_subtasks` 초기화
-
-**Explore Action Node**:
-- 알고리즘(DFS/BFS/GREEDY)에 따라 다음 탐색 액션 결정
-- 탐색 완료된 subtask 마킹
-- STG 업데이트
-
 ---
 
-## 4. 메모리 관리
+## 3. Auto-Explore Module
 
-### 4.1 데이터 구조 계층
+### 3.1 Motivation
+
+Traditional mobile automation requires manual annotation of app structures. MobileGPT-V2's Auto-Explore module addresses this by:
+
+1. **Autonomous Discovery**: Automatically identifies screens and available subtasks
+2. **Systematic Coverage**: Explores all reachable UI states using configurable algorithms
+3. **Knowledge Construction**: Builds STG for efficient task execution
+4. **Safety Filtering**: Prevents execution of potentially harmful actions
+
+### 3.2 Exploration Algorithms
+
+#### 3.2.1 DFS (Depth-First Search)
 
 ```
-memory/{app_name}/
-│
-├── pages.csv                    # 페이지 레지스트리
-│   └── index, available_subtasks, trigger_uis, extra_uis, screen
-│
-├── hierarchy.csv                # 화면 임베딩 (페이지 매칭용)
-│   └── index, screen, embedding
-│
-├── tasks.csv                    # 태스크 경로 캐시
-│   └── name, path
-│
-├── subtask_graph.json              # Subtask Transition Graph (STG)
-│   └── {nodes: [int], edges: [SubtaskTransitionEdge]}
-│
-└── pages/{page_index}/          # 페이지별 데이터
-    ├── available_subtasks.csv
-    │   └── name, description, parameters, trigger_ui_index, exploration
-    ├── subtasks.csv             # 학습된 subtask
-    │   └── name, description, guideline, trigger_ui_index,
-    │       start_page, end_page, parameters, example
-    ├── actions.csv              # 액션 시퀀스
-    │   └── subtask_name, trigger_ui_index, step,
-    │       start_page, end_page, action, example
-    └── screen/                  # 스크린샷
+Algorithm DFS_Explore(start_page):
+    stack ← [(start_page, unexplored_subtasks)]
+    visited ← {}
+
+    while stack is not empty:
+        (page, subtasks) ← stack.top()
+
+        if current_page ≠ page:
+            navigate_to(page)  // back action
+            continue
+
+        if subtasks is empty:
+            stack.pop()
+            continue
+
+        subtask ← subtasks.pop()
+        action ← execute(subtask)
+        new_page ← observe_result()
+
+        if new_page not in visited:
+            visited.add(new_page)
+            new_subtasks ← discover(new_page)
+            stack.push((new_page, new_subtasks))
+
+        update_STG(page, new_page, subtask, action)
+
+    return STG
 ```
 
-### 4.2 Subtask Transition Graph (STG)
+**Characteristics**:
+- Stack-based exploration
+- Explores deeply before backtracking
+- Good for apps with deep navigation hierarchies
 
-**구조**:
+#### 3.2.2 BFS (Breadth-First Search)
+
+```
+Algorithm BFS_Explore(start_page):
+    queue ← [(start_page, unexplored_subtasks)]
+    visited ← {}
+
+    while queue is not empty:
+        (page, subtasks) ← queue.dequeue()
+
+        if current_page ≠ page:
+            path ← find_path_to(page)
+            navigate(path)
+            continue
+
+        for subtask in subtasks:
+            action ← execute(subtask)
+            new_page ← observe_result()
+
+            if new_page not in visited:
+                visited.add(new_page)
+                new_subtasks ← discover(new_page)
+                queue.enqueue((new_page, new_subtasks))
+
+            update_STG(page, new_page, subtask, action)
+            navigate_back()
+
+    return STG
+```
+
+**Characteristics**:
+- Queue-based exploration
+- Explores all subtasks at current level first
+- Ensures uniform coverage
+
+#### 3.2.3 GREEDY (Shortest-Path First)
+
+```
+Algorithm GREEDY_Explore(start_page):
+    unexplored ← {start_page: discover(start_page)}
+    visited ← {}
+
+    while unexplored is not empty:
+        (target_page, subtask) ← find_nearest_unexplored()
+
+        if target_page is None:
+            break  // All explored
+
+        path ← BFS_path(current_page, target_page)
+        navigate(path)
+
+        action ← execute(subtask)
+        new_page ← observe_result()
+
+        if new_page not in visited:
+            visited.add(new_page)
+            unexplored[new_page] ← discover(new_page)
+
+        mark_explored(target_page, subtask)
+        update_STG(target_page, new_page, subtask, action)
+
+    return STG
+```
+
+**Characteristics**:
+- Global optimization using BFS path finding
+- Always explores nearest unexplored subtask
+- Most efficient for complete app coverage (recommended)
+
+### 3.3 Subtask Transition Graph (STG)
+
+The STG is the core data structure representing learned app navigation:
 
 ```json
 {
@@ -482,112 +306,325 @@ memory/{app_name}/
         {"name": "click", "parameters": {"index": 5}}
       ],
       "explored": true
+    },
+    {
+      "from_page": 1,
+      "to_page": 2,
+      "subtask": "change_language",
+      "trigger_ui_index": 12,
+      "action_sequence": [
+        {"name": "click", "parameters": {"index": 12}},
+        {"name": "click", "parameters": {"index": 3}}
+      ],
+      "explored": true
     }
   ]
 }
 ```
 
-**주요 메서드** (`memory_manager.py`):
+**Key Operations**:
 
-| 메서드 | 설명 |
-|--------|------|
-| `_load_subtask_graph()` | STG JSON 로드 |
-| `_save_subtask_graph()` | STG JSON 저장 |
-| `add_transition()` | 새 페이지 전이 추가 |
-| `get_path_to_page()` | BFS로 두 페이지 간 최단 경로 |
-| `get_all_available_subtasks()` | 모든 페이지의 subtask 반환 |
+| Operation | Description | Complexity |
+|-----------|-------------|------------|
+| `add_transition()` | Add new edge to STG | O(1) |
+| `get_path_to_page()` | BFS shortest path | O(V + E) |
+| `get_all_subtasks()` | Retrieve all subtasks | O(E) |
+| `mark_explored()` | Update exploration status | O(1) |
 
-### 4.3 페이지 매칭 알고리즘
+### 3.4 Safety Guardrails
 
-화면 XML을 임베딩으로 변환하여 코사인 유사도로 매칭:
+Auto-Explore automatically filters potentially dangerous actions:
+
+| Category | Description | Examples |
+|----------|-------------|----------|
+| `financial` | Monetary transactions | Order, Purchase, Subscribe, Pay |
+| `account` | Authentication/Account | Login, Logout, Delete Account |
+| `system` | System modifications | Install, Uninstall, Reset |
+| `data` | Irreversible data ops | Delete, Format, Clear |
+
+**Classification Process**:
+1. ExploreAgent extracts subtasks with `safe` flag
+2. Unsafe subtasks are logged but not executed
+3. STG edges only created for safe subtasks
+
+---
+
+## 4. Task Execution Pipeline
+
+### 4.1 6-Step Process
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    6-Step Task Pipeline                          │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌──────────┐   ┌──────────┐   ┌──────────┐                     │
+│  │1. RECALL │──►│2. PLAN   │──►│3. SELECT │                     │
+│  │          │   │(UICompass)│   │          │                     │
+│  │ Memory   │   │ BFS Path │   │ Subtask  │                     │
+│  │ Lookup   │   │ Planning │   │ Choice   │                     │
+│  └──────────┘   └──────────┘   └────┬─────┘                     │
+│                                      │                           │
+│                                      ▼                           │
+│  ┌──────────┐   ┌──────────┐   ┌──────────┐                     │
+│  │6. RECALL │◄──│5. VERIFY │◄──│4. DERIVE │                     │
+│  │  (next)  │   │          │   │          │                     │
+│  │          │   │ PROCEED  │   │ Action   │                     │
+│  │          │   │ SKIP     │   │ Generate │                     │
+│  │          │   │ REPLAN   │   │          │                     │
+│  └──────────┘   └──────────┘   └──────────┘                     │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+| Step | Agent | Input | Output |
+|------|-------|-------|--------|
+| **Recall** | MemoryNode | current_xml | page_index, available_subtasks |
+| **Plan** | PlannerAgent | instruction, STG | planned_path |
+| **Select** | SelectAgent | planned_path / available_subtasks | selected_subtask |
+| **Derive** | DeriveAgent | selected_subtask, xml | action JSON |
+| **Verify** | VerifyAgent | expected_page, current_page | decision |
+| **Recall** | MemoryNode | new_xml | updated state |
+
+### 4.2 Adaptive Replanning
+
+The Verify step implements adaptive replanning logic:
 
 ```python
-def search_node(self, xml_hierarchy: str) -> Tuple[int, float]:
-    # 1. XML에서 핵심 요소 추출
-    parsed = parse_xml(xml_hierarchy)
+def verify_with_path(planned_path, step_index, current_page):
+    expected_page = planned_path[step_index]["page"]
 
-    # 2. OpenAI 임베딩 생성
-    embedding = get_embedding(str(parsed))
+    if current_page == expected_page:
+        return "PROCEED"  # Continue to next step
 
-    # 3. 저장된 임베딩과 비교
-    for stored_embedding in self.hierarchy_db:
-        similarity = cosine_similarity(embedding, stored_embedding)
-        if similarity > 0.95:
-            return page_index, similarity
+    # Check if jumped ahead in path
+    future_pages = [s["page"] for s in planned_path[step_index + 1:]]
+    if current_page in future_pages:
+        new_index = find_index(future_pages, current_page)
+        return "SKIP", new_index  # Jump to matching step
 
-    return -1, 0.0  # 새 페이지
+    return "REPLAN"  # Unexpected page, replan needed
+```
+
+**Decision Types**:
+
+| Decision | Condition | Action |
+|----------|-----------|--------|
+| **PROCEED** | current_page == expected_page | Continue to next step |
+| **SKIP** | current_page in future path | Jump to matching step |
+| **REPLAN** | Unexpected page | Return to Plan step |
+
+**Maximum Replanning**: 5 attempts (configurable via `max_replan`)
+
+### 4.3 UICompass Path Planning
+
+PlannerAgent uses BFS on STG for optimal path planning:
+
+```python
+def plan_path(current_page, subtask_graph, instruction):
+    # 1. Analyze goal using LLM
+    goal_analysis = analyze_goal(instruction, all_subtasks)
+
+    # 2. Find target pages containing goal subtasks
+    target_pages = find_target_pages(goal_analysis.target_subtasks)
+
+    # 3. BFS shortest path to nearest target
+    best_path = bfs_find_path(current_page, target_pages, subtask_graph)
+
+    # 4. Build planned_path with step details
+    return build_planned_path(best_path, goal_analysis.final_subtask)
+```
+
+**planned_path Structure**:
+
+```python
+planned_path = [
+    {
+        "page": 0,
+        "subtask": "open_settings",
+        "instruction": "Open settings menu",
+        "trigger_ui_index": 5,
+        "status": "pending"  # pending | in_progress | completed | skipped
+    },
+    {
+        "page": 1,
+        "subtask": "change_language",
+        "instruction": "Select language option",
+        "trigger_ui_index": 12,
+        "status": "pending"
+    }
+]
 ```
 
 ---
 
-## 5. 통신 프로토콜
+## 5. Vision Integration
 
-### 5.1 메시지 타입
+### 5.1 Screenshot Analysis
 
-| 타입 | 바이트 | 방향 | 내용 |
-|------|--------|------|------|
-| `A` | Package | Client → Server | 앱 패키지명 |
-| `S` | Screenshot | Client → Server | JPEG 이미지 |
-| `X` | XML | Client → Server | UI 계층 구조 XML |
-| `I` | Instruction | Client → Server | 사용자 태스크 |
-| `L` | App List | Client → Server | 설치된 앱 목록 |
-| `F` | Finish | Client → Server | 세션 종료 |
-| - | Action | Server → Client | JSON 액션 명령 |
+MobileGPT-V2 enhances UI recognition through Vision API integration:
 
-### 5.2 프로토콜 흐름
+| Agent | Vision Usage | Enhancement |
+|-------|--------------|-------------|
+| **ExploreAgent** | Subtask extraction | Visual UI element recognition |
+| **SelectAgent** | Subtask selection | Visual context awareness |
+| **DeriveAgent** | Action derivation | Element location hints |
 
-```
-Client                              Server
-  │                                   │
-  ├──[L] App List────────────────────►│
-  │                                   │
-  ├──[I] Instruction─────────────────►│
-  │                                   │
-  ├──[A] Package Name────────────────►│
-  │                                   │
-  ├──[S] Screenshot──────────────────►│
-  │                                   │
-  ├──[X] UI XML──────────────────────►│
-  │                                   │
-  │◄──────────────────── Action JSON──┤
-  │                                   │
-  │  (Execute action on device)       │
-  │                                   │
-  ├──[S] New Screenshot──────────────►│
-  ├──[X] New XML─────────────────────►│
-  │           ...                     │
-  │                                   │
-  ├──[F] Finish──────────────────────►│
-  │                                   │
+### 5.2 API Format
+
+Vision API messages follow Chat Completions format:
+
+```python
+# Standard text message
+{"role": "user", "content": "Analyze this UI"}
+
+# Vision-enabled message
+{
+    "role": "user",
+    "content": [
+        {"type": "text", "text": "Analyze this UI"},
+        {
+            "type": "image_url",
+            "image_url": {
+                "url": "data:image/jpeg;base64,{base64_data}",
+                "detail": "high"  # low | high | auto
+            }
+        }
+    ]
+}
 ```
 
-### 5.3 Action JSON 포맷
+**Implementation** (utils.py):
+
+```python
+def query_with_vision(messages, model="gpt-5.2",
+                      screenshot_path=None,
+                      is_list=False,
+                      image_detail="high"):
+    if screenshot_path and os.path.exists(screenshot_path):
+        messages = _add_image_to_messages(messages, screenshot_path, image_detail)
+
+    return query(messages, model=model, is_list=is_list)
+```
+
+---
+
+## 6. Memory System
+
+### 6.1 Data Structures
+
+```
+memory/{app_name}/
+│
+├── pages.csv                    # Page registry
+│   └── index, available_subtasks, trigger_uis, screen
+│
+├── hierarchy.csv                # Screen embeddings (page matching)
+│   └── index, screen, embedding
+│
+├── tasks.csv                    # Task path cache
+│   └── name, path
+│
+├── subtask_graph.json           # STG
+│   └── {nodes: [int], edges: [SubtaskTransitionEdge]}
+│
+└── pages/{page_index}/          # Per-page data
+    ├── available_subtasks.csv
+    │   └── name, description, parameters, trigger_ui_index, exploration
+    ├── subtasks.csv             # Learned subtasks
+    │   └── name, description, guideline, trigger_ui_index,
+    │       start_page, end_page, parameters, example
+    ├── actions.csv              # Action sequences
+    │   └── subtask_name, trigger_ui_index, step,
+    │       start_page, end_page, action, example
+    └── screen/                  # Screenshots
+```
+
+### 6.2 Page Matching Algorithm
+
+Page matching uses embedding similarity:
+
+```python
+def search_node(self, parsed_xml, hierarchy_xml, encoded_xml) -> Tuple[int, float]:
+    # 1. Compute embedding for current screen
+    embedding = get_openai_embedding(str(parsed_xml))
+
+    # 2. Compare with stored embeddings
+    max_similarity = 0
+    matched_page = -1
+
+    for stored in self.hierarchy_db:
+        similarity = cosine_similarity(embedding, stored.embedding)
+        if similarity > max_similarity:
+            max_similarity = similarity
+            matched_page = stored.index
+
+    # 3. Return match if above threshold (0.95)
+    if max_similarity > 0.95:
+        return matched_page, max_similarity
+
+    return -1, 0.0  # New page
+```
+
+### 6.3 STG Operations
+
+| Method | Description | Usage |
+|--------|-------------|-------|
+| `_load_subtask_graph()` | Load STG from JSON | Initialization |
+| `_save_subtask_graph()` | Persist STG to JSON | After updates |
+| `add_transition()` | Add new edge | Exploration |
+| `get_path_to_page()` | BFS shortest path | Navigation |
+| `get_all_available_subtasks()` | Get all subtasks | Planning |
+| `update_end_page()` | Update edge destination | Discovery |
+
+---
+
+## 7. Communication Protocol
+
+### 7.1 Message Types
+
+| Type | Byte | Direction | Content |
+|------|------|-----------|---------|
+| `A` | Package | Client → Server | App package name |
+| `S` | Screenshot | Client → Server | JPEG image bytes |
+| `X` | XML | Client → Server | UI hierarchy XML |
+| `I` | Instruction | Client → Server | User task description |
+| `L` | App List | Client → Server | Installed app list |
+| `E` | External | Client → Server | External app switch detected |
+| `F` | Finish | Client → Server | Session termination |
+| - | Action | Server → Client | Action JSON command |
+
+### 7.2 Action JSON Format
 
 ```json
 {
     "name": "click",
     "parameters": {
         "index": 5,
-        "description": "Settings 버튼 클릭"
+        "description": "Settings button click"
     }
 }
 ```
 
-| 액션 | Parameters | 설명 |
-|------|------------|------|
-| `click` | `index` | UI 요소 인덱스 클릭 |
-| `long-click` | `index` | 길게 누르기 (2000ms) |
-| `input` | `index`, `text` | 텍스트 입력 |
-| `scroll` | `direction` | 스크롤 (`up`/`down`) |
-| `back` | - | 시스템 뒤로가기 |
-| `home` | - | 시스템 홈 |
-| `finish` | - | 세션 종료 |
+**Supported Actions**:
+
+| Action | Parameters | Description |
+|--------|------------|-------------|
+| `click` | `index` | Single tap on UI element |
+| `long-click` | `index` | Long press (2000ms) |
+| `input` | `index`, `text` | Text input to field |
+| `scroll` | `direction` | Scroll (`up`/`down`) |
+| `back` | - | System back button |
+| `home` | - | System home button |
+| `finish` | - | End session |
 
 ---
 
-## 6. Android Client 아키텍처
+## 8. Android Client
 
-### 6.1 컴포넌트 다이어그램
+### 8.1 Accessibility Service
+
+**MobileGPTAccessibilityService** is the core Android component:
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
@@ -595,13 +632,13 @@ Client                              Server
 ├──────────────────────────────────────────────────────────────────┤
 │  ┌──────────────────────┐      ┌──────────────────────────┐     │
 │  │ AccessibilityService │      │ FloatingButtonManager    │     │
-│  │ (UI 트리 캡처)        │      │ (사용자 컨트롤)           │     │
+│  │ (UI tree capture)    │      │ (User control)           │     │
 │  └──────────┬───────────┘      └──────────────────────────┘     │
 │             │                                                    │
 │  ┌──────────▼───────────┐      ┌──────────────────────────┐     │
 │  │AccessibilityNode     │      │ InputDispatcher          │     │
-│  │InfoDumper            │      │ (액션 실행)               │     │
-│  │(XML 직렬화)           │      └──────────────────────────┘     │
+│  │InfoDumper            │      │ (Action execution)       │     │
+│  │(XML serialization)   │      └──────────────────────────┘     │
 │  └──────────────────────┘                                        │
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐   │
@@ -613,9 +650,7 @@ Client                              Server
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-### 6.2 UI 계층 구조 직렬화
-
-`AccessibilityNodeInfoDumper`가 접근성 트리를 인덱스가 부여된 XML로 변환:
+**UI Hierarchy Serialization**:
 
 ```xml
 <hierarchy>
@@ -636,23 +671,74 @@ Client                              Server
 </hierarchy>
 ```
 
-**인덱스 매핑**: 서버는 `index` 값으로 UI 요소를 참조하고, 클라이언트는 해당 노드에 액션 실행
+### 8.2 Input Dispatcher
+
+**InputDispatcher** executes actions on the device:
+
+```java
+public class InputDispatcher {
+
+    public static void performClick(
+        AccessibilityService service,
+        AccessibilityNodeInfo node,
+        boolean isLongClick
+    ) {
+        if (isLongClick) {
+            node.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK);
+        } else {
+            node.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+        }
+    }
+
+    public static void performTextInput(
+        AccessibilityService service,
+        ClipboardManager clipboard,
+        AccessibilityNodeInfo node,
+        String text
+    ) {
+        Bundle args = new Bundle();
+        args.putCharSequence(
+            AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
+            text
+        );
+        node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args);
+    }
+
+    public static void performScroll(
+        AccessibilityNodeInfo node,
+        String direction
+    ) {
+        int action = direction.equals("up")
+            ? AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+            : AccessibilityNodeInfo.ACTION_SCROLL_FORWARD;
+        node.performAction(action);
+    }
+
+    public static void performBack(AccessibilityService service) {
+        service.performGlobalAction(
+            AccessibilityService.GLOBAL_ACTION_BACK
+        );
+    }
+}
+```
 
 ---
 
-## 7. 확장 포인트
+## 9. Extension Points
 
-### 커스텀 탐색 알고리즘
-`Server/graphs/nodes/explore_action_node.py`에 새 알고리즘 추가:
+### 9.1 Custom Exploration Algorithm
+
+Add new algorithm in `explore_action_node.py`:
 
 ```python
 def _get_custom_action(self, state: ExploreState) -> dict:
-    # 커스텀 알고리즘 구현
+    # Implement custom exploration logic
     pass
 ```
 
-### 새 에이전트 타입
-`Server/agents/`에 새 에이전트 파일 추가:
+### 9.2 New Agent Type
+
+Create in `Server/agents/`:
 
 ```python
 class CustomAgent:
@@ -660,12 +746,13 @@ class CustomAgent:
         self.memory = memory
 
     def execute(self, state):
-        # 에이전트 로직
+        # Agent logic
         pass
 ```
 
-### 추가 액션 타입
-`App_Auto_Explorer/.../InputDispatcher.java`에 새 액션 추가:
+### 9.3 Additional Action Type
+
+Add in `InputDispatcher.java`:
 
 ```java
 public static void performCustomAction(
@@ -673,86 +760,98 @@ public static void performCustomAction(
     AccessibilityNodeInfo node,
     Map<String, Object> parameters
 ) {
-    // 커스텀 액션 구현
+    // Custom action implementation
 }
 ```
 
-### 커스텀 메모리 백엔드
-`Server/memory/memory_manager.py`의 CSV 기반 저장소를 데이터베이스로 교체 가능
+### 9.4 Custom Memory Backend
+
+Replace CSV-based storage in `memory_manager.py` with database backend.
 
 ---
 
-## 8. 상태 정의
+## 10. State Definitions
 
-### TaskState (`Server/graphs/state.py`)
+### 10.1 TaskState
 
 ```python
 class TaskState(TypedDict, total=False):
-    # 세션
+    # Session
     session_id: str
     instruction: str
 
-    # 메모리 참조
-    memory: Memory
+    # Memory references
+    memory: Any
     page_index: int
     current_xml: str
 
-    # Subtask 추적
+    # Subtask tracking
     selected_subtask: Optional[dict]
-    rejected_subtasks: List[str]
+    rejected_subtasks: List[dict]
     available_subtasks: List[dict]
 
-    # 경로 계획 (UICompass)
-    planned_path: List[dict]
+    # Path planning (UICompass)
+    planned_path: Optional[List[PlannedPathStep]]
     path_step_index: int
+
+    # Adaptive replanning
     replan_count: int
     replan_needed: bool
     max_replan: int  # default: 5
 
-    # 라우팅
+    # Routing
     next_agent: str
 
-    # 결과
+    # Output
     action: Optional[dict]
     status: str
     iteration: int
 ```
 
-### ExploreState
+### 10.2 ExploreState
 
 ```python
 class ExploreState(TypedDict, total=False):
-    # 세션
+    # Session
     session_id: str
     app_name: str
-    algorithm: Literal["DFS", "BFS", "GREEDY_BFS", "GREEDY_DFS"]
+    algorithm: Literal["DFS", "BFS", "GREEDY"]
 
-    # 현재 화면
+    # Current screen
     current_xml: str
     page_index: int
 
-    # 탐색 추적
+    # Exploration tracking
     visited_pages: Set[int]
     explored_subtasks: Dict
     exploration_stack: List  # DFS
     exploration_queue: List  # BFS
-    unexplored_subtasks: Dict
+    unexplored_subtasks: Dict  # GREEDY
 
-    # 그래프
+    # Graph
     subtask_graph: Dict
     back_edges: Dict
 
-    # 경로 추적
+    # Path tracking
     traversal_path: List
     navigation_plan: List
 
-    # 마지막 액션 추적
+    # Last action tracking
     last_explored_page_index: Optional[int]
     last_explored_ui_index: Optional[int]
     last_explored_subtask_name: Optional[str]
 
-    # 라우팅 및 결과
+    # Routing and output
     next_agent: str
     action: Optional[dict]
     status: str
 ```
+
+---
+
+## 11. References
+
+- **LangGraph**: https://github.com/langchain-ai/langgraph
+- **Mobile-Agent-v3**: GUI-Owl based multi-agent mobile automation
+- **MobileGPT**: Original LLM-based mobile automation research
+- **Android Accessibility**: https://developer.android.com/guide/topics/ui/accessibility

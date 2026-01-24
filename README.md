@@ -1,192 +1,208 @@
 # MobileGPT-V2
 
-LangGraph 기반 다중 에이전트 모바일 자동화 프레임워크
-
-![System Overview](explain.png)
-
-## 소개
-
-MobileGPT-V2는 Android 기기에서 복잡한 태스크를 자동으로 수행하는 지능형 자동화 시스템입니다. LLM 기반 다중 에이전트와 LangGraph 워크플로우를 활용하여 앱 UI를 학습하고, 최적의 경로를 계획하며, 사용자 지시를 실행합니다.
-
-### 핵심 가치
-
-- **자동 학습**: UI 탐색을 통해 앱 구조를 자동으로 학습
-- **지능형 계획**: Subtask Transition Graph (STG) 기반 최적 경로 계획
-- **적응형 실행**: 예상치 못한 상황에서 자동 재계획
-- **안전한 탐색**: 가드레일로 위험한 액션 자동 필터링
+A LangGraph-based Multi-Agent Framework for Intelligent Mobile Automation
 
 ---
 
-## 핵심 프로세스: 6단계 파이프라인
+## 1. Introduction
+
+### 1.1 Overview
+
+MobileGPT-V2 is an intelligent automation system that performs complex tasks on Android devices through a multi-agent architecture. Building upon the foundation of the original MobileGPT research, this framework introduces a novel **Auto-Explore** module that enables autonomous UI exploration and learning, significantly reducing the manual effort required for app knowledge acquisition.
+
+The system leverages LLM-based multi-agent coordination through LangGraph workflows, enabling sophisticated task planning, execution, and adaptive replanning capabilities.
+
+### 1.2 Relation to Mobile-Agent-v3
+
+MobileGPT-V2 shares conceptual foundations with the Mobile-Agent-v3 framework, which utilizes GUI-Owl for end-to-end multimodal perception, grounding, reasoning, planning, and action generation. The key distinction lies in our approach:
+
+| Aspect | Mobile-Agent-v3 | MobileGPT-V2 |
+|--------|-----------------|--------------|
+| **Learning** | Manual annotation | **Autonomous exploration** |
+| **Knowledge Base** | Pre-defined | **Self-constructed STG** |
+| **Exploration** | N/A | **DFS / BFS / GREEDY algorithms** |
+| **Architecture** | End-to-end model | **Multi-agent pipeline** |
+
+### 1.3 Key Contributions
+
+1. **Auto-Explore Module**: Autonomous UI exploration with three configurable algorithms (DFS, BFS, GREEDY)
+2. **Subtask Transition Graph (STG)**: Explicit graph-based representation of app navigation structure
+3. **Adaptive Replanning**: Dynamic path adjustment based on execution verification
+4. **Vision-Enhanced Perception**: Screenshot-based UI recognition via Vision API integration
+5. **Safety Guardrails**: Automatic filtering of potentially dangerous actions during exploration
+
+---
+
+## 2. System Architecture
+
+### 2.1 Multi-Agent Framework
+
+MobileGPT-V2 employs a collaborative multi-agent architecture where specialized agents handle distinct aspects of task execution:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                            MobileGPT-V2                                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌───────────────────────────────────────┐                              │
+│  │           Python Server               │                              │
+│  │  ┌─────────────────────────────────┐  │         TCP Socket           │
+│  │  │      LangGraph Pipeline         │  │       ┌─────────────┐        │
+│  │  │  ┌───────────────────────────┐  │  │       │             │        │
+│  │  │  │  Task Graph (6-step)      │  │  │◄─────►│   Android   │        │
+│  │  │  │  Supervisor → Memory →    │  │  │ XML   │   Client    │        │
+│  │  │  │  Planner → Selector →     │  │  │ JSON  │             │        │
+│  │  │  │  Verifier → Deriver       │  │  │ Image │             │        │
+│  │  │  └───────────────────────────┘  │  │       │             │        │
+│  │  │  ┌───────────────────────────┐  │  │       │  ┌───────┐  │        │
+│  │  │  │  Explore Graph            │  │  │       │  │Access-│  │        │
+│  │  │  │  Supervisor → Discover →  │  │  │       │  │ibility│  │        │
+│  │  │  │  ExploreAction            │  │  │       │  │Service│  │        │
+│  │  │  └───────────────────────────┘  │  │       │  └───────┘  │        │
+│  │  └─────────────────────────────────┘  │       └─────────────┘        │
+│  │                                       │                              │
+│  │  ┌─────────────────────────────────┐  │                              │
+│  │  │       Memory Manager            │  │                              │
+│  │  │  ┌───────┐ ┌───────┐ ┌───────┐  │  │                              │
+│  │  │  │ STG   │ │ Pages │ │Subtask│  │  │                              │
+│  │  │  │.json  │ │ .csv  │ │ .csv  │  │  │                              │
+│  │  │  └───────┘ └───────┘ └───────┘  │  │                              │
+│  │  └─────────────────────────────────┘  │                              │
+│  └───────────────────────────────────────┘                              │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 2.2 Auto-Explore Module (Unique Contribution)
+
+The Auto-Explore module is MobileGPT-V2's distinctive feature that enables **autonomous app structure learning** without manual intervention. Unlike Mobile-Agent-v3 which requires pre-defined knowledge, our system automatically:
+
+1. **Discovers** new screens and extracts available subtasks
+2. **Explores** each subtask systematically using configurable algorithms
+3. **Records** navigation patterns in the Subtask Transition Graph (STG)
+4. **Filters** unsafe actions through built-in guardrails
+
+**Exploration Algorithms**:
+
+| Algorithm | Strategy | Use Case |
+|-----------|----------|----------|
+| **DFS** | Depth-first, stack-based | Deep exploration of single paths |
+| **BFS** | Breadth-first, queue-based | Uniform coverage of current level |
+| **GREEDY** | Shortest-path to nearest unexplored | Efficient global coverage (recommended) |
+
+### 2.3 Core Pipeline
+
+The system operates through a **6-step execution pipeline**:
 
 ```
 Auto-Explore → Plan → Select → Derive → Verify → Recall
 ```
 
-| 단계 | 역할 | 설명 |
-|------|------|------|
-| **Auto-Explore** | 앱 탐색 및 학습 | UI를 자동 탐색하여 페이지, subtask, 액션을 학습하고 STG 구축 |
-| **Plan** | 경로 계획 | STG 기반 BFS로 목표까지의 최적 subtask 경로 계획 (UICompass) |
-| **Select** | Subtask 선택 | planned_path에서 다음 subtask 선택 또는 LLM 기반 선택 |
-| **Derive** | 액션 도출 | 선택된 subtask를 구체적인 UI 액션으로 변환 |
-| **Verify** | 결과 검증 | 액션 결과 검증, 필요시 SKIP/REPLAN 결정 |
-| **Recall** | 메모리 회상 | 현재 화면에서 학습된 정보 로드 및 매칭 |
+| Step | Purpose | Agent/Node |
+|------|---------|------------|
+| **Auto-Explore** | Autonomous UI learning | ExploreAgent |
+| **Plan** | STG-based path planning (UICompass) | PlannerAgent |
+| **Select** | Next subtask selection | SelectAgent |
+| **Derive** | Action generation | DeriveAgent |
+| **Verify** | Result verification & replanning | VerifyAgent |
+| **Recall** | Memory retrieval | MemoryNode |
 
 ---
 
-## 주요 기능
+## 3. Agents & Roles
 
-### 6단계 지능형 태스크 실행
-- LangGraph 기반 상태 머신으로 복잡한 태스크 처리
-- Supervisor 노드가 상태에 따라 적절한 에이전트로 라우팅
+Each agent in MobileGPT-V2 corresponds to specific functional modules in the Mobile-Agent-v3 conceptual framework:
 
-### UICompass 스타일 경로 계획 (STG)
-- Page Transition Graph로 앱의 페이지 간 전이 관계 저장
-- BFS 알고리즘으로 목표까지 최단 경로 탐색
-- 학습된 액션 시퀀스 재사용으로 효율적 실행
-
-### 적응형 재계획 (Adaptive Replanning)
-- 예상 페이지와 실제 페이지 비교로 경로 검증
-- PROCEED (정상 진행) / SKIP (건너뛰기) / REPLAN (재계획) 결정
-- 최대 5회 재계획으로 강건한 실행
-
-### 3가지 탐색 알고리즘
-- **DFS**: 깊이 우선 탐색, 스택 기반
-- **BFS**: 너비 우선 탐색, 큐 기반
-- **GREEDY**: 앱 전체 최단 경로로 가장 가까운 미탐색 subtask 탐색 (권장)
-
-> Note: `GREEDY_BFS`, `GREEDY_DFS`는 deprecated되어 `GREEDY`로 자동 매핑됩니다.
-
-### Auto-Explore 가드레일
-자동 탐색 중 위험한 액션을 자동으로 필터링:
-
-| 분류 | 설명 | 예시 |
-|------|------|------|
-| `financial` | 금전 거래 | 주문, 구매, 결제, 구독 |
-| `account` | 인증/계정 | 로그인, 로그아웃, 계정 삭제 |
-| `system` | 시스템 변경 | 앱 설치/제거, 설정 변경 |
-| `data` | 비가역적 데이터 | 삭제, 초기화, 포맷 |
-
-### Vision API 통합 (Screenshot Input)
-스크린샷 이미지를 함께 분석하여 UI 인식 정확도 향상:
-
-| 에이전트 | 활용 | 효과 |
-|---------|------|------|
-| **ExploreAgent** | subtask 추출 | 시각적 UI 요소 인식 향상 |
-| **SelectAgent** | subtask 선택 | 시각적 컨텍스트 판단 향상 |
-| **DeriveAgent** | 액션 도출 | UI 요소 위치/힌트 인식 향상 |
-
-- GPT-5.2 Vision 기능 활용 (Chat Completions API)
-- 스크린샷은 선택적 (없으면 텍스트 전용으로 동작)
-- Base64 인코딩으로 이미지 전달
+| Agent | Mobile-Agent-v3 Mapping | Responsibility |
+|-------|------------------------|----------------|
+| **ExploreAgent** | Perception + Grounding | UI recognition, subtask extraction, element localization |
+| **PlannerAgent** | Planning | Goal analysis, BFS path planning, route optimization |
+| **SelectAgent** | Reasoning | Subtask selection, context-aware decision making |
+| **DeriveAgent** | Action | Action parameterization, UI element targeting |
+| **VerifyAgent** | Reflection | Execution verification, PROCEED/SKIP/REPLAN decisions |
+| **MemoryManager** | Memory | STG management, page matching, knowledge persistence |
 
 ---
 
-## 시스템 아키텍처 개요
+## 4. Getting Started
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        MobileGPT-V2                             │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌─────────────────────────┐      TCP      ┌─────────────────┐  │
-│  │     Python Server       │◄─────────────►│  Android Client │  │
-│  │                         │    Socket     │                 │  │
-│  │  ┌───────────────────┐  │               │  ┌───────────┐  │  │
-│  │  │ LangGraph Pipeline │  │   XML/JSON   │  │Accessibility│ │  │
-│  │  │ (Task/Explore)     │  │  Screenshot  │  │  Service   │  │  │
-│  │  └───────────────────┘  │               │  └───────────┘  │  │
-│  │                         │               │                 │  │
-│  │  ┌───────────────────┐  │               │  ┌───────────┐  │  │
-│  │  │  Memory Manager   │  │               │  │Input      │  │  │
-│  │  │  (STG, CSV, JSON) │  │               │  │Dispatcher │  │  │
-│  │  └───────────────────┘  │               │  └───────────┘  │  │
-│  └─────────────────────────┘               └─────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-```
+### 4.1 Requirements
 
----
-
-## 요구사항
-
-### Server
+**Server**:
 - Python 3.10+
-- OpenAI API 키 (GPT-5.2 권장)
+- OpenAI API Key (GPT-5.2 recommended for Vision capabilities)
 
-### Android Client
+**Android Client**:
 - Android 13+ (API 33)
-- Accessibility Service 권한
+- Accessibility Service permission
 
----
-
-## 설치 방법
-
-### Server 설정
+### 4.2 Installation
 
 ```bash
-# 저장소 클론
-git clone https://github.com/SaFD-00/MobileGPT-V2.git
+# Clone repository
+git clone https://github.com/user/MobileGPT-V2.git
 cd MobileGPT-V2
 
-# Python 의존성 설치
+# Install Python dependencies
 pip install -r requirements.txt
 
-# 환경 변수 설정
+# Set environment variable
 export OPENAI_API_KEY="your-api-key"
 ```
 
-### Android Client 설정
+### 4.3 Android Client Setup
 
-1. Android Studio에서 `App_Auto_Explorer` 프로젝트 열기
-2. `MobileGSTGlobal.java`에서 서버 IP 설정:
+1. Open `App_Auto_Explorer` project in Android Studio
+2. Configure server IP in `MobileGPTGlobal.java`:
    ```java
-   public static final String HOST_IP = "192.168.0.9";  // 서버 IP로 변경
+   public static final String HOST_IP = "192.168.0.9";  // Your server IP
    public static final int HOST_PORT = 12345;
    ```
-3. 앱 빌드 및 디바이스에 설치
-4. 설정 → 접근성 → MobileGPT Auto Explorer 활성화
+3. Build and install on device
+4. Enable Accessibility Service: Settings → Accessibility → MobileGPT Auto Explorer
 
 ---
 
-## 사용법
+## 5. Usage Modes
 
-### Task 모드 (6단계 실행)
+### 5.1 Auto-Explore Mode
 
-학습된 정보를 기반으로 사용자 태스크 실행:
+Autonomous UI exploration and STG construction:
+
+```bash
+# DFS exploration
+python main.py --mode auto_explore --algorithm DFS --port 12345
+
+# BFS exploration
+python main.py --mode auto_explore --algorithm BFS --port 12345
+
+# GREEDY exploration (recommended)
+python main.py --mode auto_explore --algorithm GREEDY --port 12345
+```
+
+### 5.2 Task Mode
+
+Execute user tasks using learned knowledge:
 
 ```bash
 python main.py --mode task --port 12345
 ```
 
-### Explore 모드 (수동 탐색)
+### 5.3 Manual Explore Mode
 
-수동으로 UI를 탐색하며 학습:
+Interactive exploration with manual control:
 
 ```bash
 python main.py --mode explore --port 12345
 ```
 
-### Auto-Explore 모드 (자동 학습)
-
-알고리즘 기반 자동 UI 탐색:
-
-```bash
-# DFS 알고리즘
-python main.py --mode auto_explore --algorithm DFS --port 12345
-
-# BFS 알고리즘
-python main.py --mode auto_explore --algorithm BFS --port 12345
-
-# GREEDY (최근접 미탐색, 권장)
-python main.py --mode auto_explore --algorithm GREEDY --port 12345
-```
-
 ---
 
-## 설정
+## 6. Configuration
 
-### 에이전트 모델 설정
+### Agent Model Settings
 
-`Server/main.py`에서 각 에이전트의 LLM 모델 설정:
+Configure LLM models in `Server/main.py`:
 
 ```python
 os.environ["TASK_AGENT_GPT_VERSION"] = "gpt-5.2"
@@ -196,120 +212,50 @@ os.environ["VERIFY_AGENT_GPT_VERSION"] = "gpt-5.2"
 os.environ["SELECT_AGENT_GPT_VERSION"] = "gpt-5.2"
 ```
 
-### 네트워크 설정
-
-- **Server**: 기본 포트 12345, 모든 인터페이스(0.0.0.0)에서 수신
-- **Client**: `MobileGSTGlobal.java`에서 `HOST_IP`, `HOST_PORT` 설정
-
 ---
 
-## 프로젝트 구조
+## 7. Project Structure
 
 ```
 MobileGPT-V2/
-├── Server/                      # Python 서버
-│   ├── main.py                  # 진입점
-│   ├── server.py                # Task 모드 서버
-│   ├── server_explore.py        # 수동 Explore 서버
-│   ├── server_auto_explore.py   # Auto-Explore 서버
-│   ├── agents/                  # LLM 에이전트
-│   │   ├── planner_agent.py     # UICompass 경로 계획
-│   │   ├── verify_agent.py      # 경로 검증
-│   │   ├── explore_agent.py     # UI 탐색
-│   │   ├── select_agent.py      # Subtask 선택
-│   │   ├── derive_agent.py      # 액션 도출
-│   │   └── prompts/             # 에이전트 프롬프트
-│   ├── graphs/                  # LangGraph 정의
-│   │   ├── task_graph.py        # 6단계 태스크 파이프라인
-│   │   ├── explore_graph.py     # 탐색 파이프라인
-│   │   ├── state.py             # 상태 정의
-│   │   └── nodes/               # 그래프 노드
-│   │       ├── supervisor.py
-│   │       ├── memory_node.py
-│   │       ├── planner_node.py
-│   │       ├── selector_node.py
-│   │       ├── verifier_node.py
-│   │       ├── deriver_node.py
-│   │       ├── discover_node.py
-│   │       └── explore_action_node.py
-│   ├── memory/                  # 메모리 관리
-│   │   ├── memory_manager.py    # 메인 메모리 클래스
-│   │   ├── page_manager.py      # 페이지별 관리
-│   │   └── node_manager.py      # 노드 관리
-│   └── utils/                   # 유틸리티
+├── Server/                      # Python server
+│   ├── main.py                  # Entry point
+│   ├── server.py                # Task mode server
+│   ├── server_explore.py        # Manual explore server
+│   ├── server_auto_explore.py   # Auto-explore server
+│   ├── agents/                  # LLM agents
+│   ├── graphs/                  # LangGraph definitions
+│   ├── memory/                  # Memory management
+│   └── utils/                   # Utilities
 │
-├── App_Auto_Explorer/           # Android 클라이언트
-│   └── app/src/main/java/com/mobilegpt/autoexplorer/
-│       ├── MainActivity.java
-│       ├── MobileGPTAccessibilityService.java
-│       ├── MobileGPTClient.java
-│       ├── InputDispatcher.java
-│       ├── AccessibilityNodeInfoDumper.java
-│       ├── MobileGSTGlobal.java
-│       └── widgets/
-│           └── FloatingButtonManager.java
-│
-├── requirements.txt             # Python 의존성
-└── LICENSE                      # MIT 라이선스
+├── App_Auto_Explorer/           # Android client
+└── requirements.txt             # Python dependencies
 ```
 
 ---
 
-## 메모리 데이터 구조
+## 8. Citation
 
-```
-memory/{app_name}/
-├── pages.csv                    # 페이지 레지스트리
-├── hierarchy.csv                # 화면 임베딩
-├── tasks.csv                    # 태스크 경로 캐시
-├── subtask_graph.json              # Subtask Transition Graph (STG)
-└── pages/{page_index}/
-    ├── available_subtasks.csv   # 사용 가능한 subtask
-    ├── subtasks.csv             # 학습된 subtask
-    ├── actions.csv              # 액션 시퀀스
-    └── screen/                  # 스크린샷
-```
+If you use MobileGPT-V2 in your research, please cite:
 
-### Subtask Transition Graph (STG)
-
-```json
-{
-  "nodes": [0, 1, 2, 3],
-  "edges": [
-    {
-      "from_page": 0,
-      "to_page": 1,
-      "subtask": "open_settings",
-      "trigger_ui_index": 5,
-      "action_sequence": [{"name": "click", "parameters": {"index": 5}}],
-      "explored": true
-    }
-  ]
+```bibtex
+@software{mobilegpt-v2,
+  title = {MobileGPT-V2: A LangGraph-based Multi-Agent Framework for Intelligent Mobile Automation},
+  year = {2026},
+  url = {https://github.com/user/MobileGPT-V2}
 }
 ```
 
 ---
 
-## 기여 가이드라인
+## 9. Related Work
 
-1. 이 저장소를 Fork
-2. 기능 브랜치 생성 (`git checkout -b feature/amazing-feature`)
-3. 변경사항 커밋 (`git commit -m 'Add amazing feature'`)
-4. 브랜치에 Push (`git push origin feature/amazing-feature`)
-5. Pull Request 생성
-
-### 코드 스타일
-- Python: PEP 8
-- Java: Google Java Style Guide
+- **Mobile-Agent-v3**: GUI-Owl based multi-agent framework for mobile task automation
+- **MobileGPT**: Original research on LLM-based mobile automation
+- **LangGraph**: Framework for building stateful, multi-actor applications with LLMs
 
 ---
 
-## 라이선스
+## 10. License
 
-MIT License - 자세한 내용은 [LICENSE](LICENSE) 파일 참조
-
----
-
-## 관련 문서
-
-- [ARCHITECTURE.md](ARCHITECTURE.md) - 상세 아키텍처 문서
+MIT License - See [LICENSE](LICENSE) for details.
