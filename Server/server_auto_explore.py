@@ -30,7 +30,7 @@ class AutoExplorer:
     Uses LangGraph multi-agent system for intelligent exploration:
     1. DiscoverNode: Find and learn new screens
     2. ExploreActionNode: Determine next exploration action
-       - DFS, BFS, GREEDY_BFS, GREEDY_DFS algorithms
+       - DFS, BFS, GREEDY algorithms
     """
 
     DEFAULT_HOST = '0.0.0.0'
@@ -52,7 +52,7 @@ class AutoExplorer:
             port: Server port number
             buffer_size: Socket buffer size
             memory_directory: Base directory for logs
-            algorithm: Exploration algorithm ("DFS", "BFS", "GREEDY_BFS", "GREEDY_DFS")
+            algorithm: Exploration algorithm ("DFS", "BFS", "GREEDY")
         """
         self.host = host
         self.port = port

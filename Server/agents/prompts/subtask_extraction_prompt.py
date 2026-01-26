@@ -54,6 +54,39 @@ def get_sys_prompt():
         "4. Merge related simple actions into higher-level subtasks.\n"
         "5. Estimate the number of steps (actions) required to complete each subtask.\n\n"
 
+        "***SAFETY CLASSIFICATION - REQUIRED FOR EACH SUBTASK***:\n"
+        "For EACH subtask, you MUST determine if it is SAFE or UNSAFE for automatic execution.\n"
+        "Set 'safe': false for subtasks in these SENSITIVE categories:\n\n"
+
+        "1. **communication** (irreversible interpersonal impact):\n"
+        "   - Message/email sending: Send, Reply, Reply All, 보내기, 전송\n"
+        "   - SNS posting: Post, Share, Tweet, 게시, 공유\n"
+        "   - Calls/video: Call, Dial, Start meeting\n"
+        "   - Contact management: Delete contact, Block, 삭제, 차단\n\n"
+
+        "2. **data** (irreversible data loss):\n"
+        "   - Permanent deletion: Delete, Remove, 삭제, 휴지통 비우기, Clear all\n"
+        "   - File overwrite: Overwrite, Replace, Save (same filename)\n"
+        "   - Bulk operations: Bulk delete, Select all + delete, 일괄 삭제\n\n"
+
+        "3. **financial** (monetary loss):\n"
+        "   - Payment: Pay, Purchase, Buy, 결제, 구매, 원클릭 주문\n"
+        "   - Subscription: Subscribe, Start trial, 구독, 무료 체험\n"
+        "   - Transfer: Transfer, Send money, 이체, 송금\n\n"
+
+        "4. **system** (system security threat):\n"
+        "   - App install/uninstall: Install, Uninstall, 설치, 삭제\n"
+        "   - Permissions: Permission, Allow, Grant access, 권한 허용\n"
+        "   - System settings: Settings > Security, 시스템 설정\n\n"
+
+        "5. **privacy** (personal info/auth risk):\n"
+        "   - Logout: Logout, Sign out, 로그아웃\n"
+        "   - Password: Show password, Copy password, 비밀번호 보기\n"
+        "   - Authentication: OTP, 2FA, Verify, 인증번호\n\n"
+
+        "For SAFE subtasks: set 'safe': true, 'risk_category': null\n"
+        "For UNSAFE subtasks: set 'safe': false, 'risk_category': '<category>'\n\n"
+
         "***Constraints***:\n"
         "1. Make subtask names general, not specific to this screen.\n"
         "   - Instead of 'call_Bob', use 'call_contact'\n"
@@ -63,22 +96,14 @@ def get_sys_prompt():
         "   - 'which tab? [\"Contacts\", \"Dial pad\", \"Messages\"]'\n"
         "4. Do NOT include trigger_UIs - that will be determined in a separate step.\n\n"
 
-        "***Safety Classification (IMPORTANT)***:\n"
-        "Mark a subtask as dangerous (is_dangerous: true) if it could:\n"
-        "- financial: cause monetary transactions (order, purchase, buy, subscribe, payment)\n"
-        "- account: affect user authentication (login, logout, sign up, delete account)\n"
-        "- system: modify device/app state (install, uninstall, change settings)\n"
-        "- data: cause irreversible data changes (delete, remove, clear, reset)\n"
-        "Set is_dangerous to false for safe navigation, viewing, or read-only functions.\n\n"
-
         "Respond using the JSON format described below. Ensure the response can be parsed by Python json.loads.\n"
         "Response Format:\n"
         '[{"name": "<subtask name representing user goal>", '
         '"description": "<detailed description of multi-step process>", '
         '"parameters": {"<parameter name>": "<question to ask>", ...}, '
         '"expected_steps": <number of expected actions to complete (integer, minimum 2)>, '
-        '"is_dangerous": <true if dangerous, false otherwise>, '
-        '"danger_reason": "<financial|account|system|data|null>"}]\n\n'
+        '"safe": <true if safe to auto-execute, false if sensitive>, '
+        '"risk_category": "<category if unsafe: communication/data/financial/system/privacy, null if safe>"}]\n\n'
 
         "Begin!!"
     )

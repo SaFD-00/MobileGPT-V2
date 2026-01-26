@@ -45,35 +45,51 @@ class ExploreAgent:
         subtask_prompts = subtask_extraction_prompt.get_prompts(
             html_xml, has_screenshot=has_screenshot
         )
-        subtasks_raw = query_with_vision(
+        subtasks = query_with_vision(
             subtask_prompts, model=model,
             screenshot_path=screenshot_path, is_list=True
         )
 
         # 타입 검증 - 리스트가 아닌 경우 빈 리스트로 초기화
-        if not isinstance(subtasks_raw, list):
-            log(f":::EXPLORE WARNING::: subtasks_raw is not a list (type: {type(subtasks_raw).__name__}), using empty list", "yellow")
-            subtasks_raw = []
+        if not isinstance(subtasks, list):
+            log(f":::EXPLORE WARNING::: subtasks is not a list (type: {type(subtasks).__name__}), using empty list", "yellow")
+            subtasks = []
 
-        # 필수 필드 기본값 설정
-        for subtask in subtasks_raw:
+        # 필수 필드 기본값 설정 + safe 필드 처리
+        safe_subtasks = []
+        unsafe_subtasks = []
+
+        for subtask in subtasks:
             if "parameters" not in subtask:
                 subtask['parameters'] = {}
             if "expected_steps" not in subtask:
                 subtask['expected_steps'] = 2
-            if "is_dangerous" not in subtask:
-                subtask['is_dangerous'] = False
-            if "danger_reason" not in subtask:
-                subtask['danger_reason'] = None
+            if "safe" not in subtask:
+                subtask['safe'] = True  # 기본값: safe
+            if "risk_category" not in subtask:
+                subtask['risk_category'] = None
 
-        log(f":::EXPLORE STEP 1::: Extracted {len(subtasks_raw)} subtasks", "cyan")
-        log(f"Raw Subtasks: {json.dumps(subtasks_raw, indent=2)}", "blue")
+            # safe/unsafe 분류
+            if subtask.get('safe', True):
+                safe_subtasks.append(subtask)
+            else:
+                unsafe_subtasks.append(subtask)
 
-        # 위험 subtask 필터링 (auto-explore 가드레일)
-        safe_subtasks = self._filter_dangerous_subtasks(subtasks_raw)
+        # 전체 서브태스크 로깅 (safe/unsafe 모두 표시)
+        log(f":::EXPLORE STEP 1::: Extracted {len(subtasks)} subtasks "
+            f"(safe: {len(safe_subtasks)}, unsafe: {len(unsafe_subtasks)})", "cyan")
+        log(f"All Subtasks: {json.dumps(subtasks, indent=2)}", "blue")
 
-        if not safe_subtasks:
-            log(f":::EXPLORE::: No safe subtasks found, creating empty node", "yellow")
+        # unsafe 서브태스크 경고 로깅
+        for unsafe in unsafe_subtasks:
+            log(f":::GUARDRAIL::: Blocked unsafe subtask '{unsafe.get('name')}' "
+                f"(category: {unsafe.get('risk_category')})", "red")
+
+        # safe 서브태스크만 다음 단계로 진행
+        subtasks = safe_subtasks
+
+        if not subtasks:
+            log(f":::EXPLORE::: No subtasks found, creating empty node", "yellow")
             # 빈 노드 생성
             new_node_index = self.memory.add_node([], {}, {}, parsed_xml, screen_num)
             self.memory.add_hierarchy_xml(hierarchy_xml, new_node_index)
@@ -82,9 +98,9 @@ class ExploreAgent:
         # ============================================
         # Step 2: TriggerUI 선택 (Vision API 활용)
         # ============================================
-        log(f":::EXPLORE STEP 2::: Selecting trigger UIs for {len(safe_subtasks)} subtasks", "cyan")
+        log(f":::EXPLORE STEP 2::: Selecting trigger UIs for {len(subtasks)} subtasks", "cyan")
         trigger_prompts = trigger_ui_selection_prompt.get_prompts(
-            html_xml, safe_subtasks, has_screenshot=has_screenshot
+            html_xml, subtasks, has_screenshot=has_screenshot
         )
         trigger_ui_mapping = query_with_vision(
             trigger_prompts, model=model,
@@ -104,7 +120,7 @@ class ExploreAgent:
         available_subtasks = []
         subtasks_trigger_uis = {}  # {subtask_name: [trigger_ui_index]}
 
-        for subtask in safe_subtasks:
+        for subtask in subtasks:
             subtask_name = subtask.get('name', '')
             trigger_ui = trigger_ui_mapping.get(subtask_name, -1)
 
@@ -147,25 +163,3 @@ class ExploreAgent:
         self.memory.add_hierarchy_xml(hierarchy_xml, new_node_index)
 
         return new_node_index
-
-    def _filter_dangerous_subtasks(self, subtasks: list) -> list:
-        """
-        위험한 subtask를 필터링합니다.
-        Args:
-            subtasks: 원본 subtask 리스트
-        Returns:
-            안전한 subtask 리스트
-        """
-        safe_subtasks = []
-        for subtask in subtasks:
-            if subtask.get("is_dangerous", False):
-                log(f":::GUARDRAIL::: Skipping dangerous subtask: {subtask.get('name', 'unknown')} "
-                    f"(reason: {subtask.get('danger_reason', 'unknown')})", "yellow")
-            else:
-                safe_subtasks.append(subtask)
-
-        if len(subtasks) != len(safe_subtasks):
-            log(f":::GUARDRAIL::: Filtered {len(subtasks) - len(safe_subtasks)} dangerous subtasks, "
-                f"keeping {len(safe_subtasks)} safe subtasks", "green")
-
-        return safe_subtasks

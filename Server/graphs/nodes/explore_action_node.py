@@ -5,8 +5,6 @@ Algorithms:
 - BFS: Queue-based breadth-first exploration
 - GREEDY: App-wide shortest path to nearest unexplored (action-based distance)
           Inspired by LLM-Explorer's App-wide Action Selector concept.
-
-Note: GREEDY_BFS and GREEDY_DFS are deprecated and mapped to GREEDY.
 """
 
 import re
@@ -59,8 +57,6 @@ def explore_action_node(state: ExploreState) -> dict:
     - BFS: Breadth-first search with queue
     - GREEDY: App-wide shortest path to nearest unexplored (action-based distance)
 
-    Note: GREEDY_BFS and GREEDY_DFS are deprecated and mapped to GREEDY.
-
     Args:
         state: Current explore state
 
@@ -69,11 +65,6 @@ def explore_action_node(state: ExploreState) -> dict:
     """
     algorithm = state.get("algorithm", "DFS")
     page_index = state["page_index"]
-
-    # Backward compatibility: map deprecated algorithms to GREEDY
-    if algorithm in ("GREEDY_BFS", "GREEDY_DFS"):
-        log(f":::EXPLORE_ACTION::: Mapping deprecated {algorithm} → GREEDY", "yellow")
-        algorithm = "GREEDY"
 
     log(f":::EXPLORE_ACTION::: Algorithm={algorithm}, page={page_index}", "blue")
 
@@ -475,22 +466,6 @@ def _get_greedy_action(state: ExploreState) -> dict:
         "status": "action_failed",
         "next_agent": "explore_action",
     }
-
-
-def _get_greedy_bfs_action(state: ExploreState) -> dict:
-    """GREEDY_BFS: Find and explore nearest unexplored subtask.
-
-    DEPRECATED: Use _get_greedy_action() instead.
-    This function is kept for backward compatibility.
-
-    Args:
-        state: Current explore state
-
-    Returns:
-        dict: Updated state with action
-    """
-    # Delegate to the unified GREEDY implementation
-    return _get_greedy_action(state)
 
 
 def _execute_navigation_step(state: ExploreState) -> dict:

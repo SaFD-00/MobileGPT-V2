@@ -28,7 +28,11 @@ def discover_node(state: ExploreState) -> dict:
     encoded_xml = state.get("encoded_xml", "")
     screenshot_path = state.get("screenshot_path")  # Vision API용
     visited_pages = state.get("visited_pages", set())
+    explored_subtasks = state.get("explored_subtasks", {})
     last_action_was_back = state.get("last_action_was_back", False)
+
+    log(f":::DISCOVER::: visited_pages = {visited_pages}", "yellow")
+    log(f":::DISCOVER::: explored_subtasks = {explored_subtasks}", "yellow")
 
     # Get last explored info for end_page update
     last_explored_page = state.get("last_explored_page_index")

@@ -117,7 +117,7 @@ class ExploreState(TypedDict, total=False):
     # Session info
     session_id: str
     app_name: str
-    algorithm: Literal["DFS", "BFS", "GREEDY_BFS", "GREEDY_DFS"]
+    algorithm: Literal["DFS", "BFS", "GREEDY"]
 
     # Current screen state
     current_xml: str

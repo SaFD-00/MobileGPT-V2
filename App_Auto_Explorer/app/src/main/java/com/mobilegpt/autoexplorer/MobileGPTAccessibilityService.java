@@ -135,12 +135,38 @@ public class MobileGPTAccessibilityService extends AccessibilityService {
         return false;
     }
 
+    private String windowTypeToString(int type) {
+        switch (type) {
+            case AccessibilityWindowInfo.TYPE_APPLICATION: return "APPLICATION";
+            case AccessibilityWindowInfo.TYPE_INPUT_METHOD: return "INPUT_METHOD";
+            case AccessibilityWindowInfo.TYPE_SYSTEM: return "SYSTEM";
+            case AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY: return "ACCESSIBILITY_OVERLAY";
+            default: return "UNKNOWN(" + type + ")";
+        }
+    }
+
     /**
      * Get the top interactable window's root, excluding MobileGPT apps and system UI.
      * Returns the first application window, which may be an overlay or external app.
      */
     private AccessibilityNodeInfo getTopInteractableRoot() {
         List<AccessibilityWindowInfo> windows = getWindows();
+
+        Log.d(TAG, "=== Window Debug: Total windows = " + windows.size() + " ===");
+        for (int i = 0; i < windows.size(); i++) {
+            AccessibilityWindowInfo window = windows.get(i);
+            int type = window.getType();
+            boolean focused = window.isFocused();
+            boolean active = window.isActive();
+            AccessibilityNodeInfo root = window.getRoot();
+            String pkgName = (root != null && root.getPackageName() != null)
+                    ? root.getPackageName().toString() : "null";
+
+            Log.d(TAG, String.format("  [%d] type=%s, focused=%b, active=%b, pkg=%s, root=%s",
+                    i, windowTypeToString(type), focused, active, pkgName,
+                    (root != null ? "OK" : "NULL")));
+        }
+        Log.d(TAG, "=== End Window Debug ===");
 
         for (AccessibilityWindowInfo window : windows) {
             // Only consider application windows (skip SystemUI, IME, etc.)
