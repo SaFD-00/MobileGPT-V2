@@ -1,6 +1,6 @@
 """LangGraph task graph for subtask selection and verification.
 
-Extended with UICompass integration for Subtask Path Planning and Adaptive Replanning.
+Extended with Subtask Path Planning and Adaptive Replanning.
 """
 
 from typing import Literal
@@ -36,7 +36,7 @@ def route_next_agent(state: TaskState) -> Literal["memory", "planner", "selector
 
 
 def build_task_graph() -> StateGraph:
-    """Build the task workflow graph with UICompass integration.
+    """Build the task workflow graph.
 
     Graph structure (6-step process):
         START -> supervisor -> (conditional routing)
@@ -51,7 +51,7 @@ def build_task_graph() -> StateGraph:
     Flow:
         1. supervisor decides next agent
         2. memory: load page/state and available subtasks
-        3. planner: (UICompass) plan optimal subtask path using Mobile Map
+        3. planner: plan optimal subtask path using Mobile Map
            - If Mobile Map has path: create planned_path
            - If no path: fallback to selector
         4. selector: select subtask from planned_path or use LLM
@@ -69,7 +69,7 @@ def build_task_graph() -> StateGraph:
     # Add nodes (including new planner node)
     graph.add_node("supervisor", supervisor_node)
     graph.add_node("memory", memory_node)
-    graph.add_node("planner", planner_node)  # NEW: UICompass path planning
+    graph.add_node("planner", planner_node)  # Path planning
     graph.add_node("selector", selector_node)
     graph.add_node("verifier", verifier_node)
     graph.add_node("deriver", deriver_node)

@@ -1,7 +1,6 @@
-"""Mobile Map: M3A-style action history generation prompts.
+"""Mobile Map: Action history generation prompts.
 
-Generates prompts for describing what changed after an action,
-following the Mobile-Agent-v3 (M3A) approach.
+Generates prompts for describing what changed after an action.
 """
 
 import json

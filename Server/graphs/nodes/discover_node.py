@@ -98,7 +98,7 @@ def discover_node(state: ExploreState) -> dict:
             )
             log(f":::DISCOVER::: Added Mobile Map transition: {last_explored_page} -> {page_index} via '{last_explored_subtask}'", "cyan")
 
-            # Mobile Map: Generate M3A-style descriptions for action history
+            # Mobile Map: Generate descriptions for action history
             action_history = state.get("action_history", [])
             if action_history:
                 log(f":::DISCOVER::: Processing {len(action_history)} actions for history generation", "cyan")
@@ -145,7 +145,7 @@ def discover_node(state: ExploreState) -> dict:
         new_unexplored[page_index] = available_subtasks
         log(f":::DISCOVER::: Initialized {len(available_subtasks)} unexplored subtasks for page {page_index}", "cyan")
 
-        # Mobile Map: Generate UICompass-style page summary for new pages
+        # Mobile Map: Generate page summary for new pages
         try:
             page_summary = summary_agent.generate_summary(
                 encoded_xml=encoded_xml,
@@ -206,7 +206,7 @@ def _process_action_history(
     subtask_name: str,
     trigger_ui_index: int
 ) -> None:
-    """Process action history to generate M3A-style descriptions and guidance.
+    """Process action history to generate descriptions and guidance.
 
     For each action in history:
     1. Generate description using HistoryAgent (what changed)
@@ -243,7 +243,7 @@ def _process_action_history(
             current_after_screenshot = after_screenshot_path
 
         try:
-            # Generate M3A-style description (what changed)
+            # Generate description (what changed)
             description = history_agent.generate_description(
                 before_xml=before_xml,
                 after_xml=current_after_xml,

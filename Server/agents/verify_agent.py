@@ -130,7 +130,7 @@ def _format_subtasks(subtasks: list) -> str:
 
 
 # ============================================================================
-# Adaptive Replanning (UICompass Integration)
+# Adaptive Replanning
 # ============================================================================
 
 class PathVerificationResult:

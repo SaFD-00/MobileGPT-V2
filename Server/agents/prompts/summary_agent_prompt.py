@@ -1,7 +1,6 @@
-"""Mobile Map: UICompass-style page summary generation prompts.
+"""Mobile Map: Page summary generation prompts.
 
-Generates prompts for describing what a page displays and what users can do,
-following the UICompass approach.
+Generates prompts for describing what a page displays and what users can do.
 """
 
 import json

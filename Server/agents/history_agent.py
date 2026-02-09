@@ -1,7 +1,6 @@
-"""Mobile Map: M3A-style action history generation agent.
+"""Mobile Map: Action history generation agent.
 
-Generates human-readable descriptions of what changed after an action,
-following the Mobile-Agent-v3 (M3A) approach.
+Generates human-readable descriptions of what changed after an action.
 
 Example output: "Clicked search icon, keyboard appeared and search interface activated"
 """
@@ -20,7 +19,7 @@ def generate_description(
     before_screenshot_path: Optional[str] = None,
     after_screenshot_path: Optional[str] = None
 ) -> str:
-    """Generate M3A-style action history description.
+    """Generate action history description.
 
     Describes what changed after performing an action, based on before/after states.
 

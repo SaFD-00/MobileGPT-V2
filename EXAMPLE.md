@@ -496,7 +496,7 @@ This page displays the Google Calendar monthly view for February 2026, showing s
 >
 > **생성 시점**: subtask 탐색 완료 후, 다음 페이지 discover 시
 
-### Description: 무엇이 변했는가 (M3A 스타일)
+### Description: 무엇이 변했는가
 
 #### Description System Prompt
 
@@ -1609,7 +1609,7 @@ class TaskState(TypedDict, total=False):
     status: str                               # 상태 문자열
     iteration: int                            # 재선택 루프 카운트
 
-    # UICompass 경로 계획
+    # 경로 계획
     planned_path: Optional[List[PlannedPathStep]]  # 계획된 경로 (is_transit 포함)
     path_step_index: int                      # 현재 경로 step
 
@@ -1658,7 +1658,7 @@ class ExploreState(TypedDict, total=False):
     last_explored_ui_index: Optional[int]
     last_explored_subtask_name: Optional[str]
 
-    # M3A 히스토리
+    # 액션 히스토리
     action_history: List[dict]                # 액션 히스토리
     before_xml: Optional[str]                 # 액션 전 XML
     before_screenshot_path: Optional[str]     # 액션 전 스크린샷
@@ -1679,7 +1679,7 @@ class ExploreState(TypedDict, total=False):
 | available_subtasks | JSON | subtask 이름 배열 |
 | trigger_uis | JSON | trigger UI 인덱스 배열 |
 | screen | str | XML 시그니처 |
-| summary | str | UICompass 스타일 페이지 요약 |
+| summary | str | 페이지 요약 |
 
 **subtasks.csv** (페이지별):
 
@@ -1703,7 +1703,7 @@ class ExploreState(TypedDict, total=False):
 | trigger_ui_index | int | 트리거 UI 인덱스 |
 | step | int | 시퀀스 번호 |
 | action | JSON | 액션 파라미터 |
-| description | str | M3A: 변경 내용 |
+| description | str | 변경 내용 |
 | guidance | str | 시맨틱 의미 |
 | start_page | int | 액션 시작 페이지 |
 | end_page | int | 액션 후 페이지 |
@@ -1741,8 +1741,8 @@ class ExploreState(TypedDict, total=False):
 |----------|-------------|-------------------|--------|------|
 | **ExploreAgent** (Step 1) | `prompts/subtask_extraction_prompt.py` | `EXPLORE_AGENT_GPT_VERSION` | O | 화면에서 subtask 추출 |
 | **ExploreAgent** (Step 2) | `prompts/trigger_ui_selection_prompt.py` | `EXPLORE_AGENT_GPT_VERSION` | O | 각 subtask의 trigger UI 선택 |
-| **SummaryAgent** | `prompts/summary_agent_prompt.py` | `EXPLORE_AGENT_GPT_VERSION` | O | UICompass 페이지 요약 |
-| **HistoryAgent** (desc) | `prompts/history_agent_prompt.py` | `EXPLORE_AGENT_GPT_VERSION` | O | M3A 액션 설명 (변경 내용) |
+| **SummaryAgent** | `prompts/summary_agent_prompt.py` | `EXPLORE_AGENT_GPT_VERSION` | O | 페이지 요약 |
+| **HistoryAgent** (desc) | `prompts/history_agent_prompt.py` | `EXPLORE_AGENT_GPT_VERSION` | O | 액션 설명 (변경 내용) |
 | **HistoryAgent** (guide) | `prompts/history_agent_prompt.py` | `EXPLORE_AGENT_GPT_VERSION` | X | 시맨틱 가이던스 |
 | **DeriveAgent** (explore) | `prompts/derive_agent_prompt.py` → `get_exploration_prompts()` | `DERIVE_AGENT_GPT_VERSION` | X | Exploration 모드 액션 도출 |
 | **FilterAgent** | `prompts/filter_agent_prompt.py` | `SELECT_AGENT_GPT_VERSION` | X | 관련 subtask 필터링 |

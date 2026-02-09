@@ -1,4 +1,4 @@
-"""Planner node for Subtask Path Planning (UICompass integration).
+"""Planner node for Subtask Path Planning.
 
 Mobile Map 4-Step Workflow Implementation:
 1. Load: Get all subtasks from all pages with page summaries

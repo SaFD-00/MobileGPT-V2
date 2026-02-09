@@ -29,7 +29,7 @@ class PageManager:
 
         # Mobile Map: added 'combined_guidance' for subtask-level semantic guidance
         subtask_header = ['name', 'description', 'guideline', 'combined_guidance', 'trigger_ui_index', 'start_page', 'end_page', 'parameters', 'example']
-        # Mobile Map: added 'description' (M3A-style history) and 'guidance' (semantic action meaning)
+        # Mobile Map: added 'description' (action history) and 'guidance' (semantic action meaning)
         action_header = ['subtask_name', 'trigger_ui_index', 'step', 'start_page', 'end_page', 'action', 'description', 'guidance', 'example']
         available_subtask_header = ['name', 'description', 'parameters', 'trigger_ui_index', 'exploration']
 
@@ -418,7 +418,7 @@ class PageManager:
             example: Training example data
             start_page: Page index before action execution
             end_page: Page index after action execution
-            description: M3A-style history description (what changed after action)
+            description: History description (what changed after action)
             guidance: Semantic meaning of the action
         """
         if example is None:
@@ -457,7 +457,7 @@ class PageManager:
                 "start_page": start_page,
                 "end_page": end_page,
                 "action": action_json,
-                "description": description,  # Mobile Map: M3A-style history
+                "description": description,  # Mobile Map: action history
                 "guidance": guidance,        # Mobile Map: semantic meaning
                 "example": example_json
             }
@@ -627,13 +627,13 @@ class PageManager:
                                    step: int, description: str, guidance: str = "") -> bool:
         """Update description and guidance for an existing action.
 
-        Mobile Map: M3A-style history description update.
+        Mobile Map: Action history description update.
 
         Args:
             subtask_name: Subtask name
             trigger_ui_index: Trigger UI index
             step: Action step number
-            description: M3A-style description of what changed
+            description: Description of what changed
             guidance: Semantic meaning of the action
 
         Returns:

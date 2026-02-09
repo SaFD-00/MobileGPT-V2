@@ -45,7 +45,7 @@ class Memory:
             os.makedirs(self.page_database_path)
 
         task_header = ['name', 'path']
-        # Mobile Map: added 'summary' for UICompass-style page summary
+        # Mobile Map: added 'summary' for page summary
         page_header = ['index', 'available_subtasks', 'trigger_uis', 'extra_uis', "screen", "summary"]
         hierarchy_header = ['index', 'screen', 'embedding']
 
@@ -357,11 +357,11 @@ class Memory:
         ]
 
     # ========================================================================
-    # Mobile Map: Page Summary Methods (UICompass Integration)
+    # Mobile Map: Page Summary Methods
     # ========================================================================
 
     def update_page_summary(self, page_index: int, summary: str) -> bool:
-        """Update UICompass-style page summary.
+        """Update page summary.
 
         Args:
             page_index: Page index to update
@@ -378,7 +378,7 @@ class Memory:
         return False
 
     def get_page_summary(self, page_index: int) -> str:
-        """Get UICompass-style page summary.
+        """Get page summary.
 
         Args:
             page_index: Page index
@@ -392,20 +392,20 @@ class Memory:
         return ''
 
     # ========================================================================
-    # Mobile Map: Action History Methods (M3A Integration)
+    # Mobile Map: Action History Methods
     # ========================================================================
 
     def update_action_description(self, page_index: int, subtask_name: str,
                                    trigger_ui_index: int, step: int,
                                    description: str, guidance: str = "") -> bool:
-        """Update M3A-style action description and guidance.
+        """Update action description and guidance.
 
         Args:
             page_index: Page index where action exists
             subtask_name: Subtask name
             trigger_ui_index: Trigger UI index
             step: Action step number
-            description: M3A-style description of what changed
+            description: Description of what changed
             guidance: Semantic meaning of the action
 
         Returns:
@@ -420,7 +420,7 @@ class Memory:
 
     def save_action_history(self, page_index: int, subtask_name: str,
                             history: List[dict]) -> bool:
-        """Save M3A-style action history for a subtask exploration.
+        """Save action history for a subtask exploration.
 
         Updates actions.csv with descriptions and guidances from history entries.
 

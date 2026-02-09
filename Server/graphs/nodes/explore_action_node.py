@@ -19,7 +19,7 @@ def _add_to_action_history(
     state: ExploreState,
     action: dict
 ) -> List[dict]:
-    """Add action entry to history for M3A-style description generation.
+    """Add action entry to history for action description generation.
 
     Args:
         state: Current explore state (contains before_xml, before_screenshot_path)
@@ -199,7 +199,7 @@ def _get_dfs_action(state: ExploreState) -> dict:
             new_traversal = traversal_path.copy()
             new_traversal.append(page_index)
 
-            # Mobile Map: Track action for M3A-style history generation
+            # Mobile Map: Track action for action history generation
             new_action_history = _add_to_action_history(state, action)
 
             return {
@@ -214,7 +214,7 @@ def _get_dfs_action(state: ExploreState) -> dict:
                 "last_explored_page_index": page_index,
                 "last_explored_subtask_name": subtask_name,
                 "last_explored_ui_index": trigger_ui,
-                # Mobile Map: M3A-style history tracking
+                # Mobile Map: action history tracking
                 "action_history": new_action_history,
                 "before_xml": current_xml,
                 "before_screenshot_path": state.get("screenshot_path"),
@@ -353,7 +353,7 @@ def _get_bfs_action(state: ExploreState) -> dict:
             new_traversal = traversal_path.copy()
             new_traversal.append(page_index)
 
-            # Mobile Map: Track action for M3A-style history generation
+            # Mobile Map: Track action for action history generation
             new_action_history = _add_to_action_history(state, action)
 
             return {
@@ -368,7 +368,7 @@ def _get_bfs_action(state: ExploreState) -> dict:
                 "last_explored_page_index": page_index,
                 "last_explored_subtask_name": subtask_name,
                 "last_explored_ui_index": trigger_ui,
-                # Mobile Map: M3A-style history tracking
+                # Mobile Map: action history tracking
                 "action_history": new_action_history,
                 "before_xml": current_xml,
                 "before_screenshot_path": state.get("screenshot_path"),
@@ -484,7 +484,7 @@ def _get_greedy_action(state: ExploreState) -> dict:
         new_traversal = traversal_path.copy()
         new_traversal.append(page_index)
 
-        # Mobile Map: Track action for M3A-style history generation
+        # Mobile Map: Track action for action history generation
         new_action_history = _add_to_action_history(state, action)
 
         return {
@@ -499,7 +499,7 @@ def _get_greedy_action(state: ExploreState) -> dict:
             "last_explored_page_index": page_index,
             "last_explored_subtask_name": subtask_name,
             "last_explored_ui_index": trigger_ui,
-            # Mobile Map: M3A-style history tracking
+            # Mobile Map: action history tracking
             "action_history": new_action_history,
             "before_xml": current_xml,
             "before_screenshot_path": state.get("screenshot_path"),

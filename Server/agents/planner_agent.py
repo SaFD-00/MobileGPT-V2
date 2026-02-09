@@ -1,4 +1,4 @@
-"""Planner Agent for UICompass-style Subtask Path Planning.
+"""Planner Agent for Subtask Path Planning.
 
 This agent analyzes user instructions and Mobile Map to plan
 an optimal sequence of subtasks for task completion.
@@ -14,7 +14,7 @@ from utils.utils import log, query
 class PlannerAgent:
     """Plans optimal subtask paths using Mobile Map.
 
-    Implements UICompass's UI Path Planning concept:
+    Implements UI Path Planning:
     1. Analyze user instruction to identify goal subtasks
     2. Use BFS on Mobile Map to find shortest path to goal
     3. Generate planned_path with step-by-step instructions

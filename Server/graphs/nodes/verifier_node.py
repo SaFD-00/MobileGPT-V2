@@ -2,7 +2,7 @@
 
 Mobile Map 4-Step Workflow - Step 4: Execute & Replan
 
-Implements adaptive replanning logic (UICompass-inspired):
+Implements adaptive replanning logic:
 - PROCEED: On expected page, continue execution
 - SKIP: Jumped ahead in plan, update step index
 - REPLAN: Unexpected page, trigger replanning to Planner node

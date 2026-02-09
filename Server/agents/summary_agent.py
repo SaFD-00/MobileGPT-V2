@@ -1,7 +1,6 @@
-"""Mobile Map: UICompass-style page summary generation agent.
+"""Mobile Map: Page summary generation agent.
 
-Generates human-readable summaries of what a page displays and allows users to do,
-following the UICompass approach.
+Generates human-readable summaries of what a page displays and allows users to do.
 
 Example output: "This page displays the inbox with email list. Users can search emails,
 compose new messages, access settings, and navigate to different folders."
@@ -19,7 +18,7 @@ def generate_summary(
     available_subtasks: List[dict],
     screenshot_path: Optional[str] = None
 ) -> str:
-    """Generate UICompass-style page summary.
+    """Generate page summary.
 
     Describes what the page displays and what actions are available to users.
 

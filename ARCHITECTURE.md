@@ -95,7 +95,7 @@ class TaskState(TypedDict, total=False):
     selected_subtask: Optional[dict]
     available_subtasks: List[dict]
 
-    # 경로 계획 (Path planning - UICompass)
+    # 경로 계획 (Path planning)
     planned_path: List[PlannedPathStep]  # is_transit 플래그 포함
     path_step_index: int
 
@@ -173,8 +173,8 @@ def route_next_agent(state: TaskState) -> str:
 1. **자율 발견**: 화면과 사용 가능한 서브태스크를 자동으로 식별
 2. **체계적 커버리지**: 설정 가능한 알고리즘을 사용하여 도달 가능한 모든 UI 상태 탐색
 3. **Mobile Map 구축**: 다음을 포함한 풍부한 네비게이션 그래프 구축:
-   - **페이지 요약** (UICompass 스타일): 페이지가 표시하고 허용하는 것
-   - **액션 설명** (M3A 스타일): 각 액션 후 변경된 내용
+   - **페이지 요약**: 페이지가 표시하고 허용하는 것
+   - **액션 설명**: 각 액션 후 변경된 내용
    - **액션 가이던스**: 각 액션의 시맨틱 의미
    - **통합 가이던스**: 집계된 서브태스크 레벨 지침
 4. **안전 필터링**: 잠재적으로 위험한 액션 실행 방지
@@ -362,7 +362,7 @@ Auto-Explore는 잠재적으로 위험한 액션을 자동으로 필터링합니
 2. 안전하지 않은 서브태스크는 로깅되지만 실행되지 않음
 3. Mobile Map 엣지는 안전한 서브태스크에 대해서만 생성
 
-### 3.5 M3A-style 히스토리 추적 (Action History Tracking)
+### 3.5 액션 히스토리 추적 (Action History Tracking)
 
 탐색 중 수행된 액션의 히스토리를 추적하여 설명과 가이던스를 생성합니다.
 
@@ -379,7 +379,7 @@ before_screenshot_path: str           # 액션 실행 전 스크린샷 경로
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                M3A-style 히스토리 처리 흐름                      │
+│                액션 히스토리 처리 흐름                              │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  1. explore_action_node                                          │
@@ -447,7 +447,7 @@ action_history_entry = {
 │                                                                  │
 │  ┌──────────┐   ┌──────────┐   ┌──────────┐                     │
 │  │1. RECALL │──►│2. PLAN   │──►│3. SELECT │                     │
-│  │ (조회)   │   │(UICompass)│   │ (선택)   │                     │
+│  │ (조회)   │   │ (계획)   │   │ (선택)   │                     │
 │  │ Memory   │   │ BFS Path │   │ Subtask  │                     │
 │  │ Lookup   │   │ Planning │   │ Choice   │                     │
 │  └──────────┘   └──────────┘   └────┬─────┘                     │
@@ -521,11 +521,11 @@ def verify_with_path(planned_path, step_index, current_page):
 
 **최대 재계획 횟수**: 5회 (`max_replan`으로 설정 가능)
 
-### 4.4 UICompass 경로 계획
+### 4.4 경로 계획
 
 PlannerAgent는 최적 경로 계획을 위해 Mobile Map에서 BFS를 사용합니다.
 
-**Transit Subtask 자동 포함**: Plan 단계에서 전체 subtask에 Filter 결과를 `[RELEVANT]` 마커로 표시하여 LLM에 전달합니다. BFS 경로 탐색 시 필터링되지 않았지만 경로상 필요한 경유(transit) subtask가 자동으로 포함되며, `is_transit: True` 플래그로 구분됩니다. (UICompass Focusing Strategy Step 5 영감)
+**Transit Subtask 자동 포함**: Plan 단계에서 전체 subtask에 Filter 결과를 `[RELEVANT]` 마커로 표시하여 LLM에 전달합니다. BFS 경로 탐색 시 필터링되지 않았지만 경로상 필요한 경유(transit) subtask가 자동으로 포함되며, `is_transit: True` 플래그로 구분됩니다.
 
 ```python
 def plan_path(current_page, subtask_graph, instruction, filtered_names):
@@ -989,7 +989,7 @@ class TaskState(TypedDict, total=False):
     rejected_subtasks: List[dict]
     available_subtasks: List[dict]
 
-    # 경로 계획 (Path planning - UICompass)
+    # 경로 계획 (Path planning)
     planned_path: Optional[List[PlannedPathStep]]
     path_step_index: int
 
@@ -1106,7 +1106,4 @@ pytest Server/tests/ --cov=Server --cov-report=html
 ## 12. 참고 자료 (References)
 
 - **LangGraph**: https://github.com/langchain-ai/langgraph
-- **MobileGPT**: LLM 기반 모바일 자동화에 관한 원본 연구
-- **Mobile-Agent-v3 (M3A)**: thought-action-summary 트리플을 사용한 액션 히스토리 생성
-- **UICompass**: UI Map 구조, 페이지 요약, 적응형 재계획
 - **Android Accessibility**: https://developer.android.com/guide/topics/ui/accessibility

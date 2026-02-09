@@ -1,4 +1,4 @@
-"""Prompts for PlannerAgent - UICompass Goal Analysis."""
+"""Prompts for PlannerAgent - Goal Analysis."""
 
 GOAL_ANALYSIS_SYSTEM = """You are a mobile app navigation planner. Your task is to analyze a user instruction and identify which subtasks need to be executed.
 

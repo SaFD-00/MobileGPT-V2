@@ -9,15 +9,13 @@ from typing import Any, Dict, List, Literal, Optional, Set, TypedDict
 # Mobile Map represents the app's UI navigation structure as a graph.
 # - Nodes: Pages (screens) with summaries
 # - Edges: Subtask transitions with descriptions, guidance, and action sequences
-#
-# Inspired by UICompass and Mobile-Agent-v3 (M3A) approaches.
 # ============================================================================
 
 class SubtaskTransitionEdge(TypedDict):
     """Single edge in the Mobile Map.
 
     Represents a transition from one page to another via a subtask.
-    Includes M3A-style action descriptions and guidance.
+    Includes action descriptions and guidance.
     """
     from_page: int
     to_page: int
@@ -100,7 +98,7 @@ class TaskState(TypedDict, total=False):
     iteration: int  # Reselection loop count
 
     # ========================================================================
-    # Subtask Path Planning (UICompass)
+    # Subtask Path Planning
     # ========================================================================
     planned_path: Optional[List[PlannedPathStep]]  # Planned subtask sequence
     path_step_index: int  # Current step in planned_path
@@ -174,7 +172,7 @@ class ExploreState(TypedDict, total=False):
     is_new_screen: bool
 
     # ========================================================================
-    # Mobile Map: M3A-style Action History Tracking
+    # Mobile Map: Action History Tracking
     # ========================================================================
     # History entries: [{step, before_xml, before_screenshot, action, description?}, ...]
     action_history: List[dict]  # Accumulated during subtask exploration

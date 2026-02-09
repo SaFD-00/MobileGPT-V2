@@ -11,7 +11,7 @@ MAX_ITERATIONS = 5  # Maximum reselection attempts
 def supervisor_node(state: TaskState) -> dict:
     """Supervisor agent node: decide which agent to call next.
 
-    Implements the routing logic for the extended 6-step task graph (UICompass):
+    Implements the routing logic for the extended 6-step task graph:
     1. Initial state -> MemoryAgent (load page/state and subtasks)
     2. Subtasks loaded -> PlannerAgent (plan path) or SelectAgent (fallback)
     3. Path planned -> SelectAgent (select from planned path)
@@ -31,7 +31,7 @@ def supervisor_node(state: TaskState) -> dict:
     available_subtasks = state.get("available_subtasks", [])
     status = state.get("status", "")
 
-    # UICompass: Path Planning state
+    # Path Planning state
     planned_path = state.get("planned_path")
     replan_needed = state.get("replan_needed", False)
     path_step_index = state.get("path_step_index", 0)
@@ -69,7 +69,7 @@ def supervisor_node(state: TaskState) -> dict:
         }
 
     # =========================================================================
-    # UICompass: Adaptive Replanning
+    # Adaptive Replanning
     # =========================================================================
     if replan_needed:
         if replan_count < max_replan:
@@ -128,7 +128,7 @@ def supervisor_node(state: TaskState) -> dict:
         }
 
     # =========================================================================
-    # UICompass: Path Planning
+    # Path Planning
     # =========================================================================
     # Check if we need to plan a path (subtasks available but no path yet)
     if available_subtasks and not selected_subtask:

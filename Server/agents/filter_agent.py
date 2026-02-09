@@ -3,7 +3,6 @@
 Filters subtasks relevant to user instruction, implementing Step 2 of the
 4-step workflow (Load → Filter → Plan → Execute/Replan).
 
-Inspired by UICompass's selective subtask loading approach.
 """
 
 import json
