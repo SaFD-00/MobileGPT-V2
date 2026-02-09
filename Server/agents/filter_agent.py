@@ -50,7 +50,7 @@ def filter_subtasks(
         max_results=max_results
     )
 
-    model = os.getenv("FILTER_AGENT_GPT_VERSION", "gpt-4o-mini")
+    model = os.getenv("FILTER_AGENT_GPT_VERSION", "gpt-5.2")
     response = query(prompts, model=model)
 
     # Parse response

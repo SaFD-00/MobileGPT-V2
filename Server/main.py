@@ -32,6 +32,10 @@ os.environ["ACTION_SUMMARIZE_AGENT_GPT_VERSION"] = "gpt-5.2"
 os.environ["SUBTASK_MERGE_AGENT_GPT_VERSION"] = "gpt-5.2"
 os.environ["GUIDELINE_AGENT_GPT_VERSION"] = "gpt-5.2"
 os.environ["VERIFY_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["FILTER_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["HISTORY_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["PLANNER_AGENT_GPT_VERSION"] = "gpt-5.2"
+os.environ["SUMMARY_AGENT_GPT_VERSION"] = "gpt-5.2"
 
 
 def main():

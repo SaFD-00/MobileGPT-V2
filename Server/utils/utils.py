@@ -92,7 +92,7 @@ def query(messages, model="gpt-5.2", is_list=False):
     if json_formatted_response:
         return json.loads(json_formatted_response)
     else:
-        # JSON 파싱 실패 시 타입에 맞는 기본값 반환
+        # Return type-appropriate default value when JSON parsing fails
         log(f":::QUERY WARNING::: Failed to parse JSON from response. Returning empty {'list' if is_list else 'dict'}.", "yellow")
         if result:
             log(f":::QUERY WARNING::: Response preview: {result[:200]}...", "yellow")
@@ -100,30 +100,30 @@ def query(messages, model="gpt-5.2", is_list=False):
 
 
 def encode_image_to_base64(image_path: str) -> str:
-    """이미지 파일을 Base64로 인코딩"""
+    """Encode an image file to Base64"""
     with open(image_path, "rb") as image_file:
         return base64.standard_b64encode(image_file.read()).decode("utf-8")
 
 
 def _add_image_to_messages(messages: list, image_path: str,
                            detail: str = "high") -> list:
-    """마지막 user 메시지에 이미지 추가
+    """Add an image to the last user message
 
-    Chat Completions API Vision 형식:
+    Chat Completions API Vision format:
     {"type": "text", "text": "..."}
     {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,..."}}
     """
     new_messages = copy.deepcopy(messages)
 
-    # 마지막 user 메시지 찾기
+    # Find the last user message
     for i in range(len(new_messages) - 1, -1, -1):
         if new_messages[i]["role"] == "user":
             content = new_messages[i]["content"]
 
-            # 이미지 Base64 인코딩
+            # Encode image to Base64
             base64_image = encode_image_to_base64(image_path)
 
-            # Vision API 형식으로 변환
+            # Convert to Vision API format
             if isinstance(content, str):
                 new_messages[i]["content"] = [
                     {"type": "text", "text": content},
@@ -141,24 +141,24 @@ def query_with_vision(messages, model: str = "gpt-5.2",
                       screenshot_path: Optional[str] = None,
                       is_list: bool = False,
                       image_detail: str = "high"):
-    """Vision API를 지원하는 query 함수
+    """Query function with Vision API support
 
     Args:
-        messages: 프롬프트 메시지 리스트
-        model: 사용할 모델명 (default: gpt-5.2)
-        screenshot_path: 스크린샷 파일 경로 (Optional)
-        is_list: 응답이 리스트인지 여부
-        image_detail: 이미지 디테일 레벨 (low/high/auto)
+        messages: List of prompt messages
+        model: Model name to use (default: gpt-5.2)
+        screenshot_path: Screenshot file path (Optional)
+        is_list: Whether the response is a list
+        image_detail: Image detail level (low/high/auto)
 
     Returns:
-        파싱된 JSON 응답 (dict 또는 list)
+        Parsed JSON response (dict or list)
     """
-    # 스크린샷이 있으면 Vision API 형식으로 변환
+    # Convert to Vision API format if screenshot is available
     if screenshot_path and os.path.exists(screenshot_path):
         log(f":::VISION::: Adding screenshot: {screenshot_path}", "magenta")
         messages = _add_image_to_messages(messages, screenshot_path, image_detail)
 
-    # 기존 query 로직 사용
+    # Use existing query logic
     return query(messages, model=model, is_list=is_list)
 
 
@@ -183,14 +183,14 @@ def parse_completion_rate(completion_rate) -> int:
 
 
 def __parse_json(s: str, is_list=False):
-    """JSON 문자열을 파싱하여 추출.
+    """Parse and extract a JSON string.
 
     Args:
-        s: 파싱할 문자열
-        is_list: True면 리스트 형태 [...], False면 딕셔너리 형태 {...} 검색
+        s: String to parse
+        is_list: If True, search for list format [...]; if False, search for dict format {...}
 
     Returns:
-        str: 매칭된 JSON 문자열, 실패 시 None
+        str: Matched JSON string, or None on failure
     """
     if not s or not isinstance(s, str):
         return None

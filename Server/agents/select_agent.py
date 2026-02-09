@@ -8,8 +8,8 @@ from utils.utils import query, query_with_vision, log, parse_completion_rate
 
 class SelectAgent:
     """
-    사용 가능한 서브태스크 중 최적의 것을 선택하는 에이전트
-    현재 상황과 목표를 고려하여 다음 동작 결정
+    Agent that selects the optimal subtask from the available options.
+    Determines the next action considering the current situation and goal.
     """
     def __init__(self, memory: Memory, instruction: str):
         self.memory = memory
@@ -18,16 +18,16 @@ class SelectAgent:
     def select(self, available_subtasks: list, subtask_history: list, qa_history: list,
                screen: str, screenshot_path: str = None) -> (dict, dict):
         """
-        주어진 옵션 중 최적의 서브태스크 선택
+        Select the optimal subtask from the given options.
         Args:
-            available_subtasks: 사용 가능한 서브태스크 목록
-            subtask_history: 서브태스크 실행 히스토리
-            qa_history: Q&A 히스토리
-            screen: 현재 화면 XML
-            screenshot_path: 스크린샷 파일 경로 (Vision API용)
+            available_subtasks: List of available subtasks
+            subtask_history: Subtask execution history
+            qa_history: Q&A history
+            screen: Current screen XML
+            screenshot_path: Screenshot file path (for Vision API)
         Returns:
-            response: 선택 결과 응답
-            new_action: 새로 생성된 액션 (있을 경우)
+            response: Selection result response
+            new_action: Newly created action (if any)
         """
         log(f":::SELECT:::", "blue")
         has_screenshot = screenshot_path is not None
@@ -39,12 +39,12 @@ class SelectAgent:
             select_prompts, model=os.getenv("SELECT_AGENT_GPT_VERSION"),
             screenshot_path=screenshot_path
         )
-        # 유효한 응답이 나올 때까지 재시도
+        # Retry until a valid response is obtained
         while not self.__check_response_validity(response, available_subtasks):
             assistant_msg = {"role": "assistant", "content": json.dumps(response)}
             select_prompts.append(assistant_msg)
 
-            # 오류 메시지 추가하여 다시 요청
+            # Add error message and request again
             error_msg = {"role": "user", "content": "Error: The selected action is not in the available actions list."}
             select_prompts.append(error_msg)
             response = query(select_prompts, model=os.getenv("SELECT_AGENT_GPT_VERSION"))
@@ -60,12 +60,12 @@ class SelectAgent:
             return response, None
 
     def __check_response_validity(self, response, available_subtasks):
-        """선택된 액션이 사용 가능한 목록에 있는지 확인"""
+        """Check if the selected action is in the available list"""
         action = response['action']
 
-        # 선택된 액션이 사용 가능한 서브태스크에 있는지 확인
+        # Check if the selected action exists in the available subtasks
         subtask_match = False
-        # 기본 액션들은 항상 허용
+        # Default actions are always allowed
         if action['name'] in ['scroll_screen', 'finish', 'speak']:
             subtask_match = True
             return True
@@ -76,18 +76,18 @@ class SelectAgent:
                 return True
 
         if not subtask_match:
-            # 새로운 액션인 경우 사용 가능한 서브태스크에 추가
+            # If it is a new action, add it to the available subtasks
             if "new_action" in response:
                 new_action = response['new_action']
                 available_subtasks.append(new_action)
                 return True
 
-            # 선택된 액션이 목록에 없고 새 액션도 제공되지 않으면 오류
+            # Error if the selected action is not in the list and no new action is provided
             else:
                 return False
 
     def __save_as_example(self, subtask_raw, screen, response):
-        """선택 결과를 학습용 예시로 저장"""
+        """Save the selection result as a training example"""
         del response['completion_rate']
         example = {"instruction": self.instruction, "screen": screen, "response": response}
         self.memory.save_subtask(subtask_raw, example)

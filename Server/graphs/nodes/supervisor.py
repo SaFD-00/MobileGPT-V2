@@ -90,7 +90,7 @@ def supervisor_node(state: TaskState) -> dict:
 
     # Verification completed
     if verification_passed is True:
-        # "간다" (should go) -> proceed to DeriveAgent
+        # "should go" -> proceed to DeriveAgent
         log(":::SUPERVISOR::: Verification PASSED -> DeriveAgent", "green")
 
         # Update path step if using planned_path
@@ -105,7 +105,7 @@ def supervisor_node(state: TaskState) -> dict:
         return updates
 
     if verification_passed is False:
-        # "가면 안된다" (shouldn't go) -> reselect with rejection
+        # "shouldn't go" -> reselect with rejection
         log(":::SUPERVISOR::: Verification FAILED -> Reselect", "yellow")
 
         rejected_subtasks = state.get("rejected_subtasks", [])

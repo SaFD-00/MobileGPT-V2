@@ -12,10 +12,10 @@ import xml.etree.ElementTree as ET
 
 class ExploreAgent:
     """
-    새로운 화면을 탐색하고 가능한 서브태스크를 발견하는 에이전트
-    2단계 프로세스:
-    1. Step 1: 화면에서 가능한 high-level subtask 추출
-    2. Step 2: 각 subtask의 대표 triggerUI 선택
+    Agent that explores new screens and discovers possible subtasks.
+    Two-phase process:
+    1. Step 1: Extract possible high-level subtasks from the screen
+    2. Step 2: Select the representative triggerUI for each subtask
     """
     def __init__(self, memory: Memory):
         self.memory = memory
@@ -23,15 +23,15 @@ class ExploreAgent:
     def explore(self, parsed_xml, hierarchy_xml, html_xml,
                 screen_num=None, screenshot_path=None) -> int:
         """
-        주어진 화면 XML을 분석하여 새로운 노드 생성
+        Analyze the given screen XML and create a new node.
         Args:
-            parsed_xml: 파싱된 XML 화면 구조
-            hierarchy_xml: 계층 구조 XML
-            html_xml: HTML 형식 XML
-            screen_num: 화면 번호
-            screenshot_path: 스크린샷 파일 경로 (Vision API용)
+            parsed_xml: Parsed XML screen structure
+            hierarchy_xml: Hierarchy XML
+            html_xml: HTML format XML
+            screen_num: Screen number
+            screenshot_path: Screenshot file path (for Vision API)
         Returns:
-            생성된 노드의 인덱스
+            Index of the created node
         """
 
         log(f":::EXPLORE:::", "blue")
@@ -39,7 +39,7 @@ class ExploreAgent:
         has_screenshot = screenshot_path is not None
 
         # ============================================
-        # Step 1: Subtask 추출 (Vision API 활용)
+        # Step 1: Subtask extraction (using Vision API)
         # ============================================
         log(f":::EXPLORE STEP 1::: Extracting high-level subtasks", "cyan")
         subtask_prompts = subtask_extraction_prompt.get_prompts(
@@ -50,12 +50,12 @@ class ExploreAgent:
             screenshot_path=screenshot_path, is_list=True
         )
 
-        # 타입 검증 - 리스트가 아닌 경우 빈 리스트로 초기화
+        # Type validation - initialize as empty list if not a list
         if not isinstance(subtasks, list):
             log(f":::EXPLORE WARNING::: subtasks is not a list (type: {type(subtasks).__name__}), using empty list", "yellow")
             subtasks = []
 
-        # 필수 필드 기본값 설정 + safe 필드 처리
+        # Set default values for required fields + handle safe field
         safe_subtasks = []
         unsafe_subtasks = []
 
@@ -65,38 +65,38 @@ class ExploreAgent:
             if "expected_steps" not in subtask:
                 subtask['expected_steps'] = 2
             if "safe" not in subtask:
-                subtask['safe'] = True  # 기본값: safe
+                subtask['safe'] = True  # Default: safe
             if "risk_category" not in subtask:
                 subtask['risk_category'] = None
 
-            # safe/unsafe 분류
+            # Classify as safe/unsafe
             if subtask.get('safe', True):
                 safe_subtasks.append(subtask)
             else:
                 unsafe_subtasks.append(subtask)
 
-        # 전체 서브태스크 로깅 (safe/unsafe 모두 표시)
+        # Log all subtasks (showing both safe/unsafe)
         log(f":::EXPLORE STEP 1::: Extracted {len(subtasks)} subtasks "
             f"(safe: {len(safe_subtasks)}, unsafe: {len(unsafe_subtasks)})", "cyan")
         log(f"All Subtasks: {json.dumps(subtasks, indent=2)}", "blue")
 
-        # unsafe 서브태스크 경고 로깅
+        # Log warnings for unsafe subtasks
         for unsafe in unsafe_subtasks:
             log(f":::GUARDRAIL::: Blocked unsafe subtask '{unsafe.get('name')}' "
                 f"(category: {unsafe.get('risk_category')})", "red")
 
-        # safe 서브태스크만 다음 단계로 진행
+        # Proceed to the next step with only safe subtasks
         subtasks = safe_subtasks
 
         if not subtasks:
             log(f":::EXPLORE::: No subtasks found, creating empty node", "yellow")
-            # 빈 노드 생성
+            # Create an empty node
             new_node_index = self.memory.add_node([], {}, {}, parsed_xml, screen_num)
             self.memory.add_hierarchy_xml(hierarchy_xml, new_node_index)
             return new_node_index
 
         # ============================================
-        # Step 2: TriggerUI 선택 (Vision API 활용)
+        # Step 2: TriggerUI selection (using Vision API)
         # ============================================
         log(f":::EXPLORE STEP 2::: Selecting trigger UIs for {len(subtasks)} subtasks", "cyan")
         trigger_prompts = trigger_ui_selection_prompt.get_prompts(
@@ -107,7 +107,7 @@ class ExploreAgent:
             screenshot_path=screenshot_path, is_list=False
         )
 
-        # trigger_ui_mapping 검증
+        # Validate trigger_ui_mapping
         if not isinstance(trigger_ui_mapping, dict):
             log(f":::EXPLORE WARNING::: trigger_ui_mapping is not a dict (type: {type(trigger_ui_mapping).__name__}), using empty dict", "yellow")
             trigger_ui_mapping = {}
@@ -115,7 +115,7 @@ class ExploreAgent:
         log(f":::EXPLORE STEP 2::: Trigger UI mapping: {json.dumps(trigger_ui_mapping, indent=2)}", "cyan")
 
         # ============================================
-        # Subtask + TriggerUI 결합
+        # Combine Subtask + TriggerUI
         # ============================================
         available_subtasks = []
         subtasks_trigger_uis = {}  # {subtask_name: [trigger_ui_index]}
@@ -124,7 +124,7 @@ class ExploreAgent:
             subtask_name = subtask.get('name', '')
             trigger_ui = trigger_ui_mapping.get(subtask_name, -1)
 
-            # trigger_ui가 유효한 경우만 추가 (정수 검증)
+            # Only add if trigger_ui is valid (integer validation)
             if isinstance(trigger_ui, int) and trigger_ui >= 0:
                 subtask_entry = {
                     'name': subtask_name,
@@ -142,15 +142,15 @@ class ExploreAgent:
 
         log(f":::EXPLORE::: Final available subtasks: {len(available_subtasks)}", "blue")
 
-        # 트리거 UI 속성 추출
+        # Extract trigger UI attributes
         subtasks_trigger_ui_attributes = get_trigger_ui_attributes(subtasks_trigger_uis, parsed_xml)
 
-        # 트리거 UI 인덱스 리스트
+        # List of trigger UI indices
         trigger_ui_indexes = [ui for uis in subtasks_trigger_uis.values() for ui in uis]
-        # 트리거 UI 외의 추가 UI 속성 추출
+        # Extract additional UI attributes beyond trigger UIs
         extra_ui_attributes = get_extra_ui_attributes(trigger_ui_indexes, parsed_xml)
 
-        # 메모리에 새 노드 추가
+        # Add new node to memory
         new_node_index = self.memory.add_node(
             available_subtasks,
             subtasks_trigger_ui_attributes,
@@ -159,7 +159,7 @@ class ExploreAgent:
             screen_num
         )
 
-        # 계층 구조 XML과 임베딩 저장
+        # Save hierarchy XML and embeddings
         self.memory.add_hierarchy_xml(hierarchy_xml, new_node_index)
 
         return new_node_index

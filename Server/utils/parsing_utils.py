@@ -138,7 +138,7 @@ def get_trigger_ui_attributes(trigger_ui_indexes: dict, screen: str) -> dict:
                 log(f"Skipping UI index {ui_index} for subtask '{subtask_name}' - not found in XML", "yellow")
                 continue
 
-            # index 정보를 attributes에 추가 (나중에 액션 생성할 때 필요)
+            # Add index info to attributes (needed later when generating actions)
             ui_attributes['index'] = ui_index
 
             skip = False

@@ -1,7 +1,7 @@
 """
 Step 1: Subtask Extraction Prompt
-화면에서 가능한 복잡한 high-level subtask 목록을 추출합니다.
-triggerUI 선택은 별도 단계(Step 2)에서 수행됩니다.
+Extracts a list of complex high-level subtasks possible on the screen.
+Trigger UI selection is performed in a separate step (Step 2).
 """
 
 
@@ -59,30 +59,30 @@ def get_sys_prompt():
         "Set 'safe': false for subtasks in these SENSITIVE categories:\n\n"
 
         "1. **communication** (irreversible interpersonal impact):\n"
-        "   - Message/email sending: Send, Reply, Reply All, 보내기, 전송\n"
-        "   - SNS posting: Post, Share, Tweet, 게시, 공유\n"
+        "   - Message/email sending: Send, Reply, Reply All\n"
+        "   - SNS posting: Post, Share, Tweet\n"
         "   - Calls/video: Call, Dial, Start meeting\n"
-        "   - Contact management: Delete contact, Block, 삭제, 차단\n\n"
+        "   - Contact management: Delete contact, Block\n\n"
 
         "2. **data** (irreversible data loss):\n"
-        "   - Permanent deletion: Delete, Remove, 삭제, 휴지통 비우기, Clear all\n"
+        "   - Permanent deletion: Delete, Remove, Clear all\n"
         "   - File overwrite: Overwrite, Replace, Save (same filename)\n"
-        "   - Bulk operations: Bulk delete, Select all + delete, 일괄 삭제\n\n"
+        "   - Bulk operations: Bulk delete, Select all + delete\n\n"
 
         "3. **financial** (monetary loss):\n"
-        "   - Payment: Pay, Purchase, Buy, 결제, 구매, 원클릭 주문\n"
-        "   - Subscription: Subscribe, Start trial, 구독, 무료 체험\n"
-        "   - Transfer: Transfer, Send money, 이체, 송금\n\n"
+        "   - Payment: Pay, Purchase, Buy\n"
+        "   - Subscription: Subscribe, Start trial\n"
+        "   - Transfer: Transfer, Send money\n\n"
 
         "4. **system** (system security threat):\n"
-        "   - App install/uninstall: Install, Uninstall, 설치, 삭제\n"
-        "   - Permissions: Permission, Allow, Grant access, 권한 허용\n"
-        "   - System settings: Settings > Security, 시스템 설정\n\n"
+        "   - App install/uninstall: Install, Uninstall\n"
+        "   - Permissions: Permission, Allow, Grant access\n"
+        "   - System settings: Settings > Security\n\n"
 
         "5. **privacy** (personal info/auth risk):\n"
-        "   - Logout: Logout, Sign out, 로그아웃\n"
-        "   - Password: Show password, Copy password, 비밀번호 보기\n"
-        "   - Authentication: OTP, 2FA, Verify, 인증번호\n\n"
+        "   - Logout: Logout, Sign out\n"
+        "   - Password: Show password, Copy password\n"
+        "   - Authentication: OTP, 2FA, Verify\n\n"
 
         "For SAFE subtasks: set 'safe': true, 'risk_category': null\n"
         "For UNSAFE subtasks: set 'safe': false, 'risk_category': '<category>'\n\n"

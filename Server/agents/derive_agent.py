@@ -11,8 +11,8 @@ from utils import action_utils, parsing_utils
 
 class DeriveAgent:
     """
-    서브태스크를 구체적인 액션으로 변환하는 에이전트
-    클릭, 입력, 스크롤 등의 상세 액션 생성
+    Agent that converts subtasks into concrete actions.
+    Generates detailed actions such as click, input, scroll, etc.
     """
     def __init__(self, memory: Memory, instruction: str):
         self.memory = memory
@@ -23,21 +23,21 @@ class DeriveAgent:
         self.response_history = []
 
     def init_subtask(self, subtask: dict, subtask_history: list) -> None:
-        """새로운 서브태스크 처리를 위한 초기화"""
+        """Initialize for processing a new subtask"""
         self.subtask = subtask
         self.subtask_history = subtask_history
         self.action_history = []
 
     def derive(self, screen: str, examples=None, screenshot_path: str = None) -> (dict, dict):
         """
-        현재 화면 상태에서 서브태스크를 수행할 구체적 액션 도출
+        Derive a concrete action to perform the subtask from the current screen state.
         Args:
-            screen: 현재 화면 XML
-            examples: 학습용 예시 데이터
-            screenshot_path: 스크린샷 파일 경로 (Vision API용)
+            screen: Current screen XML
+            examples: Training example data
+            screenshot_path: Screenshot file path (for Vision API)
         Returns:
-            action: 실행할 액션 정보
-            example: 학습용 예시 데이터
+            action: Action information to execute
+            example: Training example data
         """
         if examples is None:
             examples = []
@@ -55,20 +55,20 @@ class DeriveAgent:
         response['completion_rate'] = parse_completion_rate(response['completion_rate'])
         self.response_history.append(response)
 
-        # 액션 히스토리에 성공적 실행 기록
+        # Record successful execution in action history
         history = "your past response: " + json.dumps(response) + " has been executed successfully."
         self.action_history.append(history)
 
         example = self.__exemplify(response, screen)
         return response['action'], example
 
-        # 실시간 저장 (현재 비활성화)
+        # Real-time saving (currently disabled)
         # self.__generalize_and_save_action(response, screen)
         # generalized_action = self.__generalize_action(response, screen)
         # return response['action'], generalized_action
 
     def add_finish_action(self) -> None:
-        """서브태스크 종료 액션 추가"""
+        """Add a finish action for the subtask"""
         finish_action = {
             "name": "finish",
             "parameters": {},
@@ -76,7 +76,7 @@ class DeriveAgent:
         self.memory.save_action(self.subtask['name'], finish_action, example=None)
 
     def summarize_actions(self) -> str:
-        """수행한 액션들을 하나의 문장으로 요약"""
+        """Summarize the performed actions into a single sentence"""
         if len(self.response_history) > 0:
             action_summary = action_summarize_agent.summarize_actions(self.response_history)
             self.action_history = []
@@ -84,17 +84,17 @@ class DeriveAgent:
             return action_summary
 
     def generate_guideline(self) -> str:
-        """서브태스크 수행 과정을 요약하여 guideline 설명 생성
+        """Summarize the subtask execution process to generate a guideline description.
 
         Returns:
-            사람이 읽기 쉬운 guideline 요약 문자열
+            A human-readable guideline summary string
         """
         if self.subtask is None or len(self.response_history) == 0:
             return ""
         return guideline_agent.summarize_guideline(self.subtask, self.response_history)
 
     def __exemplify(self, response: dict, screen: str) -> dict:
-        """액션을 학습용 예시로 변환"""
+        """Convert the action into a training example"""
         action = response['action']
         example = {}
         if "index" in action['parameters']:
@@ -104,7 +104,7 @@ class DeriveAgent:
         return example
 
     def __generalize_and_save_action(self, response: dict, screen) -> None:
-        """액션을 일반화하여 재사용 가능하게 만들고 저장"""
+        """Generalize the action to make it reusable and save it"""
         action = response['action']
         example = {}
         if "index" in response['action']['parameters']:
@@ -122,28 +122,28 @@ class DeriveAgent:
 
     def derive_exploration(self, subtask: dict, screen: str, action_history: list, step: int = 0, max_steps: int = 10) -> dict:
         """
-        Exploration 모드에서 서브태스크를 수행할 다음 액션 도출
+        Derive the next action to perform a subtask in Exploration mode.
 
         Args:
-            subtask: 탐색할 서브태스크 정보
-            screen: 현재 화면 XML
-            action_history: 지금까지 수행한 액션 히스토리
-            step: 현재 스텝 번호
-            max_steps: 최대 스텝 수
+            subtask: Subtask information to explore
+            screen: Current screen XML
+            action_history: Action history performed so far
+            step: Current step number
+            max_steps: Maximum number of steps
 
         Returns:
-            dict: GPT 응답 (action, reasoning, is_subtask_complete)
+            dict: GPT response (action, reasoning, is_subtask_complete)
         """
         log(":::DERIVE (Exploration):::", "blue")
 
-        # Exploration 전용 프롬프트 사용
+        # Use Exploration-specific prompts
         prompts = derive_agent_prompt.get_exploration_prompts(
             subtask, action_history, screen, step, max_steps
         )
 
         response = query(prompts, model=os.getenv("DERIVE_AGENT_GPT_VERSION"))
 
-        # 응답 로깅
+        # Response logging
         log(f"Exploration action: {response.get('action', {})}", "cyan")
 
         return response

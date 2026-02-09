@@ -10,8 +10,8 @@ from utils.utils import log, query
 
 class NodeManager:
     """
-    화면 노드를 관리하고 매칭하는 클래스
-    기존 화면과 현재 화면을 비교하여 유사도 판단
+    Class for managing and matching screen nodes.
+    Compares existing screens with the current screen to determine similarity.
     """
     def __init__(self, page_db, memory, parsed_xml, html_xml):
         self.parsed_xml = parsed_xml
@@ -19,15 +19,15 @@ class NodeManager:
         self.remaining_ui_indexes = []
         self.page_db = page_db
         self.memory = memory
-        self.match_threshold = 0.7  # 노드 매칭 임계값 (70%)
-        self.node_expansion_backup = None  # 노드 확장용 백업 데이터
+        self.match_threshold = 0.7  # Node matching threshold (70%)
+        self.node_expansion_backup = None  # Backup data for node expansion
 
     def search(self, candidate_nodes_indexes: list) -> (int, list):
         """
-        후보 노드들 중에서 가장 적합한 노드 검색
+        Search for the most suitable node among candidate nodes.
         Returns:
-            page_index: 매칭된 페이지 인덱스
-            new_subtasks: 새로 발견된 서브태스크 목록
+            page_index: Matched page index
+            new_subtasks: List of newly discovered subtasks
         """
         final_page_index = -1
         final_supported_subtasks = []
@@ -46,7 +46,7 @@ class NodeManager:
                 final_match_case = match_case
                 break
 
-            # 가장 많은 서브태스크를 지원하는 노드로 업데이트
+            # Update to the node that supports the most subtasks
             if match_case != "NEW" and len(supported_subtasks) > len(final_supported_subtasks):
                 final_page_index = page_data['index']
                 final_supported_subtasks = supported_subtasks
@@ -58,10 +58,10 @@ class NodeManager:
 
         if final_page_index >= 0:
             new_subtasks = []
-            # 평가 모드: 시작
+            # Evaluation mode: start
             # if final_match_case == "SUPERSET":
             #     new_subtasks = self.__expand_node(*node_expansion_data)
-            # 평가 모드: 끝
+            # Evaluation mode: end
             return final_page_index, new_subtasks
         else:
             return -1, []
@@ -70,17 +70,17 @@ class NodeManager:
 
     def __match_node(self, page_node: dict) -> (list, str):
         """
-        현재 화면과 저장된 노드를 비교하여 매칭 타입 결정
+        Compare the current screen with a stored node to determine the match type.
         Returns:
-            supported_subtasks: 지원 가능한 서브태스크 목록
-            match_case: 매칭 타입 (EQSET, SUBSET, SUPERSET, NEW)
+            supported_subtasks: List of supportable subtasks
+            match_case: Match type (EQSET, SUBSET, SUPERSET, NEW)
         """
         tree = ET.fromstring(self.parsed_xml)
 
-        trigger_uis_for_subtasks: dict = page_node['trigger_uis']  # 각 서브태스크의 트리거 UI
-        extra_uis: list = page_node['extra_uis']  # 추가 UI 요소들
+        trigger_uis_for_subtasks: dict = page_node['trigger_uis']  # Trigger UIs for each subtask
+        extra_uis: list = page_node['extra_uis']  # Additional UI elements
 
-        self.remaining_ui_indexes = []  # 아직 처리되지 않은 UI 인덱스
+        self.remaining_ui_indexes = []  # UI indexes not yet processed
         for tag in ['input', 'button', 'checker']:
             for node in tree.findall(f".//{tag}"):
                 index = int(node.attrib['index'])
@@ -99,7 +99,7 @@ class NodeManager:
 
         found_extra_uis = self.__find_required_uis(tree, extra_uis)
 
-        num_remaining_uis = len(self.remaining_ui_indexes)  # 현재 화면에서 미처리된 UI 개수
+        num_remaining_uis = len(self.remaining_ui_indexes)  # Number of unprocessed UIs on the current screen
         pct_subtask_supported = 1 - (len(not_supported_subtask_names) / len(
             page_node['available_subtasks']))
         supported_subtasks = [subtask for subtask in page_node['available_subtasks'] if
@@ -108,13 +108,13 @@ class NodeManager:
                                   subtask['name'] in not_supported_subtask_names]
 
         if num_remaining_uis == 0 and pct_subtask_supported == 1.0:
-            print("EQSET")  # 완벽히 동일한 화면
+            print("EQSET")  # Perfectly identical screen
             return supported_subtasks, "EQSET"
         elif num_remaining_uis == 0 and pct_subtask_supported > 0:
-            print("SUBSET")  # 현재 화면이 저장된 화면의 부분집합
+            print("SUBSET")  # Current screen is a subset of the stored screen
             return supported_subtasks, "SUBSET"
         elif num_remaining_uis > 0 and pct_subtask_supported >= self.match_threshold:
-            print("SUPERSET")  # 현재 화면이 저장된 화면보다 더 많은 UI 포함
+            print("SUPERSET")  # Current screen contains more UIs than the stored screen
             self.node_expansion_backup = copy.deepcopy(
                 (self.html_xml, self.parsed_xml, page_node, not_supported_subtasks, new_trigger_uis_for_subtasks,
                  self.remaining_ui_indexes))
@@ -126,11 +126,11 @@ class NodeManager:
 
     def __find_required_uis(self, tree, required_uis) -> list:
         """
-        필요한 UI 요소들을 현재 화면에서 찾기
+        Find required UI elements on the current screen.
         Returns:
-            found_ui_indexes: 찾은 UI들의 인덱스 목록
+            found_ui_indexes: List of indexes for found UIs
         """
-        # 찾은 UI 목록 반환
+        # Return the list of found UIs
         found_ui_indexes = []
         for ui_attributes in required_uis:
             matching_nodes = find_matching_node(tree, ui_attributes)
@@ -144,8 +144,8 @@ class NodeManager:
 
     def __expand_node(self, html_xml, parsed_xml, page_node, extra_subtasks, subtasks_with_new_trigger_uis, remaining_ui_indexes):
         """
-        노드를 확장하여 새로운 서브태스크 발견
-        현재 화면에 있지만 저장된 노드에 없는 UI들을 분석
+        Expand a node to discover new subtasks.
+        Analyze UIs that exist on the current screen but not in the stored node.
         """
         old_trigger_ui_indexes = [int(index) for ui_indexes in subtasks_with_new_trigger_uis.values() for index
                                   in ui_indexes]
@@ -160,9 +160,9 @@ class NodeManager:
             node_expand_prompt.get_prompts(html_xml, extra_subtasks, old_trigger_ui_indexes, old_subtasks, new_ui_indexes),
             model=os.getenv("EXPLORE_AGENT_GPT_VERSION"), is_list=True)
 
-        new_subtasks_raw = list(filter(lambda x: len(x["trigger_UIs"]) > 0, new_subtasks_raw))  # 트리거 UI가 있는 서브태스크만 필터링
+        new_subtasks_raw = list(filter(lambda x: len(x["trigger_UIs"]) > 0, new_subtasks_raw))  # Filter only subtasks that have trigger UIs
 
-        # 기존 서브태스크와 중복되지 않는 것만 선택
+        # Select only those that do not duplicate existing subtasks
         new_subtasks_raw = [new_subtask for new_subtask in new_subtasks_raw if
                             not any(new_subtask['name'] == old_subtask['name'] for old_subtask in old_subtasks)]
 
@@ -174,7 +174,7 @@ class NodeManager:
 
         new_extra_ui_attributes = get_extra_ui_attributes(merged_trigger_ui_indexes, parsed_xml)
 
-        # trigger_UIs 필드를 제외한 서브태스크 정보만 추출
+        # Extract subtask information excluding the trigger_UIs field
         new_available_subtasks = [{key: value for key, value in subtask.items() if key != 'trigger_UIs'} for subtask in
                                   new_subtasks_raw]
         # self.memory.update_node(page_node["index"], new_available_subtasks, new_subtasks_trigger_ui_attributes,

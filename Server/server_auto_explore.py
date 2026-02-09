@@ -177,7 +177,7 @@ class AutoExplorer:
                     client_socket, self.buffer_size,
                     log_directory, screen_count
                 )
-                # 세션에 스크린샷 경로 저장 (Vision API용)
+                # Save screenshot path to session (for Vision API)
                 if session_id and session_id in self._sessions:
                     self._sessions[session_id]["last_screenshot_path"] = screenshot_path
 
@@ -311,7 +311,7 @@ class AutoExplorer:
             log(f":::DEBUG::: prev_state explored_subtasks = {prev_state.get('explored_subtasks', {})}", "yellow")
             log(f":::DEBUG::: prev_state visited_pages = {prev_state.get('visited_pages', set())}", "yellow")
 
-            # Vision API용 스크린샷 경로 가져오기
+            # Get screenshot path for Vision API
             screenshot_path = prev_state.get("last_screenshot_path")
             if screenshot_path:
                 log(f":::VISION::: Using screenshot: {screenshot_path}", "magenta")
@@ -323,7 +323,7 @@ class AutoExplorer:
                 "current_xml": parsed_xml,
                 "hierarchy_xml": hierarchy_xml,
                 "encoded_xml": encoded_xml,
-                "screenshot_path": screenshot_path,  # Vision API용 스크린샷 경로
+                "screenshot_path": screenshot_path,  # Screenshot path for Vision API
                 "memory": memory,
                 "explore_agent": explore_agent,
                 # Load persisted state from session (or use defaults)

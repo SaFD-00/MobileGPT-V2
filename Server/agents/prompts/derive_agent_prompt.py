@@ -133,7 +133,7 @@ def get_usr_prompt(instruction, subtask, history, screen, examples, has_screensh
 
         usr_msg += "Your Turn:\n"
 
-    # subtask에 guideline 정보가 있으면 포함
+    # Include guideline info if present in subtask
     guideline_info = ""
     if isinstance(subtask, dict) and subtask.get("guideline"):
         guideline_info = f"Guideline: {subtask.get('guideline')}\n"
@@ -205,7 +205,7 @@ exploration_actions = [
 
 
 def get_exploration_sys_prompt():
-    """Exploration 모드용 시스템 프롬프트"""
+    """System prompt for exploration mode"""
     numbered_actions = generate_numbered_list(exploration_actions)
     sys_msg = (
         "You are exploring a mobile app to learn how to perform subtasks. "
@@ -237,7 +237,7 @@ def get_exploration_sys_prompt():
 
 
 def get_exploration_usr_prompt(subtask: dict, history: list, screen: str, step: int, max_steps: int = 10):
-    """Exploration 모드용 유저 프롬프트"""
+    """User prompt for exploration mode"""
     if len(history) == 0:
         numbered_history = "No actions performed yet.\n"
     else:
@@ -261,17 +261,17 @@ def get_exploration_usr_prompt(subtask: dict, history: list, screen: str, step: 
 
 def get_exploration_prompts(subtask: dict, history: list, screen: str, step: int = 0, max_steps: int = 10):
     """
-    Exploration 모드용 프롬프트 생성
+    Generate prompts for exploration mode
 
     Args:
-        subtask: 탐색할 서브태스크 정보 (name, description, parameters)
-        history: 지금까지 수행한 액션 히스토리
-        screen: 현재 화면 XML
-        step: 현재 스텝 번호
-        max_steps: 최대 스텝 수
+        subtask: Subtask information to explore (name, description, parameters)
+        history: Action history performed so far
+        screen: Current screen XML
+        step: Current step number
+        max_steps: Maximum number of steps
 
     Returns:
-        list: 프롬프트 메시지 리스트
+        list: List of prompt messages
     """
     sys_msg = get_exploration_sys_prompt()
     usr_msg = get_exploration_usr_prompt(subtask, history, screen, step, max_steps)

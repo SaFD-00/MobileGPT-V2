@@ -62,8 +62,8 @@ class TaskState(TypedDict, total=False):
         1. MemoryAgent: page lookup, load available subtasks
         2. SelectAgent: select subtask from available list
         3. VerifyAgent: verify next screen (should we go there?)
-           - "가면 안된다" (shouldn't go) -> reselect (loop back to SelectAgent)
-           - "간다" (should go) -> confirmed
+           - "shouldn't go" -> reselect (loop back to SelectAgent)
+           - "should go" -> confirmed
         4. DeriveAgent: derive action from confirmed subtask
     """
 
@@ -140,7 +140,7 @@ class ExploreState(TypedDict, total=False):
     hierarchy_xml: str
     encoded_xml: str
     page_index: int
-    screenshot_path: Optional[str]  # Vision API용 스크린샷 경로
+    screenshot_path: Optional[str]  # Screenshot path for Vision API
 
     # Exploration state (persisted across invocations via MemorySaver)
     visited_pages: Set[int]  # page indices

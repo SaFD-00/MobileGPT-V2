@@ -1,7 +1,7 @@
 """
 Step 2: Trigger UI Selection Prompt
-주어진 subtask 목록에 대해 각각의 대표 triggerUI를 선택합니다.
-각 subtask당 정확히 1개의 UI만 선택합니다.
+Selects the representative trigger UI for each given subtask in the list.
+Selects exactly 1 UI per subtask.
 """
 
 import json
@@ -47,7 +47,7 @@ def get_sys_prompt():
 
 
 def get_usr_prompt(screen: str, subtasks: list, has_screenshot: bool = False):
-    # subtask 이름과 설명만 추출하여 전달
+    # Extract and pass only subtask names and descriptions
     subtask_info = []
     for st in subtasks:
         info = {

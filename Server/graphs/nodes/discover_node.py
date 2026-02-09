@@ -27,7 +27,7 @@ def discover_node(state: ExploreState) -> dict:
     current_xml = state["current_xml"]
     hierarchy_xml = state.get("hierarchy_xml", "")
     encoded_xml = state.get("encoded_xml", "")
-    screenshot_path = state.get("screenshot_path")  # Vision API용
+    screenshot_path = state.get("screenshot_path")  # For Vision API
     visited_pages = state.get("visited_pages", set())
     explored_subtasks = state.get("explored_subtasks", {})
     last_action_was_back = state.get("last_action_was_back", False)
@@ -53,7 +53,7 @@ def discover_node(state: ExploreState) -> dict:
 
         explore_result = explore_agent.explore(
             encoded_xml, hierarchy_xml, current_xml,
-            screenshot_path=screenshot_path  # Vision API 활용
+            screenshot_path=screenshot_path  # Utilize Vision API
         )
 
         # Re-search after exploration

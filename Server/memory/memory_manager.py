@@ -15,7 +15,7 @@ from utils.utils import get_openai_embedding, log, safe_literal_eval, cosine_sim
 
 
 def init_database(path: str, headers: list):
-    """데이터베이스 초기화 함수 - CSV 파일 생성 또는 로드"""
+    """Database initialization function - create or load CSV file"""
     if not os.path.exists(path):
         database = pd.DataFrame([], columns=headers)
         database.to_csv(path, index=False)
@@ -25,7 +25,7 @@ def init_database(path: str, headers: list):
 
 
 class Memory:
-    """작업 실행 정보를 저장하고 관리하는 메모리 클래스"""
+    """Memory class for storing and managing task execution information"""
     def __init__(self, app: str, instruction: str, task_name: str):
         self.app = app
         self.instruction = instruction
@@ -231,7 +231,7 @@ class Memory:
             f"(trigger_ui={trigger_ui_index}, reason={reason})", "yellow")
 
         try:
-            # 1. PageManager를 통해 CSV 데이터 삭제/업데이트
+            # 1. Delete/update CSV data through PageManager
             if page_index not in self.page_managers:
                 self.init_page_manager(page_index)
 
@@ -243,7 +243,7 @@ class Memory:
                     reason=reason
                 )
 
-            # 2. Mobile Map에서 관련 엣지 삭제
+            # 2. Delete related edges from Mobile Map
             self.remove_transition(
                 from_page=page_index,
                 subtask_name=subtask_name,
@@ -271,7 +271,7 @@ class Memory:
         """
         edges_before = len(self.subtask_graph.get("edges", []))
 
-        # 조건에 맞는 엣지 필터링하여 제거
+        # Filter and remove edges matching the condition
         def should_keep(edge: dict) -> bool:
             if edge["from_page"] != from_page:
                 return True
@@ -279,7 +279,7 @@ class Memory:
                 return True
             if trigger_ui_index >= 0 and edge.get("trigger_ui_index", -1) != trigger_ui_index:
                 return True
-            return False  # 조건에 맞으면 제거
+            return False  # Remove if condition matches
 
         self.subtask_graph["edges"] = [
             edge for edge in self.subtask_graph.get("edges", [])
@@ -483,17 +483,17 @@ class Memory:
         )
 
     def init_page_manager(self, page_index: int):
-        """페이지 관리자 초기화
+        """Initialize page manager
 
         Args:
-            page_index: 페이지 인덱스
+            page_index: Page index
         """
         if page_index not in self.page_managers:
             self.page_managers[page_index] = PageManager(self.page_database_path, page_index)
         self.page_manager = self.page_managers[page_index]
 
     def search_node(self, parsed_xml, hierarchy_xml, encoded_xml) -> tuple:
-        """현재 화면에서 유사한 노드 검색
+        """Search for a similar node on the current screen
 
         Returns:
             Tuple[int, float]: (page_index, similarity)
@@ -507,17 +507,17 @@ class Memory:
         return -1, 0.0
 
     def get_available_subtasks(self, page_index):
-        """특정 페이지에서 사용 가능한 서브태스크 목록 반환"""
+        """Return the list of available subtasks for a specific page"""
         if page_index not in self.page_managers:
             self.init_page_manager(page_index)
         return self.page_managers[page_index].get_available_subtasks()
 
     def get_subtask_destination(self, page_index: int, subtask_name: str) -> int:
-        """subtask 수행 시 이동하는 page 조회
+        """Look up the page navigated to when performing a subtask
 
         Args:
-            page_index: 현재 페이지 인덱스
-            subtask_name: 조회할 서브태스크 이름
+            page_index: Current page index
+            subtask_name: Name of the subtask to look up
 
         Returns:
             int: end_page_index, -1 if not found
@@ -527,13 +527,13 @@ class Memory:
         return self.page_managers[page_index].get_subtask_destination(subtask_name)
 
     def add_new_action(self, new_action, page_index):
-        """새로운 액션을 페이지에 추가"""
+        """Add a new action to the page"""
         if page_index not in self.page_managers:
             self.init_page_manager(page_index)
         self.page_managers[page_index].add_new_action(new_action)
 
     def search_node_by_hierarchy(self, parsed_xml, hierarchy_xml, encoded_xml) -> tuple:
-        """화면 계층 구조를 기반으로 노드 검색"""
+        """Search for a node based on screen hierarchy structure"""
         most_similar_node_index, _ = self.__search_most_similar_hierarchy_node(hierarchy_xml)
 
         if most_similar_node_index >= 0:
@@ -544,7 +544,7 @@ class Memory:
             return -1, []
 
     def add_node(self, available_subtasks: list, trigger_uis: dict, extra_uis: list, screen: str, screen_num=None) -> int:
-        """새로운 노드(페이지)를 데이터베이스에 추가"""
+        """Add a new node (page) to the database"""
         new_index = len(self.page_db)
         new_row = {'index': new_index, 'available_subtasks': json.dumps(available_subtasks),
                    'trigger_uis': json.dumps(trigger_uis),
@@ -565,14 +565,14 @@ class Memory:
             os.makedirs(page_screen_path)
         parsing_utils.save_screen_info(self.app, self.task_name, page_screen_path, screen_num)
 
-        # 새로운 PageManager 인스턴스 생성 및 추가
+        # Create and add a new PageManager instance
         self.page_managers[new_index] = PageManager(self.page_database_path, new_index)
 
         return new_index
 
     def update_node(self, page_index, new_available_subtasks: list, new_trigger_uis: dict, new_extra_uis: list,
                     new_screen: str):
-        """기존 노드 정보 업데이트"""
+        """Update existing node information"""
         page_data = json.loads(self.page_db.loc[page_index].to_json())
         page_data = {key: json.loads(value) if key in ['available_subtasks', 'trigger_uis', 'extra_uis'] else value for
                      key, value in page_data.items()}
@@ -582,7 +582,7 @@ class Memory:
             if 'exploration' not in subtask:
                 subtask['exploration'] = 'unexplored'
 
-        # 기존 정보와 새 정보 병합
+        # Merge existing information with new information
         merged_available_subtasks = page_data['available_subtasks'] + new_available_subtasks
         merged_trigger_uis = {}
         merged_trigger_uis.update(page_data['trigger_uis'])
@@ -601,7 +601,7 @@ class Memory:
         available_subtasks_df.to_csv(os.path.join(page_path, "available_subtasks.csv"), index=False)
 
     def add_hierarchy_xml(self, screen, page_index):
-        """화면 계층 구조 XML을 임베딩과 함께 저장"""
+        """Save screen hierarchy XML along with its embedding"""
         embedding = get_openai_embedding(screen)
         new_screen_hierarchy = {'index': page_index, 'screen': screen, 'embedding': str(embedding)}
         hierarchy_db = init_database(self.screen_hierarchy_path, ['index', 'screen', 'embedding'])
@@ -612,8 +612,8 @@ class Memory:
         self.hierarchy_db['embedding'] = self.hierarchy_db.embedding.apply(safe_literal_eval)
 
     def get_next_subtask(self, page_index, qa_history, screen):
-        """다음에 실행할 서브태스크 반환"""
-        # 액션 단계 초기화
+        """Return the next subtask to execute"""
+        # Reset action step
         self.curr_action_step = 0
 
         candidate_subtasks = self.task_path.get(page_index, [])
@@ -654,34 +654,34 @@ class Memory:
         return None
 
     def save_subtask(self, subtask_raw: dict, example: dict, guideline: str = "") -> None:
-        """서브태스크 정보 저장
+        """Save subtask information
 
         Args:
-            subtask_raw: 서브태스크 정보 딕셔너리
-            example: 학습용 예시
-            guideline: 서브태스크 수행 가이드라인
+            subtask_raw: Subtask information dictionary
+            example: Training example
+            guideline: Guideline for subtask execution
         """
         self.page_manager.save_subtask(subtask_raw, example, guideline)
 
     def get_next_action(self, subtask: dict, screen: str) -> dict:
-        """현재 서브태스크에서 다음 액션 반환"""
+        """Return the next action in the current subtask"""
         next_action = self.page_manager.get_next_action(subtask, screen, self.curr_action_step)
         self.curr_action_step += 1
         log(f":::DERIVE:::", "blue")
         return next_action
 
     def save_action(self, subtask: dict, action: dict, example=None) -> None:
-        """실행한 액션 정보 저장"""
+        """Save executed action information"""
         if action['name'] == 'finish':
             self.curr_action_step += 1
         self.page_manager.save_action(subtask, self.curr_action_step, action, example)
 
     def merge_subtasks(self, task_path: list) -> list:
-        """중복 서브태스크 병합"""
-        # 마지막 finish 서브태스크 제거
+        """Merge duplicate subtasks"""
+        # Remove the last finish subtask
         finish_subtask = task_path.pop()
 
-        # 수행된 서브태스크 목록 초기화
+        # Initialize the list of performed subtasks
         raw_subtask_list = []
         for subtask_data in task_path:
             page_index = subtask_data['page_index']
@@ -695,13 +695,13 @@ class Memory:
         merged_subtask_list = subtask_merge_agent.merge_subtasks(raw_subtask_list)
 
         merged_task_path = self.__merge_subtasks_data(task_path, merged_subtask_list)
-        # 마지막에 Finish 서브태스크 다시 추가
+        # Re-add the Finish subtask at the end
         merged_task_path.append(finish_subtask)
 
         return merged_task_path
 
     def save_task(self, task_path: list) -> None:
-        """전체 작업 경로 저장"""
+        """Save the entire task path"""
         for subtask in task_path:
             subtask_name = subtask['subtask_name']
             subtask_dict = subtask['subtask']
@@ -756,13 +756,13 @@ class Memory:
         """Mark a subtask as explored on a specific page and save action
 
         Args:
-            page_index: 페이지 인덱스 (시작 페이지)
-            subtask_name: 탐험 완료된 서브태스크 이름
-            ui_info: 클릭된 UI 정보 (usage 생성용)
-            action: 수행된 액션 (actions.csv 저장용)
-            screen: 화면 XML (액션 일반화용)
-            trigger_ui_index: 트리거 UI 인덱스 (같은 서브태스크의 다른 경로 구분용)
-            end_page: 서브태스크 종료 페이지 인덱스
+            page_index: Page index (starting page)
+            subtask_name: Name of the explored subtask
+            ui_info: Clicked UI information (for usage generation)
+            action: Performed action (for saving to actions.csv)
+            screen: Screen XML (for action generalization)
+            trigger_ui_index: Trigger UI index (for distinguishing different paths of the same subtask)
+            end_page: Subtask ending page index
         """
         if page_index not in self.page_managers:
             self.init_page_manager(page_index)
@@ -776,16 +776,16 @@ class Memory:
                                          subtask_info: dict, actions: list,
                                          trigger_ui_index: int = -1,
                                          start_page: int = -1, end_page: int = -1):
-        """Multi-step 탐색 완료 후 서브태스크를 explored로 마킹하고 모든 액션 저장
+        """Mark a subtask as explored and save all actions after multi-step exploration
 
         Args:
-            page_index: 페이지 인덱스
-            subtask_name: 서브태스크 이름
-            subtask_info: 서브태스크 정보 (name, description, parameters)
-            actions: 수행된 액션 리스트 [{step, action, screen, reasoning?}, ...]
-            trigger_ui_index: 트리거 UI 인덱스 (같은 서브태스크의 다른 경로 구분용)
-            start_page: 시작 페이지 인덱스
-            end_page: 종료 페이지 인덱스
+            page_index: Page index
+            subtask_name: Subtask name
+            subtask_info: Subtask information (name, description, parameters)
+            actions: List of performed actions [{step, action, screen, reasoning?}, ...]
+            trigger_ui_index: Trigger UI index (for distinguishing different paths of the same subtask)
+            start_page: Starting page index
+            end_page: Ending page index
         """
         if page_index not in self.page_managers:
             self.init_page_manager(page_index)
@@ -797,18 +797,18 @@ class Memory:
 
     def update_end_page(self, page_index: int, subtask_name: str,
                         trigger_ui_index: int, end_page: int) -> bool:
-        """서브태스크와 액션의 end_page 업데이트
+        """Update the end_page of a subtask and its actions
 
-        액션 실행 후 도착한 페이지 인덱스로 end_page를 업데이트합니다.
+        Updates end_page with the page index arrived at after action execution.
 
         Args:
-            page_index: 서브태스크가 속한 페이지 인덱스
-            subtask_name: 서브태스크 이름
-            trigger_ui_index: 트리거 UI 인덱스
-            end_page: 액션 실행 후 도착한 페이지 인덱스
+            page_index: Page index where the subtask belongs
+            subtask_name: Subtask name
+            trigger_ui_index: Trigger UI index
+            end_page: Page index arrived at after action execution
 
         Returns:
-            bool: 업데이트 성공 여부
+            bool: Whether the update was successful
         """
         if page_index not in self.page_managers:
             return False
@@ -817,7 +817,7 @@ class Memory:
         )
 
     def save_task_path(self, new_task_path: dict):
-        """작업 경로 업데이트"""
+        """Update task path"""
         for page_index, subtasks in new_task_path.items():
             if page_index in self.task_path:
                 self.task_path[page_index].extend(subtasks)
@@ -839,8 +839,8 @@ class Memory:
         self.task_db.to_csv(self.task_db_path, index=False)
 
     def __get_task_data(self, task_name):
-        """저장된 작업 데이터 가져오기"""
-        # 작업 검색
+        """Retrieve stored task data"""
+        # Search for task
         matched_tasks = self.task_db[(self.task_db['name'] == task_name)]
         if matched_tasks.empty:
             return {}
@@ -861,12 +861,12 @@ class Memory:
             return task_path
 
     def __search_similar_hierarchy_nodes(self, hierarchy) -> list:
-        """유사한 계층 구조 노드들 검색 (임베딩 유사도 기반)"""
+        """Search for similar hierarchy nodes (based on embedding similarity)"""
         new_hierarchy_vector = np.array(get_openai_embedding(hierarchy))
         self.hierarchy_db["similarity"] = self.hierarchy_db.embedding.apply(
             lambda x: cosine_similarity(x, new_hierarchy_vector))
 
-        # 가장 유사도가 높은 상위 앱들 가져오기
+        # Get the top apps with the highest similarity
         candidates = self.hierarchy_db.sort_values('similarity', ascending=False).head(5).to_dict(orient='records')
         candidate_node_indexes = []
         for node in candidates:
@@ -875,7 +875,7 @@ class Memory:
         return candidate_node_indexes
 
     def __search_most_similar_hierarchy_node(self, hierarchy) -> tuple:
-        """가장 유사한 계층 구조 노드 검색 (임계값 0.95 이상)
+        """Search for the most similar hierarchy node (threshold 0.95 or above)
 
         Returns:
             Tuple[int, float]: (page_index, similarity)
@@ -884,7 +884,7 @@ class Memory:
         self.hierarchy_db["similarity"] = self.hierarchy_db.embedding.apply(
             lambda x: cosine_similarity(x, new_hierarchy_vector))
 
-        # 가장 유사도가 높은 상위 앱들 가져오기
+        # Get the top apps with the highest similarity
         candidates = self.hierarchy_db.sort_values('similarity', ascending=False).head(5).to_dict(orient='records')
         if candidates:
             highest_similarity = candidates[0]['similarity']
@@ -894,7 +894,7 @@ class Memory:
         return -1, 0.0
 
     def __merge_subtasks_data(self, original_subtasks_data, merged_subtasks) -> list:
-        """서브태스크 데이터 병합 - 원본 데이터와 병합된 서브태스크 정보 통합"""
+        """Merge subtask data - integrate original data with merged subtask information"""
         len_diff = len(original_subtasks_data) - len(merged_subtasks)
         for i in range(0, len_diff):
             merged_subtasks.append({"name": "dummy"})
@@ -911,7 +911,7 @@ class Memory:
                 page_index = curr_subtask_data['page_index']
                 page_data = json.loads(self.page_db.loc[page_index].to_json())
                 available_subtasks = json.loads(page_data['available_subtasks'])
-                # 사용 가능한 서브태스크 목록을 순회하며 새로운 것으로 교체
+                # Iterate through the available subtask list and replace with new ones
                 for i in range(len(available_subtasks)):
                     if available_subtasks[i]['name'] == curr_subtask_name:
                         available_subtasks[i] = merged_subtask_dict

@@ -10,12 +10,12 @@ from utils.utils import log, get_openai_embedding, cosine_similarity, query, saf
 
 def get_package_info(package_name):
     """
-    Google Play Store에서 패키지 정보 가져오기
+    Retrieve package information from Google Play Store.
     Args:
-        package_name: 앱 패키지명
+        package_name: App package name
     Returns:
-        app_name: 앱 이름
-        description: 앱 설명
+        app_name: App name
+        description: App description
     """
     params = {
         "engine": "google_play_product",
@@ -40,8 +40,8 @@ def get_package_info(package_name):
 
 class AppAgent:
     """
-    앱 선택 및 관리를 담당하는 에이전트
-    사용자 명령어에서 대상 앱을 예측하고 패키지명 관리
+    Agent responsible for app selection and management.
+    Predicts the target app from user commands and manages package names.
     """
     def __init__(self):
         self.database_path = f"./memory/apps.csv"
@@ -52,7 +52,7 @@ class AppAgent:
             self.database = pd.read_csv(self.database_path)
 
     def update_app_list(self, new_packages):
-        """새로운 앱 패키지들을 데이터베이스에 추가"""
+        """Add new app packages to the database"""
         known_packages = [row["package_name"] for _, row in self.database.iterrows()]
         for package_name in new_packages:
             if not package_name in known_packages:
@@ -72,16 +72,16 @@ class AppAgent:
 
     def predict_app(self, instruction) -> str:
         """
-        사용자 명령어에 가장 적합한 앱 예측
-        임베딩 유사도를 통해 상위 5개 후보 선정 후 GPT로 최종 결정
+        Predict the most suitable app for the user command.
+        Select the top 5 candidates via embedding similarity, then make the final decision with GPT.
         """
         self.database['embedding'] = self.database.embedding.apply(safe_literal_eval)
 
-        # 명령어 임베딩과 앱 설명 임베딩 간 유사도 계산
+        # Calculate similarity between command embedding and app description embeddings
         instruction_vector = np.array(get_openai_embedding(instruction))
         self.database["similarity"] = self.database.embedding.apply(lambda x: cosine_similarity(x, instruction_vector))
 
-        # 유사도 상위 5개 후보 앱 선정
+        # Select the top 5 candidate apps by similarity
         candidates = self.database.sort_values('similarity', ascending=False).head(5)
         log("candidate apps", "blue")
         log(candidates, "blue")
@@ -95,7 +95,7 @@ class AppAgent:
         return response['app']
 
     def get_package_name(self, app) -> str:
-        """앱 이름으로 패키지명 조회"""
+        """Look up the package name by app name"""
         matching_rows = self.database[self.database['app_name'] == app]
 
         if not matching_rows.empty:
@@ -104,7 +104,7 @@ class AppAgent:
             return ""
 
     def get_app_name(self, package_name: str) -> str:
-        """패키지명으로 앱 이름 조회"""
+        """Look up the app name by package name"""
         matching_rows = self.database[self.database['package_name'] == package_name]
 
         if not matching_rows.empty:

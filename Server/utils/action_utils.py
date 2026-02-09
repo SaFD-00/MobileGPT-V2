@@ -189,7 +189,7 @@ def generalize_action_to_screen(action: dict, screen: str, subtask_args: dict) -
     target_ui_index = action_args['index']
     ui_tree = ET.fromstring(screen)
 
-    # UI 인덱스가 현재 화면에 존재하지 않으면 액션을 그대로 반환
+    # Return action as-is if UI index does not exist on the current screen
     target_ui_list = ui_tree.findall(f".//*[@index='{target_ui_index}']")
     if not target_ui_list:
         log(f"Warning: UI index '{target_ui_index}' not found in screen, skipping generalization", "yellow")

@@ -110,7 +110,7 @@ class PlannerAgent:
         )
 
         model = os.getenv("PLANNER_AGENT_GPT_VERSION",
-                          os.getenv("SELECT_AGENT_GPT_VERSION", "gpt-4o-mini"))
+                          os.getenv("SELECT_AGENT_GPT_VERSION", "gpt-5.2"))
         response = query(prompts, model=model)
 
         return response

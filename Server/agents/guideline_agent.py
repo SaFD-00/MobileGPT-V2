@@ -7,14 +7,14 @@ from utils.utils import query, log
 
 def summarize_guideline(subtask: dict, action_history: list) -> str:
     """
-    서브태스크 수행 과정을 요약하여 guideline 설명 생성
+    Summarize the subtask execution process to generate a guideline description.
 
     Args:
-        subtask: 수행된 서브태스크 정보 (name, description, parameters 등)
-        action_history: 수행된 액션들의 목록
+        subtask: Information about the executed subtask (name, description, parameters, etc.)
+        action_history: List of executed actions
 
     Returns:
-        사람이 읽기 쉬운 guideline 요약 문자열
+        A human-readable guideline summary string
     """
     log(":::GUIDELINE SUMMARIZE:::", "blue")
 
@@ -24,7 +24,7 @@ def summarize_guideline(subtask: dict, action_history: list) -> str:
     prompts = guideline_agent_prompt.get_prompts(subtask, action_history)
     response = query(prompts, model=os.getenv("GUIDELINE_AGENT_GPT_VERSION", "gpt-5.2"))
 
-    # response가 문자열인지 확인하고 반환
+    # Check if response is a string and return
     if isinstance(response, str):
         return response.strip()
     elif isinstance(response, dict) and 'guideline' in response:
