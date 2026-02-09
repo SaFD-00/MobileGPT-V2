@@ -1150,7 +1150,7 @@ List of available actions:
 
 Respond using the JSON format described below
 Response Format:
-{"reasoning": <reasoning>, "action": {"name":<action_name>, "parameters": {<parameter_name>: <parameter_value>}}, "completion_rate": <how close>, "speak": <brief summary>}
+{"reasoning": <reasoning based on past events and screen HTML code>, "new_action"(include only when you need to make a new action): {"name": <new action name. This must not be click or input>, "description": <detailed description of the new action>, "parameters": {<parameter_name>: <description of the parameters, including available options>,...}}, "action": {"name":<action_name>, "parameters": {<parameter_name>: <parameter_value, If the parameter values are not explicitly mentioned in the prompt, just write "unknown">,...}}, "completion_rate": <how close you are to completing the task>, "speak": <brief summary of the action in natural language to communicate with the user. Make it short.>}
 Begin!
 ```
 
@@ -1187,9 +1187,9 @@ HTML code of the current app screen delimited by <screen> </screen>:
 </hierarchy>
 </screen>
 
-[A screenshot of the current screen is also provided for visual reference.]
+[A screenshot of the current screen is also provided for visual reference. Use the visual context to better understand the current app state and available options.]
 
-Constructively self-evaluate how close you are to completing the request. If past events indicate that the user's request has been accomplished, You must select the 'finish' action.
+Constructively self-evaluate how close you are to completing the request. If past events indicate that the user's request has been accomplished, You must select the 'finish' action. Do not proceed further steps.
 
 Response:
 ```
@@ -1344,7 +1344,7 @@ Follow the below steps step by step:
 
 ***Hints for selecting the next action***:
 1. Always reflect on past events to determine your next action. Avoid repeating the same action.
-2. If you need more information to complete the task, use "ask" command to get more information from the user. But be very careful not to ask unnecessarily or repeatedly.
+2. If you need more information to complete the task, use "ask" command to get more information from the user. But be very careful not to ask unnecessarily or repeatedly. If human don't know the answer, do your best to find it out yourself.
 
 ***Constraints for selecting an action***:
 1. You can perform only single action at a time.
@@ -1353,17 +1353,19 @@ Follow the below steps step by step:
 4. Only complete the subtask given to you. The rest is up to the user. Do not proceed further steps.
 
 List of available actions:
-1. {"name": "ask", "description": "Ask the user more information...", "parameters": {"info_name": ..., "question": ...}}
-2. {"name": "click", "description": "Click a specific button on the screen", "parameters": {"index": ...}}
-3. {"name": "long-click", "description": "Long-click a UI...", "parameters": {"index": ...}}
-4. {"name": "input", "description": "Input text on the screen.", "parameters": {"index": ..., "input_text": ...}}
-5. {"name": "scroll", "description": "Scroll up or down to view more UIs", "parameters": {"index": ..., "direction": ...}}
-6. {"name": "repeat-click", "description": "Repeat click action multiple times", "parameters": {"index": ..., "number": ...}}
+1. {"name": "ask", "description": "Ask the user more information to complete the task. Avoid asking unnecessary information or confirmation from the user", "parameters": {"info_name": {"type": "string", "description": "name of the information you need to get from the user (Info Name)"}, "question": {"type": "string", "description": "question to ask the user to get the information"}}}
+2. {"name": "click", "description": "Click a specific button on the screen", "parameters": {"index": {"type": "integer", "description": "index of the UI element to be clicked"}}}
+3. {"name": "long-click", "description": "Long-click a UI. You can use this only for UIs with long-clickable attribute", "parameters": {"index": {"type": "integer", "description": "index of the UI element to be clicked"}}}
+4. {"name": "input", "description": "Input text on the screen.", "parameters": {"index": {"type": "integer", "description": "index of the UI element that takes text input"}, "input_text": {"type": "string", "description": "text or value to input"}}}
+5. {"name": "scroll", "description": "Scroll up or down to view more UIs", "parameters": {"index": {"type": "integer", "description": "index of the UI element to scroll."}, "direction": {"type": "string", "description": "direction to scroll, default='down'", "enum": ["up", "down"]}}}
+6. {"name": "repeat-click", "description": "Repeat click action multiple times", "parameters": {"index": {"type": "integer", "description": "index of the UI element to clicked."}, "number": {"type": "integer", "description": "number of times you want to click."}}}
 7. {"name": "finish", "description": "Use this to signal that you have finished the given subtask.", "parameters": {}}
+
+Make sure to select the 'finish' action when past events indicate that the given subtask has been completed.
 
 Respond using the JSON format described below
 Response Format:
-{"reasoning": <reasoning>, "action": {"name":<action_name>, "parameters": {<parameter_name>: <parameter_value>}}, "completion_rate": <how close>, "plan": <plan for next moves>}
+{"reasoning": <reasoning based on past events and screen HTML code>, "action": {"name":<action_name>, "parameters": {<parameter_name>: <parameter_value>,...}}, "completion_rate": <indicate how close you are to completing the task>, "plan": <plan for your next moves>}
 Begin!
 ```
 
@@ -1663,6 +1665,7 @@ class ExploreState(TypedDict, total=False):
 | end_page | int | 도착 페이지 (-1: 미탐색/외부앱) |
 | guideline | str | 수행 지침 |
 | combined_guidance | str | 통합 액션 가이던스 |
+| example | JSON | 학습된 예시 |
 
 **actions.csv** (페이지별):
 
