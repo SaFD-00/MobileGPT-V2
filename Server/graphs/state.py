@@ -4,29 +4,39 @@ from typing import Any, Dict, List, Literal, Optional, Set, TypedDict
 
 
 # ============================================================================
-# Subtask Transition Graph (STG) - UICompass Integration
+# Mobile Map (formerly STG - Subtask Transition Graph)
+# ============================================================================
+# Mobile Map represents the app's UI navigation structure as a graph.
+# - Nodes: Pages (screens) with summaries
+# - Edges: Subtask transitions with descriptions, guidance, and action sequences
+#
+# Inspired by UICompass and Mobile-Agent-v3 (M3A) approaches.
 # ============================================================================
 
 class SubtaskTransitionEdge(TypedDict):
-    """Single edge in the Subtask Transition Graph.
+    """Single edge in the Mobile Map.
 
     Represents a transition from one page to another via a subtask.
+    Includes M3A-style action descriptions and guidance.
     """
     from_page: int
     to_page: int
     subtask: str
     trigger_ui_index: int
-    action_sequence: List[dict]  # [{name, parameters}, ...]
+    action_sequence: List[dict]  # [{name, parameters, description, guidance}, ...]
     explored: bool
 
 
 class SubtaskTransitionGraph(TypedDict):
-    """Subtask Transition Graph for Subtask Path Planning.
+    """Mobile Map (Subtask Transition Graph) for path planning.
 
     Stores the topology of page transitions discovered during exploration.
-    Used for BFS-based optimal path finding.
+    Used for BFS-based optimal path finding and 4-step workflow.
+
+    Note: The variable name `subtask_graph` is kept for backward compatibility.
+    This is conceptually referred to as "Mobile Map" in documentation.
     """
-    nodes: List[int]  # Page indices
+    nodes: List[int]  # Page indices (with summaries stored in pages.csv)
     edges: List[SubtaskTransitionEdge]
 
 
@@ -102,6 +112,12 @@ class TaskState(TypedDict, total=False):
     replan_needed: bool  # Flag to trigger replanning
     max_replan: int  # Maximum replan attempts (default: 5)
 
+    # ========================================================================
+    # Mobile Map: 4-Step Workflow (Load → Filter → Plan → Execute)
+    # ========================================================================
+    all_subtasks_list: List[dict]  # All subtasks from all pages (Step 1: Load)
+    filtered_subtasks: List[dict]  # Subtasks relevant to instruction (Step 2: Filter)
+
 
 class ExploreState(TypedDict, total=False):
     """Exploration graph state.
@@ -155,3 +171,11 @@ class ExploreState(TypedDict, total=False):
     action: Optional[dict]
     status: str
     is_new_screen: bool
+
+    # ========================================================================
+    # Mobile Map: M3A-style Action History Tracking
+    # ========================================================================
+    # History entries: [{step, before_xml, before_screenshot, action, description?}, ...]
+    action_history: List[dict]  # Accumulated during subtask exploration
+    before_xml: Optional[str]  # XML state before current action
+    before_screenshot_path: Optional[str]  # Screenshot path before current action

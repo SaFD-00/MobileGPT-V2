@@ -45,6 +45,15 @@ def selector_node(state: TaskState) -> dict:
         if s.get("name") not in rejected_names
     ]
 
+    # Mobile Map: Prioritize planner's filtered subtasks if available
+    filtered_from_planner = state.get("filtered_subtasks", [])
+    if filtered_from_planner:
+        filtered_names = {s.get("name") for s in filtered_from_planner}
+        priority_subtasks = [s for s in filtered_subtasks if s.get("name") in filtered_names]
+        if priority_subtasks:
+            filtered_subtasks = priority_subtasks
+            log(f":::SELECTOR::: Using {len(priority_subtasks)} planner-filtered subtasks", "cyan")
+
     if not filtered_subtasks:
         log(":::SELECTOR::: All subtasks rejected, no options left", "red")
         return {

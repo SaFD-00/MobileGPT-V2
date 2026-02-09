@@ -5,7 +5,6 @@ import sys
 from dotenv import load_dotenv
 
 from server import Server
-from server_explore import Explorer
 from server_auto_explore import AutoExplorer
 
 # os.chdir('./MobileGPT_server')
@@ -39,7 +38,7 @@ def main():
     parser = argparse.ArgumentParser(description='MobileGPT Server')
     parser.add_argument(
         '--mode',
-        choices=['task', 'explore', 'auto_explore'],
+        choices=['task', 'auto_explore'],
         default='task',
         help='Server mode (default: task)'
     )
@@ -62,17 +61,12 @@ def main():
 
     # Server mode selection
     # - task: Execute tasks using LangGraph multi-agent system
-    # - explore: Manual exploration for screen structure learning
     # - auto_explore: Automatic UI exploration using LangGraph algorithms
 
     if args.mode == 'task':
         # LangGraph-based task execution with intelligent subtask selection
         server = Server(host=server_ip, port=server_port)
         server.open()
-
-    elif args.mode == 'explore':
-        explorer = Explorer(host=server_ip, port=server_port)
-        explorer.open()
 
     elif args.mode == 'auto_explore':
         # Exploration algorithm (all use LangGraph):

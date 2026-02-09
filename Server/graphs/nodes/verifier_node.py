@@ -1,4 +1,12 @@
-"""Verifier node for next screen verification."""
+"""Verifier node for next screen verification.
+
+Mobile Map 4-Step Workflow - Step 4: Execute & Replan
+
+Implements adaptive replanning logic (UICompass-inspired):
+- PROCEED: On expected page, continue execution
+- SKIP: Jumped ahead in plan, update step index
+- REPLAN: Unexpected page, trigger replanning to Planner node
+"""
 
 from typing import Any
 
@@ -46,6 +54,19 @@ def verifier_node(state: TaskState) -> dict:
             "next_agent": "deriver",
         }
 
+    # Mobile Map: Planned path position verification (Adaptive Replanning)
+    planned_path = state.get("planned_path")
+    path_step_index = state.get("path_step_index", 0)
+
+    if planned_path and path_step_index < len(planned_path):
+        path_result = verify_planned_path(state)
+        if path_result.get("replan_needed"):
+            log(":::VERIFIER::: Path verification -> REPLAN needed", "yellow")
+            return {**path_result, "next_agent": "planner"}
+        if path_result.get("status") == "path_verified_skip":
+            log(":::VERIFIER::: Path verification -> SKIP", "yellow")
+            return {**path_result, "next_agent": "supervisor"}
+
     # Get destination page for this subtask
     end_page = memory.get_subtask_destination(page_index, subtask_name)
 
@@ -68,12 +89,18 @@ def verifier_node(state: TaskState) -> dict:
 
     log(f":::VERIFIER::: Next screen has {len(next_subtasks)} subtasks", "blue")
 
+    # Get page summaries for verification context
+    current_page_summary = memory.get_page_summary(page_index)
+    next_page_summary = memory.get_page_summary(end_page) if end_page >= 0 else ""
+
     # Use verify_agent to check if this is a good path
     should_proceed, reasoning = verify_path(
         instruction=instruction,
         selected_subtask=selected_subtask,
         current_subtasks=available_subtasks,
-        next_subtasks=next_subtasks
+        next_subtasks=next_subtasks,
+        current_page_summary=current_page_summary,
+        next_page_summary=next_page_summary,
     )
 
     if should_proceed:

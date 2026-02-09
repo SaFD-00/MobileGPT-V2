@@ -48,7 +48,9 @@ def verify_path(
     instruction: str,
     selected_subtask: dict,
     current_subtasks: List[dict],
-    next_subtasks: List[dict]
+    next_subtasks: List[dict],
+    current_page_summary: str = "",
+    next_page_summary: str = "",
 ) -> Tuple[bool, str]:
     """Verify if the selected subtask leads to a good path.
 
@@ -60,6 +62,8 @@ def verify_path(
         selected_subtask: Currently selected subtask
         current_subtasks: Available subtasks on current screen
         next_subtasks: Available subtasks on next screen (destination)
+        current_page_summary: Summary of the current page
+        next_page_summary: Summary of the next page
 
     Returns:
         Tuple[bool, str]: (should_proceed, reasoning)
@@ -68,7 +72,9 @@ def verify_path(
         instruction=instruction,
         selected_subtask=selected_subtask,
         current_subtasks=current_subtasks,
-        next_subtasks=next_subtasks
+        next_subtasks=next_subtasks,
+        current_page_summary=current_page_summary,
+        next_page_summary=next_page_summary,
     )
 
     model = os.getenv("VERIFY_AGENT_GPT_VERSION", os.getenv("SELECT_AGENT_GPT_VERSION", "gpt-5.2"))
@@ -81,8 +87,16 @@ def verify_path(
 
 
 def _create_verify_prompt(instruction: str, selected_subtask: dict,
-                          current_subtasks: list, next_subtasks: list) -> list:
+                          current_subtasks: list, next_subtasks: list,
+                          current_page_summary: str = "",
+                          next_page_summary: str = "") -> list:
     """Create verification prompt for LLM."""
+    page_summary_section = ""
+    if current_page_summary:
+        page_summary_section += f"\nCurrent Page: {current_page_summary}"
+    if next_page_summary:
+        page_summary_section += f"\nNext Page: {next_page_summary}"
+
     user_content = f"""User Instruction: {instruction}
 
 Selected Subtask: {selected_subtask.get('name', 'unknown')}
@@ -93,7 +107,7 @@ Current Screen Subtasks:
 
 Next Screen Subtasks (after executing selected subtask):
 {_format_subtasks(next_subtasks) if next_subtasks else 'No subtasks available (dead end)'}
-
+{page_summary_section}
 Should we proceed with the selected subtask?"""
 
     return [

@@ -1,6 +1,6 @@
 """Planner Agent for UICompass-style Subtask Path Planning.
 
-This agent analyzes user instructions and STG (Subtask Transition Graph) to plan
+This agent analyzes user instructions and Mobile Map to plan
 an optimal sequence of subtasks for task completion.
 """
 
@@ -12,11 +12,11 @@ from utils.utils import log, query
 
 
 class PlannerAgent:
-    """Plans optimal subtask paths using Subtask Transition Graph.
+    """Plans optimal subtask paths using Mobile Map.
 
     Implements UICompass's UI Path Planning concept:
     1. Analyze user instruction to identify goal subtasks
-    2. Use BFS on STG to find shortest path to goal
+    2. Use BFS on Mobile Map to find shortest path to goal
     3. Generate planned_path with step-by-step instructions
     """
 
@@ -37,9 +37,9 @@ class PlannerAgent:
         """
         log(f":::PLANNER::: Planning path from page {current_page}", "cyan")
 
-        # Check if STG has enough data
+        # Check if Mobile Map has enough data
         if not subtask_graph.get("edges"):
-            log(":::PLANNER::: STG empty, falling back to Select", "yellow")
+            log(":::PLANNER::: Mobile Map empty, falling back to Select", "yellow")
             return None
 
         # Step 1: Analyze goal to identify target subtasks/pages
@@ -74,7 +74,7 @@ class PlannerAgent:
                     best_target = target_page
 
         if best_path is None:
-            log(f":::PLANNER::: No STG path from {current_page} to targets {target_pages}", "yellow")
+            log(f":::PLANNER::: No Mobile Map path from {current_page} to targets {target_pages}", "yellow")
             return None
 
         # Step 4: Convert edges to planned_path steps
@@ -127,7 +127,7 @@ class PlannerAgent:
 
     def _bfs_find_path(self, from_page: int, to_page: int,
                        subtask_graph: dict) -> Optional[List[dict]]:
-        """BFS to find shortest path in STG."""
+        """BFS to find shortest path in Mobile Map."""
         if from_page == to_page:
             return []
 
@@ -149,7 +149,7 @@ class PlannerAgent:
 
     def _build_planned_path(self, edges: List[dict], final_subtask: Optional[str],
                             goal_analysis: dict) -> List[dict]:
-        """Convert STG edges to planned_path format."""
+        """Convert Mobile Map edges to planned_path format."""
         planned_path = []
 
         # Add navigation steps
@@ -186,7 +186,7 @@ def replan_from_current(instruction: str, current_page: int, subtask_graph: dict
     Args:
         instruction: Original user instruction
         current_page: Current page after unexpected transition
-        subtask_graph: Subtask Transition Graph
+        subtask_graph: Mobile Map (subtask transition graph)
         all_subtasks: All available subtasks by page
         remaining_goal: Optional remaining goal description
 

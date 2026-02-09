@@ -63,5 +63,5 @@ def memory_node(state: TaskState) -> dict:
         "rejected_subtasks": [],
         "iteration": 0,
         "status": "subtasks_loaded",
-        "next_agent": "selector",
+        "next_agent": "planner",
     }

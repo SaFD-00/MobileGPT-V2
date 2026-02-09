@@ -45,12 +45,18 @@ class Memory:
             os.makedirs(self.page_database_path)
 
         task_header = ['name', 'path']
-        page_header = ['index', 'available_subtasks', 'trigger_uis', 'extra_uis', "screen"]
+        # Mobile Map: added 'summary' for UICompass-style page summary
+        page_header = ['index', 'available_subtasks', 'trigger_uis', 'extra_uis', "screen", "summary"]
         hierarchy_header = ['index', 'screen', 'embedding']
 
         self.task_db = init_database(self.task_db_path, task_header)
 
         self.page_db = init_database(self.page_path, page_header)
+        # Mobile Map: Fill missing 'summary' for backward compatibility
+        if 'summary' not in self.page_db.columns:
+            self.page_db['summary'] = ''
+        else:
+            self.page_db['summary'] = self.page_db['summary'].fillna('')
         self.page_db.set_index('index', drop=False, inplace=True)
 
         self.hierarchy_db = init_database(self.screen_hierarchy_path, hierarchy_header)
@@ -60,16 +66,17 @@ class Memory:
         self.page_manager = None
         self.current_page_index = -1
 
-        # Subtask Transition Graph (STG) for UICompass
+        # Mobile Map (formerly STG - Subtask Transition Graph)
+        # Stores app navigation structure: pages (nodes) and subtask transitions (edges)
         self.subtask_graph_path = base_database_path + "subtask_graph.json"
         self.subtask_graph = self._load_subtask_graph()
 
     # ========================================================================
-    # Subtask Transition Graph (STG) Methods - UICompass Integration
+    # Mobile Map Methods (Subtask Transition Graph)
     # ========================================================================
 
     def _load_subtask_graph(self) -> dict:
-        """Load STG from subtask_graph.json or rebuild from existing subtask data."""
+        """Load Mobile Map from subtask_graph.json or rebuild from existing data."""
         if os.path.exists(self.subtask_graph_path):
             try:
                 with open(self.subtask_graph_path, 'r') as f:
@@ -80,7 +87,7 @@ class Memory:
         return self._build_subtask_graph()
 
     def _save_subtask_graph(self):
-        """Save STG to subtask_graph.json."""
+        """Save Mobile Map to subtask_graph.json."""
         try:
             with open(self.subtask_graph_path, 'w') as f:
                 json.dump(self.subtask_graph, f, indent=2, ensure_ascii=False)
@@ -89,7 +96,7 @@ class Memory:
             log(f"Failed to save subtask_graph.json: {e}", "red")
 
     def _build_subtask_graph(self) -> dict:
-        """Rebuild STG from existing subtasks.csv and actions.csv data."""
+        """Rebuild Mobile Map from existing subtasks.csv and actions.csv data."""
         graph = {"nodes": [], "edges": []}
 
         # Collect all page indices
@@ -128,7 +135,7 @@ class Memory:
                         continue
 
         graph["nodes"].sort()
-        log(f"Built STG with {len(graph['nodes'])} nodes and {len(graph['edges'])} edges")
+        log(f"Built Mobile Map with {len(graph['nodes'])} nodes and {len(graph['edges'])} edges")
         return graph
 
     def _get_action_sequence(self, page_path: str, subtask_name: str,
@@ -158,7 +165,7 @@ class Memory:
             return []
 
     def _edge_exists(self, edge: dict) -> bool:
-        """Check if an equivalent edge already exists in STG."""
+        """Check if an equivalent edge already exists in Mobile Map."""
         for existing in self.subtask_graph.get("edges", []):
             if (existing["from_page"] == edge["from_page"] and
                 existing["to_page"] == edge["to_page"] and
@@ -169,7 +176,7 @@ class Memory:
 
     def add_transition(self, from_page: int, to_page: int, subtask_name: str,
                        trigger_ui_index: int, action_sequence: List[dict] = None):
-        """Add a new transition edge to STG.
+        """Add a new transition edge to Mobile Map.
 
         Args:
             from_page: Source page index
@@ -201,7 +208,7 @@ class Memory:
 
             self.subtask_graph["edges"].append(edge)
             self._save_subtask_graph()
-            log(f"Added STG edge: {from_page} -> {to_page} via '{subtask_name}'")
+            log(f"Added Mobile Map edge: {from_page} -> {to_page} via '{subtask_name}'")
 
     def delete_subtask(self, page_index: int, subtask_name: str,
                        trigger_ui_index: int = -1, reason: str = "unknown") -> bool:
@@ -209,7 +216,7 @@ class Memory:
 
         This method performs coordinated deletion across:
         1. PageManager CSV files (available_subtasks, subtasks, actions)
-        2. STG transitions
+        2. Mobile Map transitions
 
         Args:
             page_index: Page index where the subtask exists
@@ -236,7 +243,7 @@ class Memory:
                     reason=reason
                 )
 
-            # 2. STG에서 관련 엣지 삭제
+            # 2. Mobile Map에서 관련 엣지 삭제
             self.remove_transition(
                 from_page=page_index,
                 subtask_name=subtask_name,
@@ -252,7 +259,7 @@ class Memory:
 
     def remove_transition(self, from_page: int, subtask_name: str,
                           trigger_ui_index: int = -1) -> bool:
-        """Remove transition edge(s) from STG.
+        """Remove transition edge(s) from Mobile Map.
 
         Args:
             from_page: Source page index
@@ -283,7 +290,7 @@ class Memory:
 
         if edges_removed > 0:
             self._save_subtask_graph()
-            log(f":::DELETE::: Removed {edges_removed} edge(s) from STG for subtask '{subtask_name}' at page {from_page}")
+            log(f":::DELETE::: Removed {edges_removed} edge(s) from Mobile Map for subtask '{subtask_name}' at page {from_page}")
 
         return edges_removed > 0
 
@@ -348,6 +355,132 @@ class Memory:
             edge for edge in self.subtask_graph.get("edges", [])
             if edge["from_page"] == page_index
         ]
+
+    # ========================================================================
+    # Mobile Map: Page Summary Methods (UICompass Integration)
+    # ========================================================================
+
+    def update_page_summary(self, page_index: int, summary: str) -> bool:
+        """Update UICompass-style page summary.
+
+        Args:
+            page_index: Page index to update
+            summary: Page summary (e.g., "This page displays inbox, allows search...")
+
+        Returns:
+            bool: True if update was successful
+        """
+        if page_index in self.page_db.index:
+            self.page_db.loc[page_index, 'summary'] = summary
+            self.page_db.to_csv(self.page_path, index=False)
+            log(f"Updated page summary for page {page_index}: {summary[:50]}...")
+            return True
+        return False
+
+    def get_page_summary(self, page_index: int) -> str:
+        """Get UICompass-style page summary.
+
+        Args:
+            page_index: Page index
+
+        Returns:
+            str: Page summary or empty string if not found
+        """
+        if page_index in self.page_db.index:
+            summary = self.page_db.loc[page_index, 'summary']
+            return summary if pd.notna(summary) else ''
+        return ''
+
+    # ========================================================================
+    # Mobile Map: Action History Methods (M3A Integration)
+    # ========================================================================
+
+    def update_action_description(self, page_index: int, subtask_name: str,
+                                   trigger_ui_index: int, step: int,
+                                   description: str, guidance: str = "") -> bool:
+        """Update M3A-style action description and guidance.
+
+        Args:
+            page_index: Page index where action exists
+            subtask_name: Subtask name
+            trigger_ui_index: Trigger UI index
+            step: Action step number
+            description: M3A-style description of what changed
+            guidance: Semantic meaning of the action
+
+        Returns:
+            bool: True if update was successful
+        """
+        if page_index not in self.page_managers:
+            self.init_page_manager(page_index)
+
+        return self.page_managers[page_index].update_action_description(
+            subtask_name, trigger_ui_index, step, description, guidance
+        )
+
+    def save_action_history(self, page_index: int, subtask_name: str,
+                            history: List[dict]) -> bool:
+        """Save M3A-style action history for a subtask exploration.
+
+        Updates actions.csv with descriptions and guidances from history entries.
+
+        Args:
+            page_index: Page index where subtask exists
+            subtask_name: Subtask name
+            history: List of history entries [{step, action, description, guidance?}, ...]
+
+        Returns:
+            bool: True if save was successful
+        """
+        if page_index not in self.page_managers:
+            self.init_page_manager(page_index)
+
+        page_manager = self.page_managers[page_index]
+        success = True
+
+        for entry in history:
+            step = entry.get('step', 0)
+            description = entry.get('description', '')
+            guidance = entry.get('guidance', '')
+            action = entry.get('action', {})
+
+            # Find trigger_ui_index from action parameters
+            trigger_ui_index = action.get('parameters', {}).get('index', -1)
+
+            # Update action description
+            result = page_manager.update_action_description(
+                subtask_name, trigger_ui_index, step, description, guidance
+            )
+            if not result:
+                success = False
+
+        # Update combined guidance after all actions are updated
+        page_manager.update_combined_guidance(subtask_name)
+
+        log(f"Saved action history for '{subtask_name}' at page {page_index}: {len(history)} entries")
+        return success
+
+    def update_combined_guidance(self, page_index: int, subtask_name: str,
+                                  trigger_ui_index: int = -1) -> str:
+        """Update combined guidance for a subtask by aggregating action guidances.
+
+        Mobile Map: Called after all action descriptions/guidances are updated
+        to combine them into a single subtask-level guidance.
+
+        Args:
+            page_index: Page index where subtask exists
+            subtask_name: Subtask name
+            trigger_ui_index: Trigger UI index (optional)
+
+        Returns:
+            str: The combined guidance string
+        """
+        if page_index not in self.page_managers:
+            self.init_page_manager(page_index)
+
+        return self.page_managers[page_index].update_combined_guidance(
+            subtask_name, trigger_ui_index
+        )
 
     def init_page_manager(self, page_index: int):
         """페이지 관리자 초기화

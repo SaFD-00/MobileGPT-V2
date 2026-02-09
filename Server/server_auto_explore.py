@@ -363,7 +363,7 @@ class AutoExplorer:
                     # Track last explored subtask for end_page update
                     "last_explored_page_index": result.get("last_explored_page_index"),
                     "last_explored_subtask_name": result.get("last_explored_subtask_name"),
-                    "last_explored_ui_index": result.get("last_explored_ui_index"),
+                    "last_explored_ui_index": result.get("last_explored_ui_index")
                 }
 
             # Extract result
@@ -477,7 +477,7 @@ class AutoExplorer:
 
         When the client detects a transition to an external app (e.g., Camera,
         Photos), this method removes the subtask that triggered the transition
-        from all CSV files and the STG.
+        from all CSV files and the Mobile Map.
 
         Args:
             memory: Memory manager instance
@@ -500,7 +500,7 @@ class AutoExplorer:
 
         log(f":::EXTERNAL_APP::: Cleaning up subtask '{subtask}' (page={page_idx}, ui_idx={ui_idx})", "yellow")
 
-        # Delete subtask from CSV files and STG
+        # Delete subtask from CSV files and Mobile Map
         memory.delete_subtask(
             page_index=page_idx,
             subtask_name=subtask,

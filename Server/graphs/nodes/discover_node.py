@@ -1,7 +1,8 @@
 """Discover node for screen discovery and new page registration."""
 
-from typing import Any
+from typing import Any, List, Optional
 
+from agents import history_agent, summary_agent
 from graphs.state import ExploreState
 from utils.utils import log
 
@@ -83,7 +84,7 @@ def discover_node(state: ExploreState) -> dict:
             )
             log(f":::DISCOVER::: Updated end_page={page_index} for subtask '{last_explored_subtask}'", "cyan")
 
-            # UICompass: Update STG with new transition
+            # Mobile Map: Add transition edge
             # Get action sequence from the last explored action
             last_action = state.get("last_explored_action")
             action_sequence = [last_action] if last_action else []
@@ -95,7 +96,29 @@ def discover_node(state: ExploreState) -> dict:
                 trigger_ui_index=last_explored_ui,
                 action_sequence=action_sequence
             )
-            log(f":::DISCOVER::: Added STG transition: {last_explored_page} -> {page_index} via '{last_explored_subtask}'", "cyan")
+            log(f":::DISCOVER::: Added Mobile Map transition: {last_explored_page} -> {page_index} via '{last_explored_subtask}'", "cyan")
+
+            # Mobile Map: Generate M3A-style descriptions for action history
+            action_history = state.get("action_history", [])
+            if action_history:
+                log(f":::DISCOVER::: Processing {len(action_history)} actions for history generation", "cyan")
+                _process_action_history(
+                    action_history=action_history,
+                    after_xml=current_xml,
+                    after_screenshot_path=screenshot_path,
+                    memory=memory,
+                    page_index=last_explored_page,
+                    subtask_name=last_explored_subtask,
+                    trigger_ui_index=last_explored_ui
+                )
+
+                # Mobile Map: Update combined guidance after all actions processed
+                combined = memory.update_combined_guidance(
+                    page_index=last_explored_page,
+                    subtask_name=last_explored_subtask,
+                    trigger_ui_index=last_explored_ui
+                )
+                log(f":::DISCOVER::: Updated combined guidance for '{last_explored_subtask}': {combined[:50]}..." if combined else ":::DISCOVER::: No combined guidance generated", "cyan")
 
     # Initialize page manager
     memory.init_page_manager(page_index)
@@ -122,6 +145,18 @@ def discover_node(state: ExploreState) -> dict:
         new_unexplored[page_index] = available_subtasks
         log(f":::DISCOVER::: Initialized {len(available_subtasks)} unexplored subtasks for page {page_index}", "cyan")
 
+        # Mobile Map: Generate UICompass-style page summary for new pages
+        try:
+            page_summary = summary_agent.generate_summary(
+                encoded_xml=encoded_xml,
+                available_subtasks=available_subtasks,
+                screenshot_path=screenshot_path
+            )
+            memory.update_page_summary(page_index, page_summary)
+            log(f":::DISCOVER::: Generated summary for page {page_index}: {page_summary[:50]}...", "green")
+        except Exception as e:
+            log(f":::DISCOVER::: Error generating page summary: {e}", "red")
+
         return {
             "page_index": page_index,
             "is_new_screen": False,  # We've now processed it
@@ -129,6 +164,7 @@ def discover_node(state: ExploreState) -> dict:
             "unexplored_subtasks": new_unexplored,
             "status": "page_discovered",
             "next_agent": "explore_action",
+            "action_history": [],  # Mobile Map: Reset after processing
             **clear_last_explored,
         }
 
@@ -156,5 +192,83 @@ def discover_node(state: ExploreState) -> dict:
         "unexplored_subtasks": new_unexplored,
         "status": "page_found",
         "next_agent": "explore_action",
+        "action_history": [],  # Mobile Map: Reset after processing
         **clear_last_explored,
     }
+
+
+def _process_action_history(
+    action_history: List[dict],
+    after_xml: str,
+    after_screenshot_path: Optional[str],
+    memory: Any,
+    page_index: int,
+    subtask_name: str,
+    trigger_ui_index: int
+) -> None:
+    """Process action history to generate M3A-style descriptions and guidance.
+
+    For each action in history:
+    1. Generate description using HistoryAgent (what changed)
+    2. Generate guidance using HistoryAgent (semantic meaning)
+    3. Save to memory via update_action_description
+
+    Args:
+        action_history: List of action entries with before_xml, before_screenshot, action
+        after_xml: XML state after the last action (current screen)
+        after_screenshot_path: Screenshot path after the last action
+        memory: Memory instance for saving descriptions
+        page_index: Page where the subtask started
+        subtask_name: Name of the completed subtask
+        trigger_ui_index: Trigger UI index of the subtask
+    """
+    if action_history and not action_history[0].get("before_xml"):
+        log(":::DISCOVER::: Warning: first action missing before_xml, skipping history generation", "yellow")
+        return
+
+    for i, entry in enumerate(action_history):
+        before_xml = entry.get("before_xml", "")
+        before_screenshot = entry.get("before_screenshot")
+        action = entry.get("action", {})
+        step = entry.get("step", i)
+
+        # Determine after state for this action
+        # If this is the last action, use the final after_xml
+        # Otherwise, use the next action's before_xml
+        if i < len(action_history) - 1:
+            current_after_xml = action_history[i + 1].get("before_xml", "")
+            current_after_screenshot = action_history[i + 1].get("before_screenshot")
+        else:
+            current_after_xml = after_xml
+            current_after_screenshot = after_screenshot_path
+
+        try:
+            # Generate M3A-style description (what changed)
+            description = history_agent.generate_description(
+                before_xml=before_xml,
+                after_xml=current_after_xml,
+                action=action,
+                before_screenshot_path=before_screenshot,
+                after_screenshot_path=current_after_screenshot
+            )
+            log(f":::DISCOVER::: Generated description for step {step}: {description[:50]}...", "green")
+
+            # Generate semantic guidance (why this action)
+            guidance = history_agent.generate_guidance(
+                action=action,
+                screen_xml=before_xml
+            )
+            log(f":::DISCOVER::: Generated guidance for step {step}: {guidance[:50]}...", "green")
+
+            # Save to memory
+            memory.update_action_description(
+                page_index=page_index,
+                subtask_name=subtask_name,
+                trigger_ui_index=trigger_ui_index,
+                step=step,
+                description=description,
+                guidance=guidance
+            )
+
+        except Exception as e:
+            log(f":::DISCOVER::: Error generating history for step {step}: {e}", "red")
