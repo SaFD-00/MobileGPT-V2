@@ -24,7 +24,8 @@ class PlannerAgent:
         self.instruction = instruction
 
     def plan(self, current_page: int, subtask_graph: dict,
-             all_subtasks: Dict[int, List[dict]]) -> Optional[List[dict]]:
+             all_subtasks: Dict[int, List[dict]],
+             filtered_names: Optional[List[str]] = None) -> Optional[List[dict]]:
         """Plan the full subtask path to achieve the instruction.
 
         Args:
@@ -43,7 +44,7 @@ class PlannerAgent:
             return None
 
         # Step 1: Analyze goal to identify target subtasks/pages
-        goal_analysis = self._analyze_goal(all_subtasks)
+        goal_analysis = self._analyze_goal(all_subtasks, filtered_names)
         if not goal_analysis:
             log(":::PLANNER::: Could not analyze goal", "yellow")
             return None
@@ -77,14 +78,19 @@ class PlannerAgent:
             log(f":::PLANNER::: No Mobile Map path from {current_page} to targets {target_pages}", "yellow")
             return None
 
-        # Step 4: Convert edges to planned_path steps
-        planned_path = self._build_planned_path(best_path, final_subtask, goal_analysis)
+        # Step 4: Convert edges to planned_path steps (with transit detection)
+        planned_path = self._build_planned_path(best_path, final_subtask, goal_analysis, filtered_names)
 
         log(f":::PLANNER::: Planned {len(planned_path)} steps to page {best_target}", "green")
         return planned_path
 
-    def _analyze_goal(self, all_subtasks: Dict[int, List[dict]]) -> Optional[dict]:
+    def _analyze_goal(self, all_subtasks: Dict[int, List[dict]],
+                      filtered_names: Optional[List[str]] = None) -> Optional[dict]:
         """Use LLM to analyze instruction and identify target subtasks.
+
+        Args:
+            all_subtasks: Dict mapping page_index to available subtasks
+            filtered_names: Pre-filtered subtask names (for [RELEVANT] markers)
 
         Returns:
             Dict with 'target_subtasks' (list of subtask names to traverse)
@@ -106,7 +112,8 @@ class PlannerAgent:
             return None
 
         prompts = planner_agent_prompt.get_goal_analysis_prompt(
-            self.instruction, list(unique_subtasks.values())
+            self.instruction, list(unique_subtasks.values()),
+            filtered_names=filtered_names
         )
 
         model = os.getenv("PLANNER_AGENT_GPT_VERSION",
@@ -148,30 +155,43 @@ class PlannerAgent:
         return None
 
     def _build_planned_path(self, edges: List[dict], final_subtask: Optional[str],
-                            goal_analysis: dict) -> List[dict]:
-        """Convert Mobile Map edges to planned_path format."""
+                            goal_analysis: dict,
+                            filtered_names: Optional[List[str]] = None) -> List[dict]:
+        """Convert Mobile Map edges to planned_path format with transit detection.
+
+        Transit detection: If filtered_names is provided (non-empty), subtasks NOT in
+        the filtered set are marked as transit (needed for BFS path but not directly
+        relevant to the instruction). When filtered_names is None or empty,
+        all steps are marked as non-transit (no filtering context available).
+        """
         planned_path = []
+        filtered_set = set(filtered_names) if filtered_names else None
 
         # Add navigation steps
         for edge in edges:
+            subtask_name = edge["subtask"]
+            is_transit = (subtask_name not in filtered_set) if filtered_set else False
             step = {
                 "page": edge["from_page"],
-                "subtask": edge["subtask"],
-                "instruction": f"Navigate via '{edge['subtask']}'",
+                "subtask": subtask_name,
+                "instruction": f"Navigate via '{subtask_name}'",
                 "trigger_ui_index": edge.get("trigger_ui_index", -1),
-                "status": "pending"
+                "status": "pending",
+                "is_transit": is_transit
             }
             planned_path.append(step)
 
         # Add final goal subtask
         if final_subtask:
             final_page = edges[-1]["to_page"] if edges else goal_analysis.get("start_page", 0)
+            is_transit = (final_subtask not in filtered_set) if filtered_set else False
             step = {
                 "page": final_page,
                 "subtask": final_subtask,
                 "instruction": goal_analysis.get("final_instruction", self.instruction),
                 "trigger_ui_index": -1,
-                "status": "pending"
+                "status": "pending",
+                "is_transit": is_transit
             }
             planned_path.append(step)
 
@@ -180,7 +200,8 @@ class PlannerAgent:
 
 def replan_from_current(instruction: str, current_page: int, subtask_graph: dict,
                         all_subtasks: Dict[int, List[dict]],
-                        remaining_goal: str = None) -> Optional[List[dict]]:
+                        remaining_goal: str = None,
+                        filtered_names: Optional[List[str]] = None) -> Optional[List[dict]]:
     """Replan path from current position after unexpected transition.
 
     Args:
@@ -189,9 +210,10 @@ def replan_from_current(instruction: str, current_page: int, subtask_graph: dict
         subtask_graph: Mobile Map (subtask transition graph)
         all_subtasks: All available subtasks by page
         remaining_goal: Optional remaining goal description
+        filtered_names: Pre-filtered subtask names (for transit detection)
 
     Returns:
         New planned path or None
     """
     planner = PlannerAgent(remaining_goal or instruction)
-    return planner.plan(current_page, subtask_graph, all_subtasks)
+    return planner.plan(current_page, subtask_graph, all_subtasks, filtered_names)

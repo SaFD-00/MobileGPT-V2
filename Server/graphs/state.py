@@ -47,6 +47,7 @@ class PlannedPathStep(TypedDict, total=False):
     instruction: str
     trigger_ui_index: int
     status: str  # pending | in_progress | completed | skipped
+    is_transit: bool  # True if this is a transit subtask (not in filtered set but needed for BFS path)
 
 
 # ============================================================================

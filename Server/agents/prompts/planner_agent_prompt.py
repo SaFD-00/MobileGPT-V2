@@ -22,22 +22,27 @@ Rules:
 - target_subtasks: List subtasks that might be on the path (can be empty if goal is on current page)
 - final_subtask: Must be one of the available subtask names that directly achieves the goal
 - If the instruction is about finishing/completing, use "finish" as final_subtask
-- If you cannot find a matching subtask, set final_subtask to the closest match"""
+- If you cannot find a matching subtask, set final_subtask to the closest match
+- If subtasks are marked with [RELEVANT], they have been pre-filtered as relevant to the instruction. Prioritize these, but you may also include unmarked subtasks if they are needed as transit steps to reach the goal."""
 
 
-def get_goal_analysis_prompt(instruction: str, all_subtasks: list) -> list:
+def get_goal_analysis_prompt(instruction: str, all_subtasks: list,
+                             filtered_names: list = None) -> list:
     """Generate prompt for goal analysis.
 
     Args:
         instruction: User's instruction
         all_subtasks: List of {name, description, page} dicts
+        filtered_names: List of subtask names pre-filtered as relevant
 
     Returns:
         List of message dicts for LLM
     """
+    filtered_set = set(filtered_names) if filtered_names else set()
     subtask_list = []
     for s in all_subtasks:
-        subtask_list.append(f"- {s['name']} (page {s['page']}): {s['description']}")
+        marker = "[RELEVANT] " if s['name'] in filtered_set else ""
+        subtask_list.append(f"- {marker}{s['name']} (page {s['page']}): {s['description']}")
 
     user_content = f"""User Instruction: {instruction}
 

@@ -7,7 +7,7 @@ Mobile Map 4-Step Workflow Implementation:
 4. Execute: Handled by selector/verifier nodes
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from agents.planner_agent import PlannerAgent, replan_from_current
 from agents import filter_agent
@@ -85,14 +85,14 @@ def planner_node(state: TaskState) -> dict:
     )
     log(f":::PLANNER::: Filtered to {len(filtered_subtasks)} relevant subtasks", "cyan")
 
+    # Extract filtered subtask names for [RELEVANT] markers in planning
+    filtered_names = [s.get("name", "") for s in filtered_subtasks] if filtered_subtasks else []
+
     # Step 2 Verification
     filter_result = step_verify_agent.verify_filter(instruction, filtered_subtasks, all_subtasks)
     if filter_result["status"] == step_verify_agent.StepVerifyResult.FAIL:
-        log(":::PLANNER::: Filter verification FAILED, using all subtasks as fallback", "yellow")
-        planning_subtasks = all_subtasks  # Fallback to all subtasks
-    else:
-        # Use filtered subtasks for planning, fallback to all if filter returns nothing
-        planning_subtasks = filtered_subtasks if filtered_subtasks else all_subtasks
+        log(":::PLANNER::: Filter verification FAILED, using all subtasks without markers", "yellow")
+        filtered_names = []  # No markers when filter fails
 
     # Case 1: Replanning after unexpected transition
     if state.get("replan_needed"):
@@ -116,7 +116,8 @@ def planner_node(state: TaskState) -> dict:
             instruction=instruction,
             current_page=current_page,
             subtask_graph=memory.subtask_graph,
-            all_subtasks=planning_subtasks  # Use filtered subtasks
+            all_subtasks=_list_to_page_dict(all_subtasks),
+            filtered_names=filtered_names
         )
 
         if new_path:
@@ -152,13 +153,15 @@ def planner_node(state: TaskState) -> dict:
     planned_path = planner.plan(
         current_page=current_page,
         subtask_graph=memory.subtask_graph,
-        all_subtasks=planning_subtasks  # Use filtered subtasks
+        all_subtasks=_list_to_page_dict(all_subtasks),
+        filtered_names=filtered_names
     )
 
     if planned_path:
         log(f":::PLANNER::: Planned {len(planned_path)} steps", "green")
         for i, step in enumerate(planned_path):
-            log(f"  Step {i+1}: {step['subtask']} @ page {step['page']}", "cyan")
+            transit_tag = " [TRANSIT]" if step.get("is_transit") else ""
+            log(f"  Step {i+1}: {step['subtask']} @ page {step['page']}{transit_tag}", "cyan")
 
         # Step 3 Verification
         plan_result = step_verify_agent.verify_plan(planned_path, memory.subtask_graph, current_page)
@@ -187,6 +190,28 @@ def planner_node(state: TaskState) -> dict:
             "all_subtasks_list": all_subtasks,
             "filtered_subtasks": filtered_subtasks,
         }
+
+
+def _list_to_page_dict(subtasks_list: List[dict]) -> Dict[int, List[dict]]:
+    """Convert flat subtask list to page-indexed dict.
+
+    Args:
+        subtasks_list: Flat list of subtask dicts with 'page_index' field
+            (set by _load_all_subtasks_with_context)
+
+    Returns:
+        Dict mapping page_index to list of subtasks on that page
+    """
+    page_dict: Dict[int, List[dict]] = {}
+    for s in subtasks_list:
+        page_idx = s.get("page_index")
+        if page_idx is None:
+            log(f":::PLANNER::: WARNING - subtask missing page_index: {s.get('name', 'unknown')}", "yellow")
+            continue
+        if page_idx not in page_dict:
+            page_dict[page_idx] = []
+        page_dict[page_idx].append(s)
+    return page_dict
 
 
 def _load_all_subtasks_with_context(memory: Any) -> List[dict]:

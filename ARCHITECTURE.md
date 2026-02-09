@@ -69,7 +69,7 @@ MobileGPT-V2는 다음 핵심 원칙을 따릅니다:
 | **HistoryAgent** | 이전/이후 XML, 액션 | 설명, 가이던스 | `generate_description()` |
 | **SummaryAgent** | XML, 서브태스크 | 페이지 요약 | `generate_summary()` |
 | **FilterAgent** | 지시어, 전체 서브태스크 | 필터링된 서브태스크 | `filter_subtasks()` |
-| **PlannerAgent** | 지시어, Mobile Map | planned_path | `plan()` |
+| **PlannerAgent** | 지시어, Mobile Map, filtered_names | planned_path (with is_transit) | `plan()` |
 | **StepVerifyAgent** | subtasks, path, graph | pass/warn/fail 결정 | `verify_load()`, `verify_filter()`, `verify_plan()` |
 | **SelectAgent** | available_subtasks | selected_subtask | `select()` |
 | **DeriveAgent** | 서브태스크, XML | 액션 JSON | `derive()` |
@@ -96,7 +96,7 @@ class TaskState(TypedDict, total=False):
     available_subtasks: List[dict]
 
     # 경로 계획 (Path planning - UICompass)
-    planned_path: List[PlannedPathStep]
+    planned_path: List[PlannedPathStep]  # is_transit 플래그 포함
     path_step_index: int
 
     # 적응형 재계획 (Adaptive replanning)
@@ -435,7 +435,7 @@ action_history_entry = {
 |------|----------|------|
 | **Load** | MemoryManager → StepVerifyAgent | 모든 페이지에서 요약과 함께 모든 서브태스크 가져오기 → `verify_load()` |
 | **Filter** | FilterAgent → StepVerifyAgent | 지시어에 관련된 서브태스크 선택 → `verify_filter()` |
-| **Plan** | PlannerAgent → StepVerifyAgent | Mobile Map을 사용하여 최적 경로 생성 → `verify_plan()` |
+| **Plan** | PlannerAgent → StepVerifyAgent | 전체 subtask에 `[RELEVANT]` 마커 부여 후 Mobile Map BFS로 최적 경로 생성. 경유(transit) subtask 자동 포함 (`is_transit` 플래그) → `verify_plan()` |
 | **Execute** | Selector/Verifier | 액션 실행, `verify_planned_path()` → 불일치 시 재계획 |
 
 ### 4.2 6-Step 프로세스
@@ -523,12 +523,14 @@ def verify_with_path(planned_path, step_index, current_page):
 
 ### 4.4 UICompass 경로 계획
 
-PlannerAgent는 최적 경로 계획을 위해 Mobile Map에서 BFS를 사용합니다:
+PlannerAgent는 최적 경로 계획을 위해 Mobile Map에서 BFS를 사용합니다.
+
+**Transit Subtask 자동 포함**: Plan 단계에서 전체 subtask에 Filter 결과를 `[RELEVANT]` 마커로 표시하여 LLM에 전달합니다. BFS 경로 탐색 시 필터링되지 않았지만 경로상 필요한 경유(transit) subtask가 자동으로 포함되며, `is_transit: True` 플래그로 구분됩니다. (UICompass Focusing Strategy Step 5 영감)
 
 ```python
-def plan_path(current_page, subtask_graph, instruction):
-    # 1. LLM을 사용하여 목표 분석
-    goal_analysis = analyze_goal(instruction, all_subtasks)
+def plan_path(current_page, subtask_graph, instruction, filtered_names):
+    # 1. LLM을 사용하여 목표 분석 (전체 subtask + [RELEVANT] 마커)
+    goal_analysis = analyze_goal(instruction, all_subtasks, filtered_names)
 
     # 2. 목표 서브태스크를 포함하는 타겟 페이지 찾기
     target_pages = find_target_pages(goal_analysis.target_subtasks)
@@ -536,8 +538,8 @@ def plan_path(current_page, subtask_graph, instruction):
     # 3. 가장 가까운 타겟으로 BFS 최단 경로
     best_path = bfs_find_path(current_page, target_pages, subtask_graph)
 
-    # 4. 단계 세부사항과 함께 planned_path 구축
-    return build_planned_path(best_path, goal_analysis.final_subtask)
+    # 4. 단계 세부사항 + transit 감지와 함께 planned_path 구축
+    return build_planned_path(best_path, goal_analysis.final_subtask, filtered_names)
 ```
 
 **planned_path 구조**:
@@ -549,14 +551,16 @@ planned_path = [
         "subtask": "open_settings",
         "instruction": "설정 메뉴 열기",
         "trigger_ui_index": 5,
-        "status": "pending"  # pending | in_progress | completed | skipped
+        "status": "pending",  # pending | in_progress | completed | skipped
+        "is_transit": True    # 경유 subtask (필터에 없지만 경로상 필요)
     },
     {
         "page": 1,
         "subtask": "change_language",
         "instruction": "언어 옵션 선택",
         "trigger_ui_index": 12,
-        "status": "pending"
+        "status": "pending",
+        "is_transit": False   # 직접 관련 subtask (필터에 포함)
     }
 ]
 ```

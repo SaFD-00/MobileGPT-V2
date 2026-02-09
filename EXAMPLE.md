@@ -997,6 +997,13 @@ Return ONLY a JSON array of subtask names, no explanation:
 ["create_new_event", "edit_event_title", "set_event_time", "set_event_date", "save_event"]
 ```
 
+#### filtered_names 추출 (Plan 단계 힌트용)
+
+```python
+# Filter 결과에서 subtask 이름 추출 → Plan 단계에서 [RELEVANT] 마커로 사용
+filtered_names = ["create_new_event", "edit_event_title", "set_event_time", "set_event_date", "save_event"]
+```
+
 #### verify_filter() 검증
 
 ```python
@@ -1050,14 +1057,20 @@ Rules:
 User Instruction: 내일 오후 3시에 팀 미팅 일정 추가해줘
 
 Available Subtasks:
-- create_new_event (page 0): Create a new calendar event by tapping the FAB button...
-- edit_event_title (page 2): Edit the title field of a calendar event...
-- set_event_time (page 2): Set the start and end time for an event...
-- set_event_date (page 2): Set the date for an event...
-- save_event (page 2): Save the event after filling in details...
+- [RELEVANT] create_new_event (page 0): Create a new calendar event by tapping the FAB button...
+- search_events (page 0): Search for specific events by keyword...
+- view_event_details (page 0): View detailed information about an existing event...
+- navigate_calendar_menu (page 0): Open the side menu to access calendar settings...
+- [RELEVANT] edit_event_title (page 2): Edit the title field of a calendar event...
+- [RELEVANT] set_event_time (page 2): Set the start and end time for an event...
+- [RELEVANT] set_event_date (page 2): Set the date for an event...
+- [RELEVANT] save_event (page 2): Save the event after filling in details...
+- open_settings (page 1): Open calendar settings...
 
 Analyze the instruction and identify which subtasks are needed.
 ```
+
+> **참고**: `[RELEVANT]` 마커는 Step 2 (Filter)에서 필터링된 subtask에 자동으로 부여됩니다. LLM은 이를 우선 참고하되, 경로상 필요한 미마킹 subtask도 transit으로 포함할 수 있습니다.
 
 #### LLM 응답 예시
 
@@ -1077,12 +1090,26 @@ Analyze the instruction and identify which subtasks are needed.
 # Page 0 → (create_new_event) → Page 2 (edit_event_title, set_event_time 등이 있는 페이지)
 
 planned_path = [
-    {"page": 0, "subtask": "create_new_event", "trigger_ui_index": 10, "status": "pending"},
-    {"page": 2, "subtask": "edit_event_title", "trigger_ui_index": 0, "status": "pending"},
-    {"page": 2, "subtask": "set_event_date", "trigger_ui_index": 1, "status": "pending"},
-    {"page": 2, "subtask": "set_event_time", "trigger_ui_index": 2, "status": "pending"},
-    {"page": 2, "subtask": "save_event", "trigger_ui_index": 8, "status": "pending"}
+    {"page": 0, "subtask": "create_new_event", "trigger_ui_index": 10, "status": "pending", "is_transit": False},
+    {"page": 2, "subtask": "edit_event_title", "trigger_ui_index": 0, "status": "pending", "is_transit": False},
+    {"page": 2, "subtask": "set_event_date", "trigger_ui_index": 1, "status": "pending", "is_transit": False},
+    {"page": 2, "subtask": "set_event_time", "trigger_ui_index": 2, "status": "pending", "is_transit": False},
+    {"page": 2, "subtask": "save_event", "trigger_ui_index": 8, "status": "pending", "is_transit": False}
 ]
+# 이 예시에서는 모든 subtask가 필터에 포함되어 transit이 없음.
+# 만약 경로상 navigate_calendar_menu 같은 경유 subtask가 필요했다면 is_transit=True로 표시됨.
+```
+
+**Transit Subtask 예시** (Settings → Language 변경 시나리오):
+
+```python
+# "언어를 영어로 변경해줘" 지시 시:
+# - Filter 결과: ["change_language"]
+# - BFS 경로: page 0 → (navigate_calendar_menu) → page 1 → (open_settings) → page 4 → change_language
+planned_path = [
+    {"page": 0, "subtask": "navigate_calendar_menu", ..., "is_transit": True},   # 경유
+    {"page": 1, "subtask": "open_settings", ..., "is_transit": True},            # 경유
+    {"page": 4, "subtask": "change_language", ..., "is_transit": False}           # 목표
 ```
 
 #### verify_plan() 검증
@@ -1447,10 +1474,11 @@ Response:
          ▼
 ┌─ planner ────────────────────────────────────────────────────────┐
 │ Step 1 (Load): 4개 페이지에서 15개 subtask 로드                  │
-│ Step 2 (Filter): 5개로 필터링                                    │
+│ Step 2 (Filter): 5개로 필터링 → filtered_names 추출              │
 │   → [create_new_event, edit_event_title, set_event_date,        │
 │      set_event_time, save_event]                                │
-│ Step 3 (Plan): BFS 경로 → 5 steps planned                      │
+│ Step 3 (Plan): 전체 subtask + [RELEVANT] 마커 → BFS 경로        │
+│   → 5 steps planned (transit 0개, all relevant)                 │
 │ → next_agent: "selector" (via supervisor)                       │
 └──────────────────────────────────────────────────────────────────┘
          │
@@ -1582,7 +1610,7 @@ class TaskState(TypedDict, total=False):
     iteration: int                            # 재선택 루프 카운트
 
     # UICompass 경로 계획
-    planned_path: Optional[List[PlannedPathStep]]  # 계획된 경로
+    planned_path: Optional[List[PlannedPathStep]]  # 계획된 경로 (is_transit 포함)
     path_step_index: int                      # 현재 경로 step
 
     # 적응형 재계획
@@ -1742,6 +1770,10 @@ PARAMETER_FILLER_AGENT_GPT_VERSION=gpt-5.2
 ACTION_SUMMARIZE_AGENT_GPT_VERSION=gpt-5.2
 SUBTASK_MERGE_AGENT_GPT_VERSION=gpt-5.2
 GUIDELINE_AGENT_GPT_VERSION=gpt-5.2
+FILTER_AGENT_GPT_VERSION=gpt-5.2
+HISTORY_AGENT_GPT_VERSION=gpt-5.2
+PLANNER_AGENT_GPT_VERSION=gpt-5.2
+SUMMARY_AGENT_GPT_VERSION=gpt-5.2
 
 # OpenAI API
 OPENAI_API_KEY=your-api-key             # 필수
