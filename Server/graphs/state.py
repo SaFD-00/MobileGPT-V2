@@ -8,20 +8,20 @@ from typing import Any, Dict, List, Literal, Optional, Set, TypedDict
 # ============================================================================
 # Mobile Map represents the app's UI navigation structure as a graph.
 # - Nodes: Pages (screens) with summaries
-# - Edges: Subtask transitions with descriptions, guidance, and action sequences
+# - Edges: Subtask transitions with descriptions, guidelines, and action sequences
 # ============================================================================
 
 class SubtaskTransitionEdge(TypedDict):
     """Single edge in the Mobile Map.
 
     Represents a transition from one page to another via a subtask.
-    Includes action descriptions and guidance.
+    Includes action descriptions and guidelines.
     """
     from_page: int
     to_page: int
     subtask: str
     trigger_ui_index: int
-    action_sequence: List[dict]  # [{name, parameters, description, guidance}, ...]
+    action_sequence: List[dict]  # [{name, parameters, description, guideline}, ...]
     explored: bool
 
 

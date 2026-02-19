@@ -2,7 +2,7 @@ import json
 import os
 from copy import deepcopy
 
-from agents import action_summarize_agent, guideline_agent
+from agents import action_summarize_agent
 from agents.prompts import derive_agent_prompt
 from memory.memory_manager import Memory
 from utils.utils import query, query_with_vision, log, parse_completion_rate
@@ -82,16 +82,6 @@ class DeriveAgent:
             self.action_history = []
             self.response_history = []
             return action_summary
-
-    def generate_guideline(self) -> str:
-        """Summarize the subtask execution process to generate a guideline description.
-
-        Returns:
-            A human-readable guideline summary string
-        """
-        if self.subtask is None or len(self.response_history) == 0:
-            return ""
-        return guideline_agent.summarize_guideline(self.subtask, self.response_history)
 
     def __exemplify(self, response: dict, screen: str) -> dict:
         """Convert the action into a training example"""

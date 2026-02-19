@@ -397,8 +397,8 @@ class Memory:
 
     def update_action_description(self, page_index: int, subtask_name: str,
                                    trigger_ui_index: int, step: int,
-                                   description: str, guidance: str = "") -> bool:
-        """Update action description and guidance.
+                                   description: str, guideline: str = "") -> bool:
+        """Update action description and guideline.
 
         Args:
             page_index: Page index where action exists
@@ -406,7 +406,7 @@ class Memory:
             trigger_ui_index: Trigger UI index
             step: Action step number
             description: Description of what changed
-            guidance: Semantic meaning of the action
+            guideline: Semantic meaning of the action
 
         Returns:
             bool: True if update was successful
@@ -415,19 +415,19 @@ class Memory:
             self.init_page_manager(page_index)
 
         return self.page_managers[page_index].update_action_description(
-            subtask_name, trigger_ui_index, step, description, guidance
+            subtask_name, trigger_ui_index, step, description, guideline
         )
 
     def save_action_history(self, page_index: int, subtask_name: str,
                             history: List[dict]) -> bool:
         """Save action history for a subtask exploration.
 
-        Updates actions.csv with descriptions and guidances from history entries.
+        Updates actions.csv with descriptions and guidelines from history entries.
 
         Args:
             page_index: Page index where subtask exists
             subtask_name: Subtask name
-            history: List of history entries [{step, action, description, guidance?}, ...]
+            history: List of history entries [{step, action, description, guideline?}, ...]
 
         Returns:
             bool: True if save was successful
@@ -441,7 +441,7 @@ class Memory:
         for entry in history:
             step = entry.get('step', 0)
             description = entry.get('description', '')
-            guidance = entry.get('guidance', '')
+            guideline = entry.get('guideline', '')
             action = entry.get('action', {})
 
             # Find trigger_ui_index from action parameters
@@ -449,23 +449,23 @@ class Memory:
 
             # Update action description
             result = page_manager.update_action_description(
-                subtask_name, trigger_ui_index, step, description, guidance
+                subtask_name, trigger_ui_index, step, description, guideline
             )
             if not result:
                 success = False
 
-        # Update combined guidance after all actions are updated
-        page_manager.update_combined_guidance(subtask_name)
+        # Update guideline after all actions are updated
+        page_manager.update_guideline(subtask_name)
 
         log(f"Saved action history for '{subtask_name}' at page {page_index}: {len(history)} entries")
         return success
 
-    def update_combined_guidance(self, page_index: int, subtask_name: str,
-                                  trigger_ui_index: int = -1) -> str:
-        """Update combined guidance for a subtask by aggregating action guidances.
+    def update_guideline(self, page_index: int, subtask_name: str,
+                          trigger_ui_index: int = -1) -> str:
+        """Update guideline for a subtask by aggregating action-level guidelines.
 
-        Mobile Map: Called after all action descriptions/guidances are updated
-        to combine them into a single subtask-level guidance.
+        Mobile Map: Called after all action descriptions/guidelines are updated
+        to combine them into a single subtask-level guideline.
 
         Args:
             page_index: Page index where subtask exists
@@ -473,12 +473,12 @@ class Memory:
             trigger_ui_index: Trigger UI index (optional)
 
         Returns:
-            str: The combined guidance string
+            str: The combined guideline string
         """
         if page_index not in self.page_managers:
             self.init_page_manager(page_index)
 
-        return self.page_managers[page_index].update_combined_guidance(
+        return self.page_managers[page_index].update_guideline(
             subtask_name, trigger_ui_index
         )
 

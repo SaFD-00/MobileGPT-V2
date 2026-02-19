@@ -137,26 +137,91 @@ def _add_image_to_messages(messages: list, image_path: str,
     return new_messages
 
 
+def _add_images_to_messages(messages: list, image_paths: list,
+                            detail: str = "high") -> list:
+    """Add multiple images to the last user message
+
+    Chat Completions API Vision format:
+    {"type": "text", "text": "..."}
+    {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,..."}}
+
+    Args:
+        messages: List of prompt messages
+        image_paths: List of image file paths
+        detail: Image detail level (low/high/auto)
+
+    Returns:
+        Messages with images added to the last user message
+    """
+    if not image_paths:
+        return messages
+
+    new_messages = copy.deepcopy(messages)
+
+    # Find the last user message
+    for i in range(len(new_messages) - 1, -1, -1):
+        if new_messages[i]["role"] == "user":
+            content = new_messages[i]["content"]
+
+            # Convert to list format if string
+            if isinstance(content, str):
+                content_list = [{"type": "text", "text": content}]
+            else:
+                content_list = list(content)
+
+            # Add all images
+            for path in image_paths:
+                if path and os.path.exists(path):
+                    base64_image = encode_image_to_base64(path)
+                    content_list.append({
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{base64_image}",
+                            "detail": detail
+                        }
+                    })
+
+            new_messages[i]["content"] = content_list
+            break
+
+    return new_messages
+
+
 def query_with_vision(messages, model: str = "gpt-5.2",
                       screenshot_path: Optional[str] = None,
+                      screenshot_paths: Optional[list] = None,
                       is_list: bool = False,
                       image_detail: str = "high"):
-    """Query function with Vision API support
+    """Query function with Vision API support (supports multiple images)
 
     Args:
         messages: List of prompt messages
         model: Model name to use (default: gpt-5.2)
-        screenshot_path: Screenshot file path (Optional)
+        screenshot_path: Single screenshot file path (Optional, for backward compatibility)
+        screenshot_paths: List of screenshot file paths (Optional, for multiple images)
         is_list: Whether the response is a list
         image_detail: Image detail level (low/high/auto)
 
     Returns:
         Parsed JSON response (dict or list)
+
+    Note:
+        If both screenshot_path and screenshot_paths are provided,
+        screenshot_paths takes precedence.
     """
-    # Convert to Vision API format if screenshot is available
-    if screenshot_path and os.path.exists(screenshot_path):
-        log(f":::VISION::: Adding screenshot: {screenshot_path}", "magenta")
-        messages = _add_image_to_messages(messages, screenshot_path, image_detail)
+    # Determine which images to use
+    paths_to_use = []
+    if screenshot_paths:
+        # Use multiple images (filter out None and non-existent paths)
+        paths_to_use = [p for p in screenshot_paths if p and os.path.exists(p)]
+    elif screenshot_path and os.path.exists(screenshot_path):
+        # Backward compatibility: single image
+        paths_to_use = [screenshot_path]
+
+    # Convert to Vision API format if screenshots are available
+    if paths_to_use:
+        log(f":::VISION::: Adding {len(paths_to_use)} screenshot(s)", "magenta")
+        messages = _add_images_to_messages(messages, paths_to_use, image_detail)
 
     # Use existing query logic
     return query(messages, model=model, is_list=is_list)

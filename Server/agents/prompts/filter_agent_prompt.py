@@ -54,8 +54,8 @@ def get_usr_prompt(instruction: str, subtasks: List[dict], max_results: int) -> 
         }
         if subtask.get("page_summary"):
             summary["page_summary"] = subtask["page_summary"][:100]  # Truncate
-        if subtask.get("combined_guidance"):
-            summary["guidance"] = subtask["combined_guidance"][:100]  # Truncate
+        if subtask.get("guideline"):
+            summary["guideline"] = subtask["guideline"][:100]  # Truncate
         subtask_summaries.append(summary)
 
     usr_msg = (

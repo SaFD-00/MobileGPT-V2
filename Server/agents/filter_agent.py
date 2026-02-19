@@ -31,7 +31,7 @@ def filter_subtasks(
             - description: What the subtask does
             - page_index: Page where subtask is located
             - page_summary: Summary of the page (optional)
-            - combined_guidance: How to perform the subtask (optional)
+            - guideline: How to perform the subtask (optional)
         max_results: Maximum number of subtasks to return
 
     Returns:

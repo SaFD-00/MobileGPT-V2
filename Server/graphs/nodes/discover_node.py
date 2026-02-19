@@ -112,13 +112,13 @@ def discover_node(state: ExploreState) -> dict:
                     trigger_ui_index=last_explored_ui
                 )
 
-                # Mobile Map: Update combined guidance after all actions processed
-                combined = memory.update_combined_guidance(
+                # Mobile Map: Update guideline after all actions processed
+                combined = memory.update_guideline(
                     page_index=last_explored_page,
                     subtask_name=last_explored_subtask,
                     trigger_ui_index=last_explored_ui
                 )
-                log(f":::DISCOVER::: Updated combined guidance for '{last_explored_subtask}': {combined[:50]}..." if combined else ":::DISCOVER::: No combined guidance generated", "cyan")
+                log(f":::DISCOVER::: Updated guideline for '{last_explored_subtask}': {combined[:50]}..." if combined else ":::DISCOVER::: No guideline generated", "cyan")
 
     # Initialize page manager
     memory.init_page_manager(page_index)
@@ -206,11 +206,11 @@ def _process_action_history(
     subtask_name: str,
     trigger_ui_index: int
 ) -> None:
-    """Process action history to generate descriptions and guidance.
+    """Process action history to generate descriptions and guidelines.
 
     For each action in history:
     1. Generate description using HistoryAgent (what changed)
-    2. Generate guidance using HistoryAgent (semantic meaning)
+    2. Generate guideline using HistoryAgent (semantic meaning)
     3. Save to memory via update_action_description
 
     Args:
@@ -253,12 +253,12 @@ def _process_action_history(
             )
             log(f":::DISCOVER::: Generated description for step {step}: {description[:50]}...", "green")
 
-            # Generate semantic guidance (why this action)
-            guidance = history_agent.generate_guidance(
+            # Generate semantic guideline (why this action)
+            guideline = history_agent.generate_guidance(
                 action=action,
                 screen_xml=before_xml
             )
-            log(f":::DISCOVER::: Generated guidance for step {step}: {guidance[:50]}...", "green")
+            log(f":::DISCOVER::: Generated guideline for step {step}: {guideline[:50]}...", "green")
 
             # Save to memory
             memory.update_action_description(
@@ -267,7 +267,7 @@ def _process_action_history(
                 trigger_ui_index=trigger_ui_index,
                 step=step,
                 description=description,
-                guidance=guidance
+                guideline=guideline
             )
 
         except Exception as e:

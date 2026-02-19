@@ -27,10 +27,9 @@ class PageManager:
     def __init__(self, page_path, page_index):
         self.page_index = page_index
 
-        # Mobile Map: added 'combined_guidance' for subtask-level semantic guidance
-        subtask_header = ['name', 'description', 'guideline', 'combined_guidance', 'trigger_ui_index', 'start_page', 'end_page', 'parameters', 'example']
-        # Mobile Map: added 'description' (action history) and 'guidance' (semantic action meaning)
-        action_header = ['subtask_name', 'trigger_ui_index', 'step', 'start_page', 'end_page', 'action', 'description', 'guidance', 'example']
+        subtask_header = ['name', 'description', 'guideline', 'trigger_ui_index', 'start_page', 'end_page', 'parameters', 'example']
+        # Mobile Map: added 'description' (action history) and 'guideline' (semantic action meaning)
+        action_header = ['subtask_name', 'trigger_ui_index', 'step', 'start_page', 'end_page', 'action', 'description', 'guideline', 'example']
         available_subtask_header = ['name', 'description', 'parameters', 'trigger_ui_index', 'exploration']
 
         page_dir = os.path.join(page_path, str(page_index))
@@ -62,11 +61,12 @@ class PageManager:
         else:
             self.subtask_db['end_page'] = self.subtask_db['end_page'].fillna(-1).astype(int)
 
-        # Mobile Map: Fill missing 'combined_guidance' for backward compatibility
-        if 'combined_guidance' not in self.subtask_db.columns:
-            self.subtask_db['combined_guidance'] = ''
-        else:
-            self.subtask_db['combined_guidance'] = self.subtask_db['combined_guidance'].fillna('')
+        # Backward compatibility: migrate 'combined_guidance' data into 'guideline'
+        if 'combined_guidance' in self.subtask_db.columns:
+            # Copy combined_guidance values into guideline where guideline is empty
+            mask = (self.subtask_db['guideline'] == '') & (self.subtask_db['combined_guidance'] != '')
+            self.subtask_db.loc[mask, 'guideline'] = self.subtask_db.loc[mask, 'combined_guidance']
+            self.subtask_db = self.subtask_db.drop(columns=['combined_guidance'])
 
         self.available_subtask_db_path = os.path.join(page_dir, "available_subtasks.csv")
         self.available_subtask_db = init_database(self.available_subtask_db_path, available_subtask_header)
@@ -106,16 +106,20 @@ class PageManager:
         else:
             self.action_db['end_page'] = self.action_db['end_page'].fillna(-1).astype(int)
 
-        # Mobile Map: Fill missing 'description' and 'guidance' for backward compatibility
+        # Mobile Map: Fill missing 'description' and 'guideline' for backward compatibility
         if 'description' not in self.action_db.columns:
             self.action_db['description'] = ''
         else:
             self.action_db['description'] = self.action_db['description'].fillna('')
 
-        if 'guidance' not in self.action_db.columns:
-            self.action_db['guidance'] = ''
+        # Backward compatibility: rename old 'guidance' column to 'guideline'
+        if 'guidance' in self.action_db.columns and 'guideline' not in self.action_db.columns:
+            self.action_db = self.action_db.rename(columns={'guidance': 'guideline'})
+
+        if 'guideline' not in self.action_db.columns:
+            self.action_db['guideline'] = ''
         else:
-            self.action_db['guidance'] = self.action_db['guidance'].fillna('')
+            self.action_db['guideline'] = self.action_db['guideline'].fillna('')
 
         self.action_data = self.action_db.to_dict(orient='records')
 
@@ -135,9 +139,6 @@ class PageManager:
                     guideline = learned_subtask.iloc[0].get('guideline', '')
                     if guideline and pd.notna(guideline):
                         subtask['guideline'] = guideline
-                    combined_guidance = learned_subtask.iloc[0].get('combined_guidance', '')
-                    if combined_guidance and pd.notna(combined_guidance):
-                        subtask['combined_guidance'] = combined_guidance
 
         return available_subtasks
 
@@ -289,30 +290,15 @@ class PageManager:
             start_page: Starting page index
             end_page: Ending page index
         """
-        from agents import guideline_agent
         from utils.action_utils import generalize_action
 
-        # 1. Generate guideline using GPT
-        guideline = ""
-        if actions and len(actions) > 0:
-            action_history = []
-            for action_data in actions:
-                action = action_data.get('action', {})
-                reasoning = action_data.get('reasoning', '')
-                action_history.append({
-                    'action': action,
-                    'reasoning': reasoning
-                })
-            guideline = guideline_agent.summarize_guideline(subtask_info, action_history)
-            log(f"Generated guideline for '{subtask_name}' (trigger_ui={trigger_ui_index}): {guideline}")
-
-        # 2. Save to subtasks.csv
+        # 1. Save to subtasks.csv (guideline will be populated by update_guideline() later)
         subtask_data = {
             'name': subtask_name,
             'description': subtask_info.get('description', ''),
             'parameters': subtask_info.get('parameters', {})
         }
-        self.save_subtask(subtask_data, {}, guideline)
+        self.save_subtask(subtask_data, {})
 
         # 3. Delete existing actions - prevent duplicates by (subtask_name, trigger_ui_index) combination
         self.action_db = self.action_db[
@@ -407,7 +393,7 @@ class PageManager:
 
     def save_action(self, subtask_name, trigger_ui_index: int, step: int, action: dict,
                     example=None, start_page: int = -1, end_page: int = -1,
-                    description: str = "", guidance: str = "") -> None:
+                    description: str = "", guideline: str = "") -> None:
         """Save action information to the database
 
         Args:
@@ -419,7 +405,7 @@ class PageManager:
             start_page: Page index before action execution
             end_page: Page index after action execution
             description: History description (what changed after action)
-            guidance: Semantic meaning of the action
+            guideline: Semantic meaning of the action
         """
         if example is None:
             example = {}
@@ -442,11 +428,11 @@ class PageManager:
                 self.action_db.loc[existing_mask, 'start_page'] = start_page
             if end_page != -1:
                 self.action_db.loc[existing_mask, 'end_page'] = end_page
-            # Mobile Map: update description and guidance
+            # Mobile Map: update description and guideline
             if description:
                 self.action_db.loc[existing_mask, 'description'] = description
-            if guidance:
-                self.action_db.loc[existing_mask, 'guidance'] = guidance
+            if guideline:
+                self.action_db.loc[existing_mask, 'guideline'] = guideline
             self.action_db.to_csv(self.action_db_path, index=False)
         else:
             # Add new row
@@ -458,7 +444,7 @@ class PageManager:
                 "end_page": end_page,
                 "action": action_json,
                 "description": description,  # Mobile Map: action history
-                "guidance": guidance,        # Mobile Map: semantic meaning
+                "guideline": guideline,      # Mobile Map: semantic meaning
                 "example": example_json
             }
             self.action_db = pd.concat([self.action_db, pd.DataFrame([new_action_db])], ignore_index=True)
@@ -481,7 +467,7 @@ class PageManager:
             "end_page": end_page if end_page != -1 else (self.action_data[existing_idx]['end_page'] if existing_idx is not None else end_page),
             "action": action_json,
             "description": description if description else (self.action_data[existing_idx].get('description', '') if existing_idx is not None else ''),
-            "guidance": guidance if guidance else (self.action_data[existing_idx].get('guidance', '') if existing_idx is not None else ''),
+            "guideline": guideline if guideline else (self.action_data[existing_idx].get('guideline', '') if existing_idx is not None else ''),
             "example": example_json,
             "traversed": True
         }
@@ -624,8 +610,8 @@ class PageManager:
         return end_page
 
     def update_action_description(self, subtask_name: str, trigger_ui_index: int,
-                                   step: int, description: str, guidance: str = "") -> bool:
-        """Update description and guidance for an existing action.
+                                   step: int, description: str, guideline: str = "") -> bool:
+        """Update description and guideline for an existing action.
 
         Mobile Map: Action history description update.
 
@@ -634,7 +620,7 @@ class PageManager:
             trigger_ui_index: Trigger UI index
             step: Action step number
             description: Description of what changed
-            guidance: Semantic meaning of the action
+            guideline: Semantic meaning of the action
 
         Returns:
             bool: True if update was successful
@@ -648,8 +634,8 @@ class PageManager:
         if condition.any():
             if description:
                 self.action_db.loc[condition, 'description'] = description
-            if guidance:
-                self.action_db.loc[condition, 'guidance'] = guidance
+            if guideline:
+                self.action_db.loc[condition, 'guideline'] = guideline
             self.action_db.to_csv(self.action_db_path, index=False)
 
             # Update in-memory action_data
@@ -659,8 +645,8 @@ class PageManager:
                     action_data.get('step') == step):
                     if description:
                         action_data['description'] = description
-                    if guidance:
-                        action_data['guidance'] = guidance
+                    if guideline:
+                        action_data['guideline'] = guideline
                     break
 
             log(f"Updated action description for '{subtask_name}' step {step}")
@@ -668,17 +654,17 @@ class PageManager:
 
         return False
 
-    def update_combined_guidance(self, subtask_name: str, trigger_ui_index: int = -1) -> str:
-        """Aggregate action guidances into subtask combined_guidance.
+    def update_guideline(self, subtask_name: str, trigger_ui_index: int = -1) -> str:
+        """Aggregate action-level guidelines into subtask guideline.
 
-        Mobile Map: Combines all action-level guidances into a single subtask guidance.
+        Mobile Map: Combines all action-level guidelines into a single subtask guideline.
 
         Args:
             subtask_name: Subtask name
             trigger_ui_index: Trigger UI index (-1 to match any)
 
         Returns:
-            str: Combined guidance string
+            str: Combined guideline string
         """
         # Get all actions for this subtask
         action_condition = (self.action_db['subtask_name'] == subtask_name)
@@ -687,25 +673,28 @@ class PageManager:
 
         actions = self.action_db[action_condition].sort_values('step')
 
-        # Combine guidances
+        # Combine guideline entries
         guidances = []
         for _, row in actions.iterrows():
-            guidance = row.get('guidance', '')
-            if guidance and guidance.strip():
+            gl = row.get('guideline', '')
+            if gl and gl.strip():
                 step = int(row.get('step', 0)) + 1
-                guidances.append(f"{step}. {guidance}")
+                guidances.append(f"{step}. {gl}")
 
         combined = " → ".join(guidances) if guidances else ""
 
-        # Update subtasks.csv
+        # Update subtasks.csv guideline column
         subtask_condition = (self.subtask_db['name'] == subtask_name)
         if trigger_ui_index >= 0:
             subtask_condition = subtask_condition & (self.subtask_db['trigger_ui_index'] == trigger_ui_index)
 
         if subtask_condition.any():
-            self.subtask_db.loc[subtask_condition, 'combined_guidance'] = combined
-            self.subtask_db.to_csv(self.subtask_db_path, index=False)
-            log(f"Updated combined_guidance for '{subtask_name}': {combined[:50]}...")
+            # Skip overwrite if existing guideline is a special marker (e.g., EXTERNAL_APP:)
+            existing = str(self.subtask_db.loc[subtask_condition, 'guideline'].iloc[0])
+            if not existing.startswith('EXTERNAL_APP:'):
+                self.subtask_db.loc[subtask_condition, 'guideline'] = combined
+                self.subtask_db.to_csv(self.subtask_db_path, index=False)
+                log(f"Updated guideline for '{subtask_name}': {combined[:50]}...")
 
         return combined
 
