@@ -1,4 +1,4 @@
-"""Step verification prompts for Mobile Map 4-Step Workflow.
+"""Step verification prompts for Subtask Graph 4-Step Workflow.
 
 Currently provides prompt templates for optional LLM-based verification.
 Used by step_verify_agent for filter verification when enabled.

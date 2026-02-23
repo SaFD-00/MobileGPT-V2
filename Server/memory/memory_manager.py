@@ -45,14 +45,14 @@ class Memory:
             os.makedirs(self.page_database_path)
 
         task_header = ['name', 'path']
-        # Mobile Map: added 'summary' for page summary
+        # Subtask Graph: added 'summary' for page summary
         page_header = ['index', 'available_subtasks', 'trigger_uis', 'extra_uis', "screen", "summary"]
         hierarchy_header = ['index', 'screen', 'embedding']
 
         self.task_db = init_database(self.task_db_path, task_header)
 
         self.page_db = init_database(self.page_path, page_header)
-        # Mobile Map: Fill missing 'summary' for backward compatibility
+        # Subtask Graph: Fill missing 'summary' for backward compatibility
         if 'summary' not in self.page_db.columns:
             self.page_db['summary'] = ''
         else:
@@ -66,17 +66,17 @@ class Memory:
         self.page_manager = None
         self.current_page_index = -1
 
-        # Mobile Map (formerly STG - Subtask Transition Graph)
+        # Subtask Graph
         # Stores app navigation structure: pages (nodes) and subtask transitions (edges)
         self.subtask_graph_path = base_database_path + "subtask_graph.json"
         self.subtask_graph = self._load_subtask_graph()
 
     # ========================================================================
-    # Mobile Map Methods (Subtask Transition Graph)
+    # Subtask Graph Methods
     # ========================================================================
 
     def _load_subtask_graph(self) -> dict:
-        """Load Mobile Map from subtask_graph.json or rebuild from existing data."""
+        """Load Subtask Graph from subtask_graph.json or rebuild from existing data."""
         if os.path.exists(self.subtask_graph_path):
             try:
                 with open(self.subtask_graph_path, 'r') as f:
@@ -87,7 +87,7 @@ class Memory:
         return self._build_subtask_graph()
 
     def _save_subtask_graph(self):
-        """Save Mobile Map to subtask_graph.json."""
+        """Save Subtask Graph to subtask_graph.json."""
         try:
             with open(self.subtask_graph_path, 'w') as f:
                 json.dump(self.subtask_graph, f, indent=2, ensure_ascii=False)
@@ -96,7 +96,7 @@ class Memory:
             log(f"Failed to save subtask_graph.json: {e}", "red")
 
     def _build_subtask_graph(self) -> dict:
-        """Rebuild Mobile Map from existing subtasks.csv and actions.csv data."""
+        """Rebuild Subtask Graph from existing subtasks.csv and actions.csv data."""
         graph = {"nodes": [], "edges": []}
 
         # Collect all page indices
@@ -135,7 +135,7 @@ class Memory:
                         continue
 
         graph["nodes"].sort()
-        log(f"Built Mobile Map with {len(graph['nodes'])} nodes and {len(graph['edges'])} edges")
+        log(f"Built Subtask Graph with {len(graph['nodes'])} nodes and {len(graph['edges'])} edges")
         return graph
 
     def _get_action_sequence(self, page_path: str, subtask_name: str,
@@ -165,7 +165,7 @@ class Memory:
             return []
 
     def _edge_exists(self, edge: dict) -> bool:
-        """Check if an equivalent edge already exists in Mobile Map."""
+        """Check if an equivalent edge already exists in Subtask Graph."""
         for existing in self.subtask_graph.get("edges", []):
             if (existing["from_page"] == edge["from_page"] and
                 existing["to_page"] == edge["to_page"] and
@@ -176,7 +176,7 @@ class Memory:
 
     def add_transition(self, from_page: int, to_page: int, subtask_name: str,
                        trigger_ui_index: int, action_sequence: List[dict] = None):
-        """Add a new transition edge to Mobile Map.
+        """Add a new transition edge to Subtask Graph.
 
         Args:
             from_page: Source page index
@@ -208,7 +208,7 @@ class Memory:
 
             self.subtask_graph["edges"].append(edge)
             self._save_subtask_graph()
-            log(f"Added Mobile Map edge: {from_page} -> {to_page} via '{subtask_name}'")
+            log(f"Added Subtask Graph edge: {from_page} -> {to_page} via '{subtask_name}'")
 
     def delete_subtask(self, page_index: int, subtask_name: str,
                        trigger_ui_index: int = -1, reason: str = "unknown") -> bool:
@@ -216,7 +216,7 @@ class Memory:
 
         This method performs coordinated deletion across:
         1. PageManager CSV files (available_subtasks, subtasks, actions)
-        2. Mobile Map transitions
+        2. Subtask Graph transitions
 
         Args:
             page_index: Page index where the subtask exists
@@ -243,7 +243,7 @@ class Memory:
                     reason=reason
                 )
 
-            # 2. Delete related edges from Mobile Map
+            # 2. Delete related edges from Subtask Graph
             self.remove_transition(
                 from_page=page_index,
                 subtask_name=subtask_name,
@@ -259,7 +259,7 @@ class Memory:
 
     def remove_transition(self, from_page: int, subtask_name: str,
                           trigger_ui_index: int = -1) -> bool:
-        """Remove transition edge(s) from Mobile Map.
+        """Remove transition edge(s) from Subtask Graph.
 
         Args:
             from_page: Source page index
@@ -290,7 +290,7 @@ class Memory:
 
         if edges_removed > 0:
             self._save_subtask_graph()
-            log(f":::DELETE::: Removed {edges_removed} edge(s) from Mobile Map for subtask '{subtask_name}' at page {from_page}")
+            log(f":::DELETE::: Removed {edges_removed} edge(s) from Subtask Graph for subtask '{subtask_name}' at page {from_page}")
 
         return edges_removed > 0
 
@@ -357,7 +357,7 @@ class Memory:
         ]
 
     # ========================================================================
-    # Mobile Map: Page Summary Methods
+    # Subtask Graph: Page Summary Methods
     # ========================================================================
 
     def update_page_summary(self, page_index: int, summary: str) -> bool:
@@ -392,7 +392,7 @@ class Memory:
         return ''
 
     # ========================================================================
-    # Mobile Map: Action History Methods
+    # Subtask Graph: Action History Methods
     # ========================================================================
 
     def update_action_description(self, page_index: int, subtask_name: str,
@@ -464,7 +464,7 @@ class Memory:
                           trigger_ui_index: int = -1) -> str:
         """Update guideline for a subtask by aggregating action-level guidelines.
 
-        Mobile Map: Called after all action descriptions/guidelines are updated
+        Subtask Graph: Called after all action descriptions/guidelines are updated
         to combine them into a single subtask-level guideline.
 
         Args:

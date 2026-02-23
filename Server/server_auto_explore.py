@@ -477,7 +477,7 @@ class AutoExplorer:
 
         When the client detects a transition to an external app (e.g., Camera,
         Photos), this method removes the subtask that triggered the transition
-        from all CSV files and the Mobile Map.
+        from all CSV files and the Subtask Graph.
 
         Args:
             memory: Memory manager instance
@@ -500,7 +500,7 @@ class AutoExplorer:
 
         log(f":::EXTERNAL_APP::: Cleaning up subtask '{subtask}' (page={page_idx}, ui_idx={ui_idx})", "yellow")
 
-        # Delete subtask from CSV files and Mobile Map
+        # Delete subtask from CSV files and Subtask Graph
         memory.delete_subtask(
             page_index=page_idx,
             subtask_name=subtask,

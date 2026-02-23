@@ -4,15 +4,15 @@ from typing import Any, Dict, List, Literal, Optional, Set, TypedDict
 
 
 # ============================================================================
-# Mobile Map (formerly STG - Subtask Transition Graph)
+# Subtask Graph
 # ============================================================================
-# Mobile Map represents the app's UI navigation structure as a graph.
+# Subtask Graph represents the app's UI navigation structure as a graph.
 # - Nodes: Pages (screens) with summaries
 # - Edges: Subtask transitions with descriptions, guidelines, and action sequences
 # ============================================================================
 
-class SubtaskTransitionEdge(TypedDict):
-    """Single edge in the Mobile Map.
+class SubtaskGraphEdge(TypedDict):
+    """Single edge in the Subtask Graph.
 
     Represents a transition from one page to another via a subtask.
     Includes action descriptions and guidelines.
@@ -25,17 +25,14 @@ class SubtaskTransitionEdge(TypedDict):
     explored: bool
 
 
-class SubtaskTransitionGraph(TypedDict):
-    """Mobile Map (Subtask Transition Graph) for path planning.
+class SubtaskGraph(TypedDict):
+    """Subtask Graph for path planning.
 
     Stores the topology of page transitions discovered during exploration.
     Used for BFS-based optimal path finding and 4-step workflow.
-
-    Note: The variable name `subtask_graph` is kept for backward compatibility.
-    This is conceptually referred to as "Mobile Map" in documentation.
     """
     nodes: List[int]  # Page indices (with summaries stored in pages.csv)
-    edges: List[SubtaskTransitionEdge]
+    edges: List[SubtaskGraphEdge]
 
 
 class PlannedPathStep(TypedDict, total=False):
@@ -112,7 +109,7 @@ class TaskState(TypedDict, total=False):
     max_replan: int  # Maximum replan attempts (default: 5)
 
     # ========================================================================
-    # Mobile Map: 4-Step Workflow (Load → Filter → Plan → Execute)
+    # Subtask Graph: 4-Step Workflow (Load → Filter → Plan → Execute)
     # ========================================================================
     all_subtasks_list: List[dict]  # All subtasks from all pages (Step 1: Load)
     filtered_subtasks: List[dict]  # Subtasks relevant to instruction (Step 2: Filter)
@@ -146,7 +143,7 @@ class ExploreState(TypedDict, total=False):
     explored_subtasks: Dict  # {page: [(subtask_name, trigger_ui), ...]}
     exploration_stack: List  # DFS stack
     exploration_queue: List  # BFS queue
-    subtask_graph: Dict  # Subtask Transition Graph {from: [(to, subtask_name), ...]}
+    subtask_graph: Dict  # Subtask Graph {from: [(to, subtask_name), ...]}
     back_edges: Dict  # Back action edges {from: [to, ...]}
     unexplored_subtasks: Dict  # {page: [subtask_info, ...]}
     traversal_path: List  # Current path for backtracking
@@ -172,7 +169,7 @@ class ExploreState(TypedDict, total=False):
     is_new_screen: bool
 
     # ========================================================================
-    # Mobile Map: Action History Tracking
+    # Subtask Graph: Action History Tracking
     # ========================================================================
     # History entries: [{step, before_xml, before_screenshot, action, description?}, ...]
     action_history: List[dict]  # Accumulated during subtask exploration

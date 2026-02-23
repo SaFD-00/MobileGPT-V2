@@ -1,4 +1,4 @@
-"""Mobile Map: Filter agent prompts for 4-step workflow.
+"""Subtask Graph: Filter agent prompts for 4-step workflow.
 
 Generates prompts for filtering subtasks relevant to user instruction.
 """

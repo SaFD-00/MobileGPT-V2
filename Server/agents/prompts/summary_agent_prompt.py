@@ -1,4 +1,4 @@
-"""Mobile Map: Page summary generation prompts.
+"""Subtask Graph: Page summary generation prompts.
 
 Generates prompts for describing what a page displays and what users can do.
 """

@@ -1,4 +1,4 @@
-"""Step verification agent for Mobile Map 4-Step Workflow.
+"""Step verification agent for Subtask Graph 4-Step Workflow.
 
 Provides lightweight verification at each step of the workflow:
 - Load verification: Check subtask completeness
@@ -60,7 +60,7 @@ def verify_load(all_subtasks: List[dict], memory: Any) -> dict:
         log(f":::STEP_VERIFY::: Load WARN - only {total_pages} page(s) with {total_subtasks} subtasks", "yellow")
         return {
             "status": StepVerifyResult.WARN,
-            "reason": f"Only {total_pages} page(s) loaded, Mobile Map may be incomplete",
+            "reason": f"Only {total_pages} page(s) loaded, Subtask Graph may be incomplete",
             "details": details
         }
 
@@ -140,7 +140,7 @@ def verify_plan(
 
     Args:
         planned_path: Planned subtask path
-        subtask_graph: Mobile Map graph with nodes and edges
+        subtask_graph: Subtask Graph with nodes and edges
         current_page: Current page index
 
     Returns:
@@ -198,7 +198,7 @@ def verify_plan(
         log(f":::STEP_VERIFY::: Plan WARN - {len(disconnected_steps)} disconnected step(s)", "yellow")
         return {
             "status": StepVerifyResult.WARN,
-            "reason": f"{len(disconnected_steps)} step(s) not connected in Mobile Map",
+            "reason": f"{len(disconnected_steps)} step(s) not connected in Subtask Graph",
             "details": {"path_length": path_length, "disconnected_steps": disconnected_steps}
         }
 

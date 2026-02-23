@@ -1,4 +1,4 @@
-"""Mobile Map: Filter agent for 4-step workflow.
+"""Subtask Graph: Filter agent for 4-step workflow.
 
 Filters subtasks relevant to user instruction, implementing Step 2 of the
 4-step workflow (Load → Filter → Plan → Execute/Replan).
@@ -20,7 +20,7 @@ def filter_subtasks(
 ) -> List[dict]:
     """Filter subtasks relevant to instruction.
 
-    Mobile Map 4-Step Workflow - Step 2: Filter
+    Subtask Graph 4-Step Workflow - Step 2: Filter
     Takes all available subtasks across pages and returns those most relevant
     to completing the given instruction.
 

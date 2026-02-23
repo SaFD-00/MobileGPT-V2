@@ -1,6 +1,6 @@
 """Verifier node for next screen verification.
 
-Mobile Map 4-Step Workflow - Step 4: Execute & Replan
+Subtask Graph 4-Step Workflow - Step 4: Execute & Replan
 
 Implements adaptive replanning logic:
 - PROCEED: On expected page, continue execution
@@ -54,7 +54,7 @@ def verifier_node(state: TaskState) -> dict:
             "next_agent": "deriver",
         }
 
-    # Mobile Map: Planned path position verification (Adaptive Replanning)
+    # Subtask Graph: Planned path position verification (Adaptive Replanning)
     planned_path = state.get("planned_path")
     path_step_index = state.get("path_step_index", 0)
 

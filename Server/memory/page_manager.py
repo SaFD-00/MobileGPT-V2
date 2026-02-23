@@ -28,7 +28,7 @@ class PageManager:
         self.page_index = page_index
 
         subtask_header = ['name', 'description', 'guideline', 'trigger_ui_index', 'start_page', 'end_page', 'parameters', 'example']
-        # Mobile Map: added 'description' (action history) and 'guideline' (semantic action meaning)
+        # Subtask Graph: added 'description' (action history) and 'guideline' (semantic action meaning)
         action_header = ['subtask_name', 'trigger_ui_index', 'step', 'start_page', 'end_page', 'action', 'description', 'guideline', 'example']
         available_subtask_header = ['name', 'description', 'parameters', 'trigger_ui_index', 'exploration']
 
@@ -106,7 +106,7 @@ class PageManager:
         else:
             self.action_db['end_page'] = self.action_db['end_page'].fillna(-1).astype(int)
 
-        # Mobile Map: Fill missing 'description' and 'guideline' for backward compatibility
+        # Subtask Graph: Fill missing 'description' and 'guideline' for backward compatibility
         if 'description' not in self.action_db.columns:
             self.action_db['description'] = ''
         else:
@@ -428,7 +428,7 @@ class PageManager:
                 self.action_db.loc[existing_mask, 'start_page'] = start_page
             if end_page != -1:
                 self.action_db.loc[existing_mask, 'end_page'] = end_page
-            # Mobile Map: update description and guideline
+            # Subtask Graph: update description and guideline
             if description:
                 self.action_db.loc[existing_mask, 'description'] = description
             if guideline:
@@ -443,8 +443,8 @@ class PageManager:
                 "start_page": start_page,
                 "end_page": end_page,
                 "action": action_json,
-                "description": description,  # Mobile Map: action history
-                "guideline": guideline,      # Mobile Map: semantic meaning
+                "description": description,  # Subtask Graph: action history
+                "guideline": guideline,      # Subtask Graph: semantic meaning
                 "example": example_json
             }
             self.action_db = pd.concat([self.action_db, pd.DataFrame([new_action_db])], ignore_index=True)
@@ -613,7 +613,7 @@ class PageManager:
                                    step: int, description: str, guideline: str = "") -> bool:
         """Update description and guideline for an existing action.
 
-        Mobile Map: Action history description update.
+        Subtask Graph: Action history description update.
 
         Args:
             subtask_name: Subtask name
@@ -657,7 +657,7 @@ class PageManager:
     def update_guideline(self, subtask_name: str, trigger_ui_index: int = -1) -> str:
         """Aggregate action-level guidelines into subtask guideline.
 
-        Mobile Map: Combines all action-level guidelines into a single subtask guideline.
+        Subtask Graph: Combines all action-level guidelines into a single subtask guideline.
 
         Args:
             subtask_name: Subtask name

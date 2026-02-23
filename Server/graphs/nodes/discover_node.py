@@ -84,7 +84,7 @@ def discover_node(state: ExploreState) -> dict:
             )
             log(f":::DISCOVER::: Updated end_page={page_index} for subtask '{last_explored_subtask}'", "cyan")
 
-            # Mobile Map: Add transition edge
+            # Subtask Graph: Add transition edge
             # Get action sequence from the last explored action
             last_action = state.get("last_explored_action")
             action_sequence = [last_action] if last_action else []
@@ -96,9 +96,9 @@ def discover_node(state: ExploreState) -> dict:
                 trigger_ui_index=last_explored_ui,
                 action_sequence=action_sequence
             )
-            log(f":::DISCOVER::: Added Mobile Map transition: {last_explored_page} -> {page_index} via '{last_explored_subtask}'", "cyan")
+            log(f":::DISCOVER::: Added Subtask Graph transition: {last_explored_page} -> {page_index} via '{last_explored_subtask}'", "cyan")
 
-            # Mobile Map: Generate descriptions for action history
+            # Subtask Graph: Generate descriptions for action history
             action_history = state.get("action_history", [])
             if action_history:
                 log(f":::DISCOVER::: Processing {len(action_history)} actions for history generation", "cyan")
@@ -112,7 +112,7 @@ def discover_node(state: ExploreState) -> dict:
                     trigger_ui_index=last_explored_ui
                 )
 
-                # Mobile Map: Update guideline after all actions processed
+                # Subtask Graph: Update guideline after all actions processed
                 combined = memory.update_guideline(
                     page_index=last_explored_page,
                     subtask_name=last_explored_subtask,
@@ -145,7 +145,7 @@ def discover_node(state: ExploreState) -> dict:
         new_unexplored[page_index] = available_subtasks
         log(f":::DISCOVER::: Initialized {len(available_subtasks)} unexplored subtasks for page {page_index}", "cyan")
 
-        # Mobile Map: Generate page summary for new pages
+        # Subtask Graph: Generate page summary for new pages
         try:
             page_summary = summary_agent.generate_summary(
                 encoded_xml=encoded_xml,
@@ -164,7 +164,7 @@ def discover_node(state: ExploreState) -> dict:
             "unexplored_subtasks": new_unexplored,
             "status": "page_discovered",
             "next_agent": "explore_action",
-            "action_history": [],  # Mobile Map: Reset after processing
+            "action_history": [],  # Subtask Graph: Reset after processing
             **clear_last_explored,
         }
 
@@ -192,7 +192,7 @@ def discover_node(state: ExploreState) -> dict:
         "unexplored_subtasks": new_unexplored,
         "status": "page_found",
         "next_agent": "explore_action",
-        "action_history": [],  # Mobile Map: Reset after processing
+        "action_history": [],  # Subtask Graph: Reset after processing
         **clear_last_explored,
     }
 

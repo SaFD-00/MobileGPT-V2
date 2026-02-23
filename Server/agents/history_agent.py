@@ -1,4 +1,4 @@
-"""Mobile Map: Action history generation agent.
+"""Subtask Graph: Action history generation agent.
 
 Generates human-readable descriptions of what changed after an action.
 

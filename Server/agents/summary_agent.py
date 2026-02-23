@@ -1,4 +1,4 @@
-"""Mobile Map: Page summary generation agent.
+"""Subtask Graph: Page summary generation agent.
 
 Generates human-readable summaries of what a page displays and allows users to do.
 

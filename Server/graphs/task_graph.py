@@ -41,7 +41,7 @@ def build_task_graph() -> StateGraph:
     Graph structure (6-step process):
         START -> supervisor -> (conditional routing)
                     |
-                    ├── memory -> supervisor      # Page matching, Mobile Map loading
+                    ├── memory -> supervisor      # Page matching, Subtask Graph loading
                     ├── planner -> supervisor     # [NEW] Path planning
                     ├── selector -> supervisor    # [MODIFIED] planned_path-based selection
                     ├── verifier -> supervisor    # [EXTENDED] Adaptive Replanning
@@ -51,8 +51,8 @@ def build_task_graph() -> StateGraph:
     Flow:
         1. supervisor decides next agent
         2. memory: load page/state and available subtasks
-        3. planner: plan optimal subtask path using Mobile Map
-           - If Mobile Map has path: create planned_path
+        3. planner: plan optimal subtask path using Subtask Graph
+           - If Subtask Graph has path: create planned_path
            - If no path: fallback to selector
         4. selector: select subtask from planned_path or use LLM
         5. verifier: verify selected subtask

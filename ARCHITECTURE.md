@@ -37,8 +37,8 @@ MobileGPT-V2는 분산 클라이언트-서버 아키텍처를 구현합니다:
 │  │  ┌───────────────────────────────────┐  │                                │
 │  │  │        Memory Manager             │  │  ← 메모리 관리자               │
 │  │  │  ┌─────────┐ ┌───────┐ ┌───────┐  │  │                                │
-│  │  │  │ Mobile  │ │ Pages │ │Subtask│  │  │                                │
-│  │  │  │   Map   │ │+sumry │ │+guide │  │  │                                │
+│  │  │  │Subtask │ │ Pages │ │Subtask│  │  │                                │
+│  │  │  │ Graph  │ │+sumry │ │+guide │  │  │                                │
 │  │  │  └─────────┘ └───────┘ └───────┘  │  │                                │
 │  │  └───────────────────────────────────┘  │                                │
 │  └─────────────────────────────────────────┘                                │
@@ -52,7 +52,7 @@ MobileGPT-V2는 다음 핵심 원칙을 따릅니다:
 
 1. **모듈형 에이전트 설계**: 각 에이전트가 태스크 실행의 특정 측면을 담당
 2. **명시적 상태 관리**: 타입이 지정된 상태 딕셔너리를 가진 LangGraph StateGraph
-3. **Mobile Map 지식**: 페이지 요약, 액션 설명, 가이던스를 포함한 풍부한 그래프 구조
+3. **Subtask Graph 지식**: 페이지 요약, 액션 설명, 가이던스를 포함한 풍부한 그래프 구조
 4. **4-Step 워크플로우**: Load → Filter → Plan → Execute/Replan
 5. **적응형 실행**: 강건한 태스크 완료를 위한 검증 기반 재계획
 6. **안전 우선 탐색**: 위험한 액션을 방지하는 내장 가드레일
@@ -69,7 +69,7 @@ MobileGPT-V2는 다음 핵심 원칙을 따릅니다:
 | **HistoryAgent** | 이전/이후 XML, 액션 | 설명, 가이던스 | `generate_description()` |
 | **SummaryAgent** | XML, 서브태스크 | 페이지 요약 | `generate_summary()` |
 | **FilterAgent** | 지시어, 전체 서브태스크 | 필터링된 서브태스크 | `filter_subtasks()` |
-| **PlannerAgent** | 지시어, Mobile Map, filtered_names | planned_path (with is_transit) | `plan()` |
+| **PlannerAgent** | 지시어, Subtask Graph, filtered_names | planned_path (with is_transit) | `plan()` |
 | **StepVerifyAgent** | subtasks, path, graph | pass/warn/fail 결정 | `verify_load()`, `verify_filter()`, `verify_plan()` |
 | **SelectAgent** | available_subtasks | selected_subtask | `select()` |
 | **DeriveAgent** | 서브태스크, XML | 액션 JSON | `derive()` |
@@ -164,7 +164,7 @@ def route_next_agent(state: TaskState) -> str:
 
 ---
 
-## 3. Auto-Explore 모듈 & Mobile Map 생성
+## 3. Auto-Explore 모듈 & Subtask Graph 생성
 
 ### 3.1 동기 (Motivation)
 
@@ -172,7 +172,7 @@ def route_next_agent(state: TaskState) -> str:
 
 1. **자율 발견**: 화면과 사용 가능한 서브태스크를 자동으로 식별
 2. **체계적 커버리지**: 설정 가능한 알고리즘을 사용하여 도달 가능한 모든 UI 상태 탐색
-3. **Mobile Map 구축**: 다음을 포함한 풍부한 네비게이션 그래프 구축:
+3. **Subtask Graph 구축**: 다음을 포함한 풍부한 네비게이션 그래프 구축:
    - **페이지 요약**: 페이지가 표시하고 허용하는 것
    - **액션 설명**: 각 액션 후 변경된 내용
    - **액션 가이던스**: 각 액션의 시맨틱 의미
@@ -208,9 +208,9 @@ def route_next_agent(state: TaskState) -> str:
             new_subtasks ← discover(new_page)
             stack.push((new_page, new_subtasks))
 
-        update_STG(page, new_page, subtask, action)
+        update_subtask_graph(page, new_page, subtask, action)
 
-    return STG
+    return subtask_graph
 ```
 
 **특징**:
@@ -242,10 +242,10 @@ def route_next_agent(state: TaskState) -> str:
                 new_subtasks ← discover(new_page)
                 queue.enqueue((new_page, new_subtasks))
 
-            update_STG(page, new_page, subtask, action)
+            update_subtask_graph(page, new_page, subtask, action)
             navigate_back()
 
-    return STG
+    return subtask_graph
 ```
 
 **특징**:
@@ -277,9 +277,9 @@ def route_next_agent(state: TaskState) -> str:
             unexplored[new_page] ← discover(new_page)
 
         mark_explored(target_page, subtask)
-        update_STG(target_page, new_page, subtask, action)
+        update_subtask_graph(target_page, new_page, subtask, action)
 
-    return STG
+    return subtask_graph
 ```
 
 **특징**:
@@ -287,9 +287,9 @@ def route_next_agent(state: TaskState) -> str:
 - 항상 가장 가까운 미탐색 서브태스크 탐색
 - 완전한 앱 커버리지에 가장 효율적 (권장)
 
-### 3.3 Mobile Map (서브태스크 전이 그래프)
+### 3.3 Subtask Graph (서브태스크 그래프)
 
-Mobile Map은 학습된 앱 네비게이션을 나타내는 핵심 데이터 구조입니다:
+Subtask Graph은 학습된 앱 네비게이션을 나타내는 핵심 데이터 구조입니다:
 
 ```json
 {
@@ -339,7 +339,7 @@ Mobile Map은 학습된 앱 네비게이션을 나타내는 핵심 데이터 구
 
 | 연산 | 설명 | 복잡도 |
 |------|------|--------|
-| `add_transition()` | Mobile Map에 새 엣지 추가 | O(1) |
+| `add_transition()` | Subtask Graph에 새 엣지 추가 | O(1) |
 | `get_path_to_page()` | BFS 최단 경로 | O(V + E) |
 | `get_all_subtasks()` | 모든 서브태스크 조회 | O(E) |
 | `mark_explored()` | 탐색 상태 업데이트 | O(1) |
@@ -360,7 +360,7 @@ Auto-Explore는 잠재적으로 위험한 액션을 자동으로 필터링합니
 **분류 프로세스**:
 1. ExploreAgent가 `safe` 플래그와 함께 서브태스크 추출
 2. 안전하지 않은 서브태스크는 로깅되지만 실행되지 않음
-3. Mobile Map 엣지는 안전한 서브태스크에 대해서만 생성
+3. Subtask Graph 엣지는 안전한 서브태스크에 대해서만 생성
 
 ### 3.5 액션 히스토리 추적 (Action History Tracking)
 
@@ -414,11 +414,11 @@ action_history_entry = {
 
 ## 4. Task 실행 파이프라인 (Task Execution Pipeline)
 
-### 4.1 Mobile Map 4-Step 워크플로우
+### 4.1 Subtask Graph 4-Step 워크플로우
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│              Mobile Map 4-Step Workflow                          │
+│              Subtask Graph 4-Step Workflow                          │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐     │
@@ -435,7 +435,7 @@ action_history_entry = {
 |------|----------|------|
 | **Load** | MemoryManager → StepVerifyAgent | 모든 페이지에서 요약과 함께 모든 서브태스크 가져오기 → `verify_load()` |
 | **Filter** | FilterAgent → StepVerifyAgent | 지시어에 관련된 서브태스크 선택 → `verify_filter()` |
-| **Plan** | PlannerAgent → StepVerifyAgent | 전체 subtask에 `[RELEVANT]` 마커 부여 후 Mobile Map BFS로 최적 경로 생성. 경유(transit) subtask 자동 포함 (`is_transit` 플래그) → `verify_plan()` |
+| **Plan** | PlannerAgent → StepVerifyAgent | 전체 subtask에 `[RELEVANT]` 마커 부여 후 Subtask Graph BFS로 최적 경로 생성. 경유(transit) subtask 자동 포함 (`is_transit` 플래그) → `verify_plan()` |
 | **Execute** | Selector/Verifier | 액션 실행, `verify_planned_path()` → 불일치 시 재계획 |
 
 ### 4.2 6-Step 프로세스
@@ -467,7 +467,7 @@ action_history_entry = {
 | 단계 | 에이전트 | 입력 | 출력 |
 |------|----------|------|------|
 | **Recall** | MemoryNode | current_xml | page_index, available_subtasks → planner로 라우팅 |
-| **Plan** | PlannerAgent + StepVerifyAgent | instruction, Mobile Map | planned_path (각 Step별 검증 포함) |
+| **Plan** | PlannerAgent + StepVerifyAgent | instruction, Subtask Graph | planned_path (각 Step별 검증 포함) |
 | **Select** | SelectAgent | planned_path / available_subtasks + filtered_subtasks | selected_subtask |
 | **Derive** | DeriveAgent | selected_subtask, xml | 액션 JSON |
 | **Verify** | VerifyAgent | expected_page, current_page, page_summary | 결정 (PROCEED/SKIP/REPLAN) |
@@ -523,7 +523,7 @@ def verify_with_path(planned_path, step_index, current_page):
 
 ### 4.4 경로 계획
 
-PlannerAgent는 최적 경로 계획을 위해 Mobile Map에서 BFS를 사용합니다.
+PlannerAgent는 최적 경로 계획을 위해 Subtask Graph에서 BFS를 사용합니다.
 
 **Transit Subtask 자동 포함**: Plan 단계에서 전체 subtask에 Filter 결과를 `[RELEVANT]` 마커로 표시하여 LLM에 전달합니다. BFS 경로 탐색 시 필터링되지 않았지만 경로상 필요한 경유(transit) subtask가 자동으로 포함되며, `is_transit: True` 플래그로 구분됩니다.
 
@@ -634,8 +634,8 @@ memory/{app_name}/
 ├── tasks.csv                    # 태스크 경로 캐시
 │   └── name, path
 │
-├── subtask_graph.json           # Mobile Map
-│   └── {nodes: [int], edges: [SubtaskTransitionEdge]}
+├── subtask_graph.json           # Subtask Graph
+│   └── {nodes: [int], edges: [SubtaskGraphEdge]}
 │
 └── pages/{page_index}/          # 페이지별 데이터
     ├── available_subtasks.csv
@@ -675,12 +675,12 @@ def search_node(self, parsed_xml, hierarchy_xml, encoded_xml) -> Tuple[int, floa
     return -1, 0.0  # 새 페이지
 ```
 
-### 6.3 Mobile Map 연산 (Mobile Map Operations)
+### 6.3 Subtask Graph 연산 (Subtask Graph Operations)
 
 | 메서드 | 설명 | 용도 |
 |--------|------|------|
-| `_load_subtask_graph()` | JSON에서 Mobile Map 로드 | 초기화 |
-| `_save_subtask_graph()` | Mobile Map을 JSON으로 저장 | 업데이트 후 |
+| `_load_subtask_graph()` | JSON에서 Subtask Graph 로드 | 초기화 |
+| `_save_subtask_graph()` | Subtask Graph을 JSON으로 저장 | 업데이트 후 |
 | `add_transition()` | 새 엣지 추가 | 탐색 |
 | `get_path_to_page()` | BFS 최단 경로 | 네비게이션 |
 | `get_all_available_subtasks()` | 모든 서브태스크 가져오기 | 계획 수립 |
@@ -815,7 +815,7 @@ def _handle_external_app_cleanup(state: ExploreState, memory: Memory) -> dict:
 | 디렉토리 | 모드 | 설명 |
 |----------|------|------|
 | `App/` | Task Mode | 학습된 지식으로 태스크 실행 |
-| `App_Auto_Explorer/` | Auto-Explore | 자율 UI 탐색 및 Mobile Map 구축 |
+| `App_Auto_Explorer/` | Auto-Explore | 자율 UI 탐색 및 Subtask Graph 구축 |
 
 ### 8.2 접근성 서비스 (Accessibility Service)
 

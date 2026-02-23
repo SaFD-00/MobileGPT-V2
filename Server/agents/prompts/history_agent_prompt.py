@@ -1,4 +1,4 @@
-"""Mobile Map: Action history generation prompts.
+"""Subtask Graph: Action history generation prompts.
 
 Generates prompts for describing what changed after an action.
 """

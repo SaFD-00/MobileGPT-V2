@@ -59,7 +59,7 @@ def supervisor_node(state: TaskState) -> dict:
             "next_agent": "FINISH",
         }
 
-    # Mobile Map: Handle path SKIP (verify_planned_path returned skip)
+    # Subtask Graph: Handle path SKIP (verify_planned_path returned skip)
     if status == "path_verified_skip":
         log(":::SUPERVISOR::: Path SKIP -> SelectAgent for new step", "cyan")
         return {

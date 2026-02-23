@@ -1,9 +1,9 @@
 """Planner node for Subtask Path Planning.
 
-Mobile Map 4-Step Workflow Implementation:
+Subtask Graph 4-Step Workflow Implementation:
 1. Load: Get all subtasks from all pages with page summaries
 2. Filter: Use FilterAgent to select relevant subtasks for instruction
-3. Plan: Create ordered subtask path using Mobile Map
+3. Plan: Create ordered subtask path using Subtask Graph
 4. Execute: Handled by selector/verifier nodes
 """
 
@@ -19,10 +19,10 @@ from utils.utils import log
 def planner_node(state: TaskState) -> dict:
     """Planner node: create or update subtask path plan.
 
-    This node implements the Mobile Map 4-Step Workflow:
+    This node implements the Subtask Graph 4-Step Workflow:
     - Step 1 (Load): Get all subtasks from all pages
     - Step 2 (Filter): Filter subtasks relevant to instruction
-    - Step 3 (Plan): Create optimal path using Mobile Map
+    - Step 3 (Plan): Create optimal path using Subtask Graph
     - Step 4 (Execute): Handled by selector/verifier nodes
 
     Args:
@@ -35,9 +35,9 @@ def planner_node(state: TaskState) -> dict:
     instruction = state["instruction"]
     current_page = state.get("page_index", -1)
 
-    # Check if Mobile Map has data
+    # Check if Subtask Graph has data
     if not memory.subtask_graph.get("edges"):
-        log(":::PLANNER::: No Mobile Map edges, fallback to Select mode", "yellow")
+        log(":::PLANNER::: No Subtask Graph edges, fallback to Select mode", "yellow")
         return {
             "planned_path": None,
             "path_step_index": 0,
@@ -145,7 +145,7 @@ def planner_node(state: TaskState) -> dict:
             }
 
     # ============================================================
-    # STEP 3: Plan - Create optimal path using Mobile Map
+    # STEP 3: Plan - Create optimal path using Subtask Graph
     # ============================================================
     log(f":::PLANNER::: Step 3 - Creating plan from page {current_page}", "cyan")
 
@@ -217,7 +217,7 @@ def _list_to_page_dict(subtasks_list: List[dict]) -> Dict[int, List[dict]]:
 def _load_all_subtasks_with_context(memory: Any) -> List[dict]:
     """Load all subtasks from all pages with page summary context.
 
-    Mobile Map Step 1: Load
+    Subtask Graph Step 1: Load
     Enriches subtasks with page_summary for better filtering and planning.
 
     Args:

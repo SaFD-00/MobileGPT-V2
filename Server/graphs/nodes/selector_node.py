@@ -45,7 +45,7 @@ def selector_node(state: TaskState) -> dict:
         if s.get("name") not in rejected_names
     ]
 
-    # Mobile Map: Prioritize planner's filtered subtasks if available
+    # Subtask Graph: Prioritize planner's filtered subtasks if available
     filtered_from_planner = state.get("filtered_subtasks", [])
     if filtered_from_planner:
         filtered_names = {s.get("name") for s in filtered_from_planner}
