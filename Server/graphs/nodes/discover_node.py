@@ -99,9 +99,10 @@ def discover_node(state: ExploreState) -> dict:
             log(f":::DISCOVER::: Added Subtask Graph transition: {last_explored_page} -> {page_index} via '{last_explored_subtask}'", "cyan")
 
             # Subtask Graph: Generate descriptions for action history
+            # (guideline is already generated at exploration time in explore_action_node)
             action_history = state.get("action_history", [])
             if action_history:
-                log(f":::DISCOVER::: Processing {len(action_history)} actions for history generation", "cyan")
+                log(f":::DISCOVER::: Processing {len(action_history)} actions for description generation", "cyan")
                 _process_action_history(
                     action_history=action_history,
                     after_xml=current_xml,
@@ -111,14 +112,6 @@ def discover_node(state: ExploreState) -> dict:
                     subtask_name=last_explored_subtask,
                     trigger_ui_index=last_explored_ui
                 )
-
-                # Subtask Graph: Update guideline after all actions processed
-                combined = memory.update_guideline(
-                    page_index=last_explored_page,
-                    subtask_name=last_explored_subtask,
-                    trigger_ui_index=last_explored_ui
-                )
-                log(f":::DISCOVER::: Updated guideline for '{last_explored_subtask}': {combined[:50]}..." if combined else ":::DISCOVER::: No guideline generated", "cyan")
 
     # Initialize page manager
     memory.init_page_manager(page_index)
@@ -206,12 +199,14 @@ def _process_action_history(
     subtask_name: str,
     trigger_ui_index: int
 ) -> None:
-    """Process action history to generate descriptions and guidelines.
+    """Process action history to generate descriptions.
+
+    Guideline is already generated at exploration time (explore_action_node).
+    This function only generates descriptions using before/after XML comparison.
 
     For each action in history:
     1. Generate description using HistoryAgent (what changed)
-    2. Generate guideline using HistoryAgent (semantic meaning)
-    3. Save to memory via update_action_description
+    2. Save to memory via update_action_description (preserving existing guideline)
 
     Args:
         action_history: List of action entries with before_xml, before_screenshot, action
@@ -244,6 +239,7 @@ def _process_action_history(
 
         try:
             # Generate description (what changed)
+            # Generate description (what changed after action)
             description = history_agent.generate_description(
                 before_xml=before_xml,
                 after_xml=current_after_xml,
@@ -253,22 +249,15 @@ def _process_action_history(
             )
             log(f":::DISCOVER::: Generated description for step {step}: {description[:50]}...", "green")
 
-            # Generate semantic guideline (why this action)
-            guideline = history_agent.generate_guidance(
-                action=action,
-                screen_xml=before_xml
-            )
-            log(f":::DISCOVER::: Generated guideline for step {step}: {guideline[:50]}...", "green")
-
-            # Save to memory
+            # Save description only (guideline is already set at exploration time)
             memory.update_action_description(
                 page_index=page_index,
                 subtask_name=subtask_name,
                 trigger_ui_index=trigger_ui_index,
                 step=step,
                 description=description,
-                guideline=guideline
+                guideline=""  # empty string preserves existing guideline
             )
 
         except Exception as e:
-            log(f":::DISCOVER::: Error generating history for step {step}: {e}", "red")
+            log(f":::DISCOVER::: Error generating description for step {step}: {e}", "red")

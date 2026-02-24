@@ -63,14 +63,29 @@ def _is_fixed_temperature_model(model: str) -> bool:
     return model_lower.startswith(('gpt-5.2'))
 
 
-def query(messages, model="gpt-5.2", is_list=False):
+def _format_content_for_log(content):
+    """Format message content for logging, replacing base64 image data with a brief indicator."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "image_url":
+                parts.append("[Image input received]")
+            elif isinstance(item, dict) and item.get("type") == "text":
+                parts.append(item.get("text", ""))
+            else:
+                parts.append(str(item))
+        return "\n".join(parts)
+    return str(content)
+
+
+def query(messages, model="gpt-5.2", is_list=False, parse_json=True):
     client = OpenAI()
 
     for message in messages:
         log("--------------------------")
-        log(message["content"], 'yellow')
-    # log("--------------------------")
-    # log(messages[-1]["content"], 'yellow')
+        log(_format_content_for_log(message["content"]), 'yellow')
 
     # Models with fixed temperature (o1, o3, gpt-5.2) don't support temperature parameter
     if _is_fixed_temperature_model(model):
@@ -88,6 +103,11 @@ def query(messages, model="gpt-5.2", is_list=False):
         )
     result = response.choices[0].message.content
     log(result, 'green')
+
+    # Return raw text when JSON parsing is not needed
+    if not parse_json:
+        return result.strip() if result else ""
+
     json_formatted_response = __parse_json(result, is_list=is_list)
     if json_formatted_response:
         return json.loads(json_formatted_response)
@@ -191,7 +211,8 @@ def query_with_vision(messages, model: str = "gpt-5.2",
                       screenshot_path: Optional[str] = None,
                       screenshot_paths: Optional[list] = None,
                       is_list: bool = False,
-                      image_detail: str = "high"):
+                      image_detail: str = "high",
+                      parse_json: bool = True):
     """Query function with Vision API support (supports multiple images)
 
     Args:
@@ -201,9 +222,12 @@ def query_with_vision(messages, model: str = "gpt-5.2",
         screenshot_paths: List of screenshot file paths (Optional, for multiple images)
         is_list: Whether the response is a list
         image_detail: Image detail level (low/high/auto)
+        parse_json: Whether to parse response as JSON (default: True).
+                    Set to False for plain text responses.
 
     Returns:
-        Parsed JSON response (dict or list)
+        Parsed JSON response (dict or list) when parse_json=True,
+        raw text string when parse_json=False.
 
     Note:
         If both screenshot_path and screenshot_paths are provided,
@@ -224,7 +248,7 @@ def query_with_vision(messages, model: str = "gpt-5.2",
         messages = _add_images_to_messages(messages, paths_to_use, image_detail)
 
     # Use existing query logic
-    return query(messages, model=model, is_list=is_list)
+    return query(messages, model=model, is_list=is_list, parse_json=parse_json)
 
 
 def parse_completion_rate(completion_rate) -> int:

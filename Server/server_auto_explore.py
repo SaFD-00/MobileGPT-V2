@@ -342,6 +342,10 @@ class AutoExplorer:
                 "last_explored_page_index": prev_state.get("last_explored_page_index"),
                 "last_explored_subtask_name": prev_state.get("last_explored_subtask_name"),
                 "last_explored_ui_index": prev_state.get("last_explored_ui_index"),
+                # Subtask Graph: action history for description generation
+                "action_history": prev_state.get("action_history", []),
+                "before_xml": prev_state.get("before_xml"),
+                "before_screenshot_path": prev_state.get("before_screenshot_path"),
             }, config=config)
 
             # Save exploration state back to session for next invocation
@@ -363,7 +367,11 @@ class AutoExplorer:
                     # Track last explored subtask for end_page update
                     "last_explored_page_index": result.get("last_explored_page_index"),
                     "last_explored_subtask_name": result.get("last_explored_subtask_name"),
-                    "last_explored_ui_index": result.get("last_explored_ui_index")
+                    "last_explored_ui_index": result.get("last_explored_ui_index"),
+                    # Subtask Graph: action history for description generation
+                    "action_history": result.get("action_history", []),
+                    "before_xml": result.get("before_xml"),
+                    "before_screenshot_path": result.get("before_screenshot_path"),
                 }
 
             # Extract result

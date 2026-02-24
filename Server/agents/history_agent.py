@@ -56,19 +56,14 @@ def generate_description(
         response = query_with_vision(
             prompts,
             model=model,
-            screenshot_paths=screenshot_paths
+            screenshot_paths=screenshot_paths,
+            parse_json=False
         )
     else:
         log(":::HISTORY AGENT::: Using text-only mode (no screenshots)", "yellow")
-        response = query(prompts, model=model)
+        response = query(prompts, model=model, parse_json=False)
 
-    # Extract description from response
-    if isinstance(response, str):
-        return response.strip()
-    elif isinstance(response, dict) and 'description' in response:
-        return response['description'].strip()
-    else:
-        return str(response).strip()
+    return response
 
 
 def generate_guidance(action: dict, screen_xml: str) -> str:
@@ -92,11 +87,6 @@ def generate_guidance(action: dict, screen_xml: str) -> str:
     )
 
     model = os.getenv("HISTORY_AGENT_GPT_VERSION", "gpt-5.2")
-    response = query(prompts, model=model)
+    response = query(prompts, model=model, parse_json=False)
 
-    if isinstance(response, str):
-        return response.strip()
-    elif isinstance(response, dict) and 'guidance' in response:
-        return response['guidance'].strip()
-    else:
-        return str(response).strip()
+    return response

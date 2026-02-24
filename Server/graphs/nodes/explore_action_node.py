@@ -11,6 +11,7 @@ import re
 import xml.etree.ElementTree as ET
 from typing import Any, Dict, List, Optional, Tuple
 
+from agents import history_agent
 from graphs.state import ExploreState
 from utils.utils import log
 
@@ -31,12 +32,45 @@ def _add_to_action_history(
     action_history = state.get("action_history", []).copy()
     action_entry = {
         "step": len(action_history),
-        "before_xml": state.get("before_xml", state.get("current_xml", "")),
-        "before_screenshot": state.get("before_screenshot_path", state.get("screenshot_path")),
+        "before_xml": state.get("before_xml") or state.get("current_xml", ""),
+        "before_screenshot": state.get("before_screenshot_path") or state.get("screenshot_path"),
         "action": action,
     }
     action_history.append(action_entry)
     return action_history
+
+
+def _generate_and_save_guideline(
+    memory: Any,
+    page_index: int,
+    subtask_name: str,
+    trigger_ui_index: int,
+    action: dict,
+    current_xml: str
+) -> None:
+    """Generate guideline at exploration time and save to actions.csv + subtasks.csv."""
+    try:
+        guideline = history_agent.generate_guidance(
+            action=action,
+            screen_xml=current_xml
+        )
+        if guideline:
+            memory.update_action_description(
+                page_index=page_index,
+                subtask_name=subtask_name,
+                trigger_ui_index=trigger_ui_index,
+                step=0,
+                description="",
+                guideline=guideline
+            )
+            memory.update_guideline(
+                page_index=page_index,
+                subtask_name=subtask_name,
+                trigger_ui_index=trigger_ui_index
+            )
+            log(f":::EXPLORE::: Generated guideline for '{subtask_name}': {guideline[:50]}...", "green")
+    except Exception as e:
+        log(f":::EXPLORE::: Error generating guideline for '{subtask_name}': {e}", "red")
 
 
 def _ensure_unexplored_subtasks(
@@ -196,6 +230,8 @@ def _get_dfs_action(state: ExploreState) -> dict:
                 action=action,
                 screen=current_xml
             )
+            _generate_and_save_guideline(memory, page_index, subtask_name, trigger_ui, action, current_xml)
+
             new_traversal = traversal_path.copy()
             new_traversal.append(page_index)
 
@@ -350,6 +386,8 @@ def _get_bfs_action(state: ExploreState) -> dict:
                 action=action,
                 screen=current_xml
             )
+            _generate_and_save_guideline(memory, page_index, subtask_name, trigger_ui, action, current_xml)
+
             new_traversal = traversal_path.copy()
             new_traversal.append(page_index)
 
@@ -481,6 +519,8 @@ def _get_greedy_action(state: ExploreState) -> dict:
             action=action,
             screen=current_xml
         )
+        _generate_and_save_guideline(memory, page_index, subtask_name, trigger_ui, action, current_xml)
+
         new_traversal = traversal_path.copy()
         new_traversal.append(page_index)
 

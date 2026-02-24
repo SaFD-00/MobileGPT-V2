@@ -47,16 +47,11 @@ def generate_summary(
         response = query_with_vision(
             prompts,
             model=model,
-            screenshot_paths=[screenshot_path]
+            screenshot_paths=[screenshot_path],
+            parse_json=False
         )
     else:
         log(":::SUMMARY AGENT::: Using text-only mode (no screenshot)", "yellow")
-        response = query(prompts, model=model)
+        response = query(prompts, model=model, parse_json=False)
 
-    # Extract summary from response
-    if isinstance(response, str):
-        return response.strip()
-    elif isinstance(response, dict) and 'summary' in response:
-        return response['summary'].strip()
-    else:
-        return str(response).strip()
+    return response
