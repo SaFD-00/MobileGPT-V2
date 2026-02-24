@@ -41,7 +41,8 @@ class Server:
         host: str = DEFAULT_HOST,
         port: int = DEFAULT_PORT,
         buffer_size: int = DEFAULT_BUFFER_SIZE,
-        memory_directory: str = './memory'
+        memory_directory: str = './memory',
+        vision_enabled: bool = True
     ):
         """Initialize server configuration.
 
@@ -50,11 +51,13 @@ class Server:
             port: Server port number
             buffer_size: Socket buffer size for data reception
             memory_directory: Base directory for logs and received files
+            vision_enabled: Enable Vision mode (screenshots sent to LLM)
         """
         self.host = host
         self.port = port
         self.buffer_size = buffer_size
         self.memory_directory = memory_directory
+        self.vision_enabled = vision_enabled
 
         # Compile LangGraph task graph
         self._task_graph = compile_task_graph(checkpointer=True)
@@ -79,9 +82,10 @@ class Server:
 
     def _log_server_start(self, real_ip: str) -> None:
         """Log server startup with connection instructions."""
+        vision_status = "Vision+Text" if self.vision_enabled else "Text-only"
         log("--------------------------------------------------------")
         log(
-            f"Server is listening on {real_ip}:{self.port}\n"
+            f"Server is listening on {real_ip}:{self.port} (vision: {vision_status})\n"
             f"Input this IP address into the app. : [{real_ip}]",
             "red"
         )
@@ -133,6 +137,7 @@ class Server:
         memory: Optional[Memory] = None
         instruction: Optional[str] = None
         session_id: Optional[str] = None
+        last_screenshot_path: Optional[str] = None  # Track screenshot for Vision API
 
         while True:
             raw_message_type = client_socket.recv(1)
@@ -152,7 +157,7 @@ class Server:
                 )
 
             elif message_type == MessageType.SCREENSHOT:
-                handle_screenshot(
+                last_screenshot_path = handle_screenshot(
                     client_socket, self.buffer_size,
                     log_directory, screen_count
                 )
@@ -163,7 +168,8 @@ class Server:
                     continue
                 screen_count = self._handle_xml(
                     client_socket, screen_parser, memory, instruction,
-                    session_id, log_directory, screen_count
+                    session_id, log_directory, screen_count,
+                    screenshot_path=last_screenshot_path
                 )
 
             elif message_type == MessageType.APP_PACKAGE:
@@ -220,7 +226,8 @@ class Server:
         instruction: str,
         session_id: Optional[str],
         log_directory: str,
-        screen_count: int
+        screen_count: int,
+        screenshot_path: Optional[str] = None
     ) -> int:
         """Process XML screen data and determine next action using LangGraph.
 
@@ -231,6 +238,9 @@ class Server:
             client_socket, self.buffer_size,
             log_directory, screen_count, screen_parser
         )
+
+        # Vision mode: only pass screenshot_path to LLM when vision is enabled
+        effective_screenshot = screenshot_path if self.vision_enabled else None
 
         # Run LangGraph task execution
         config = {"configurable": {"thread_id": session_id}}
@@ -243,6 +253,7 @@ class Server:
             "hierarchy_xml": hierarchy_xml,
             "encoded_xml": encoded_xml,
             "memory": memory,
+            "screenshot_path": effective_screenshot,
             "rejected_subtasks": [],
             "iteration": 0,
         }, config=config)

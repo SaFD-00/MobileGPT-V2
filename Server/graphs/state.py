@@ -109,6 +109,11 @@ class TaskState(TypedDict, total=False):
     max_replan: int  # Maximum replan attempts (default: 5)
 
     # ========================================================================
+    # Vision support
+    # ========================================================================
+    screenshot_path: Optional[str]  # Screenshot path for Vision API (None = text-only)
+
+    # ========================================================================
     # Subtask Graph: 4-Step Workflow (Load → Filter → Plan → Execute)
     # ========================================================================
     all_subtasks_list: List[dict]  # All subtasks from all pages (Step 1: Load)

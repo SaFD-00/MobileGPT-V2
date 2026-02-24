@@ -27,9 +27,6 @@ os.environ["SELECT_AGENT_HISTORY_GPT_VERSION"] = "gpt-5.2"
 os.environ["EXPLORE_AGENT_GPT_VERSION"] = "gpt-5.2"
 os.environ["SELECT_AGENT_GPT_VERSION"] = "gpt-5.2"
 os.environ["DERIVE_AGENT_GPT_VERSION"] = "gpt-5.2"
-os.environ["PARAMETER_FILLER_AGENT_GPT_VERSION"] = "gpt-5.2"
-os.environ["ACTION_SUMMARIZE_AGENT_GPT_VERSION"] = "gpt-5.2"
-os.environ["SUBTASK_MERGE_AGENT_GPT_VERSION"] = "gpt-5.2"
 os.environ["GUIDELINE_AGENT_GPT_VERSION"] = "gpt-5.2"
 os.environ["VERIFY_AGENT_GPT_VERSION"] = "gpt-5.2"
 os.environ["FILTER_AGENT_GPT_VERSION"] = "gpt-5.2"
@@ -58,6 +55,23 @@ def main():
         default=12345,
         help='Server port (default: 12345)'
     )
+
+    # Vision mode: --vision (default) or --no-vision (text-only)
+    vision_group = parser.add_mutually_exclusive_group()
+    vision_group.add_argument(
+        '--vision',
+        action='store_true',
+        default=True,
+        dest='vision',
+        help='Enable Vision mode: screenshot + text (default)'
+    )
+    vision_group.add_argument(
+        '--no-vision',
+        action='store_false',
+        dest='vision',
+        help='Disable Vision mode: text-only (screenshots saved but not sent to LLM)'
+    )
+
     args = parser.parse_args()
 
     server_ip = "0.0.0.0"
@@ -69,7 +83,7 @@ def main():
 
     if args.mode == 'task':
         # LangGraph-based task execution with intelligent subtask selection
-        server = Server(host=server_ip, port=server_port)
+        server = Server(host=server_ip, port=server_port, vision_enabled=args.vision)
         server.open()
 
     elif args.mode == 'auto_explore':
@@ -80,7 +94,8 @@ def main():
         auto_explorer = AutoExplorer(
             host=server_ip,
             port=server_port,
-            algorithm=args.algorithm
+            algorithm=args.algorithm,
+            vision_enabled=args.vision
         )
         auto_explorer.open()
 

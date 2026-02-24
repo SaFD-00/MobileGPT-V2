@@ -67,11 +67,13 @@ def selector_node(state: TaskState) -> dict:
 
     # Use SelectAgent to choose the best subtask
     select_agent = SelectAgent(memory, instruction)
+    screenshot_path = state.get("screenshot_path")
     response, new_action = select_agent.select(
         available_subtasks=filtered_subtasks,
         subtask_history=[],
         qa_history=[],
-        screen=current_xml
+        screen=current_xml,
+        screenshot_path=screenshot_path
     )
 
     selected_subtask = response.get("action")

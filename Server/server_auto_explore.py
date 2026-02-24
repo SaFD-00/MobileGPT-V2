@@ -43,7 +43,8 @@ class AutoExplorer:
         port: int = DEFAULT_PORT,
         buffer_size: int = DEFAULT_BUFFER_SIZE,
         memory_directory: str = './memory',
-        algorithm: str = "DFS"
+        algorithm: str = "DFS",
+        vision_enabled: bool = True
     ):
         """Initialize auto explorer with exploration algorithm.
 
@@ -53,12 +54,14 @@ class AutoExplorer:
             buffer_size: Socket buffer size
             memory_directory: Base directory for logs
             algorithm: Exploration algorithm ("DFS", "BFS", "GREEDY")
+            vision_enabled: Enable Vision mode (screenshots sent to LLM)
         """
         self.host = host
         self.port = port
         self.buffer_size = buffer_size
         self.memory_directory = memory_directory
         self.algorithm = algorithm
+        self.vision_enabled = vision_enabled
 
         # Compile LangGraph explore graph
         # Note: checkpointer=False because Memory/ExploreAgent are not serializable
@@ -87,7 +90,8 @@ class AutoExplorer:
 
     def _log_server_start(self, real_ip: str) -> None:
         """Log server startup information."""
-        log(f"AutoExplorer is listening on {real_ip}:{self.port} (algorithm: {self.algorithm})", "red")
+        vision_status = "Vision+Text" if self.vision_enabled else "Text-only"
+        log(f"AutoExplorer is listening on {real_ip}:{self.port} (algorithm: {self.algorithm}, vision: {vision_status})", "red")
 
     def _accept_clients(self, server: socket.socket) -> None:
         """Accept and handle client connections in separate threads."""
@@ -311,8 +315,8 @@ class AutoExplorer:
             log(f":::DEBUG::: prev_state explored_subtasks = {prev_state.get('explored_subtasks', {})}", "yellow")
             log(f":::DEBUG::: prev_state visited_pages = {prev_state.get('visited_pages', set())}", "yellow")
 
-            # Get screenshot path for Vision API
-            screenshot_path = prev_state.get("last_screenshot_path")
+            # Get screenshot path for Vision API (only when vision is enabled)
+            screenshot_path = prev_state.get("last_screenshot_path") if self.vision_enabled else None
             if screenshot_path:
                 log(f":::VISION::: Using screenshot: {screenshot_path}", "magenta")
 

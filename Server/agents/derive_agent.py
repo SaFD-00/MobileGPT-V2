@@ -1,12 +1,10 @@
 import json
 import os
-from copy import deepcopy
 
-from agents import action_summarize_agent
 from agents.prompts import derive_agent_prompt
 from memory.memory_manager import Memory
 from utils.utils import query, query_with_vision, log, parse_completion_rate
-from utils import action_utils, parsing_utils
+from utils import parsing_utils
 
 
 class DeriveAgent:
@@ -67,22 +65,6 @@ class DeriveAgent:
         # generalized_action = self.__generalize_action(response, screen)
         # return response['action'], generalized_action
 
-    def add_finish_action(self) -> None:
-        """Add a finish action for the subtask"""
-        finish_action = {
-            "name": "finish",
-            "parameters": {},
-        }
-        self.memory.save_action(self.subtask['name'], finish_action, example=None)
-
-    def summarize_actions(self) -> str:
-        """Summarize the performed actions into a single sentence"""
-        if len(self.response_history) > 0:
-            action_summary = action_summarize_agent.summarize_actions(self.response_history)
-            self.action_history = []
-            self.response_history = []
-            return action_summary
-
     def __exemplify(self, response: dict, screen: str) -> dict:
         """Convert the action into a training example"""
         action = response['action']
@@ -92,52 +74,5 @@ class DeriveAgent:
             example = {"instruction": self.instruction, "subtask": json.dumps(self.subtask), "screen": shrunk_xml,
                        "response": json.dumps(response)}
         return example
-
-    def __generalize_and_save_action(self, response: dict, screen) -> None:
-        """Generalize the action to make it reusable and save it"""
-        action = response['action']
-        example = {}
-        if "index" in response['action']['parameters']:
-            action = deepcopy(action)
-            subtask_arguments = self.subtask['parameters']
-            action = action_utils.generalize_action(action, screen, subtask_arguments)
-
-            shrunk_xml = parsing_utils.shrink_screen_xml(screen, int(action['parameters']['index']))
-            example = {"instruction": self.instruction, "subtask": json.dumps(self.subtask), "screen": shrunk_xml, "response": json.dumps(response)}
-
-
-        self.memory.save_action(self.subtask, action, example)
-
-    # ==================== Exploration Mode Methods ====================
-
-    def derive_exploration(self, subtask: dict, screen: str, action_history: list, step: int = 0, max_steps: int = 10) -> dict:
-        """
-        Derive the next action to perform a subtask in Exploration mode.
-
-        Args:
-            subtask: Subtask information to explore
-            screen: Current screen XML
-            action_history: Action history performed so far
-            step: Current step number
-            max_steps: Maximum number of steps
-
-        Returns:
-            dict: GPT response (action, reasoning, is_subtask_complete)
-        """
-        log(":::DERIVE (Exploration):::", "blue")
-
-        # Use Exploration-specific prompts
-        prompts = derive_agent_prompt.get_exploration_prompts(
-            subtask, action_history, screen, step, max_steps
-        )
-
-        response = query(prompts, model=os.getenv("DERIVE_AGENT_GPT_VERSION"))
-
-        # Response logging
-        log(f"Exploration action: {response.get('action', {})}", "cyan")
-
-        return response
-
-
 
 

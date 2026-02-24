@@ -6,7 +6,6 @@ from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-from agents import param_fill_agent, subtask_merge_agent
 from memory.page_manager import PageManager
 from memory.node_manager import NodeManager
 from utils import parsing_utils
@@ -618,48 +617,6 @@ class Memory:
         self.hierarchy_db = init_database(self.screen_hierarchy_path, ['index', 'screen', 'embedding'])
         self.hierarchy_db['embedding'] = self.hierarchy_db.embedding.apply(safe_literal_eval)
 
-    def get_next_subtask(self, page_index, qa_history, screen):
-        """Return the next subtask to execute"""
-        # Reset action step
-        self.curr_action_step = 0
-
-        candidate_subtasks = self.task_path.get(page_index, [])
-        next_subtask_name = None
-        for subtask in candidate_subtasks:
-            if not subtask.get("traversed", False):
-                next_subtask_name = subtask.get("name")
-                subtask['traversed'] = True
-                break
-        if next_subtask_name == 'finish':
-            finish_subtask = {"name": "finish",
-                              "description": "Use this to signal that the task has been completed",
-                              "parameters": {}
-                              }
-            return finish_subtask
-        elif next_subtask_name == "scroll_screen":
-            scroll_subtask = {"name": "scroll_screen", "parameters": {"scroll_ui_index": 1, "direction": 'down'}}
-            return scroll_subtask
-
-        if next_subtask_name:
-            next_subtask_data = self.page_manager.get_next_subtask_data(next_subtask_name)
-
-            next_subtask = {'name': next_subtask_data['name'], 'description': next_subtask_data['description'],
-                            'parameters': json.loads(next_subtask_data['parameters']) if next_subtask_data['parameters'] != "\"{}\"" else {}}
-
-            if len(next_subtask['parameters']) > 0:
-                params = param_fill_agent.parm_fill_subtask(instruction=self.instruction,
-                                                            subtask=next_subtask,
-                                                            qa_history=qa_history,
-                                                            screen=screen,
-                                                            example=json.loads(
-                                                                next_subtask_data.get('example', {})))
-
-                next_subtask['parameters'] = params
-
-            return next_subtask
-
-        return None
-
     def save_subtask(self, subtask_raw: dict, example: dict, guideline: str = "") -> None:
         """Save subtask information
 
@@ -682,30 +639,6 @@ class Memory:
         if action['name'] == 'finish':
             self.curr_action_step += 1
         self.page_manager.save_action(subtask, self.curr_action_step, action, example)
-
-    def merge_subtasks(self, task_path: list) -> list:
-        """Merge duplicate subtasks"""
-        # Remove the last finish subtask
-        finish_subtask = task_path.pop()
-
-        # Initialize the list of performed subtasks
-        raw_subtask_list = []
-        for subtask_data in task_path:
-            page_index = subtask_data['page_index']
-            subtask_name = subtask_data['subtask_name']
-            page_data = json.loads(self.page_db.loc[page_index].to_json())
-            available_subtasks = json.loads(page_data['available_subtasks'])
-            for subtask_available in available_subtasks:
-                if subtask_available['name'] == subtask_name:
-                    raw_subtask_list.append(subtask_available)
-
-        merged_subtask_list = subtask_merge_agent.merge_subtasks(raw_subtask_list)
-
-        merged_task_path = self.__merge_subtasks_data(task_path, merged_subtask_list)
-        # Re-add the Finish subtask at the end
-        merged_task_path.append(finish_subtask)
-
-        return merged_task_path
 
     def save_task(self, task_path: list) -> None:
         """Save the entire task path"""
@@ -900,60 +833,3 @@ class Memory:
                 return candidates[0]['index'], highest_similarity
         return -1, 0.0
 
-    def __merge_subtasks_data(self, original_subtasks_data, merged_subtasks) -> list:
-        """Merge subtask data - integrate original data with merged subtask information"""
-        len_diff = len(original_subtasks_data) - len(merged_subtasks)
-        for i in range(0, len_diff):
-            merged_subtasks.append({"name": "dummy"})
-
-        original_pointer = 0
-        merged_pointer = 0
-        while original_pointer < len(original_subtasks_data):
-            curr_subtask_data = original_subtasks_data[original_pointer]
-            curr_subtask_name = curr_subtask_data['subtask_name']
-            curr_subtask_actions = curr_subtask_data['actions']
-
-            merged_subtask_dict = merged_subtasks[merged_pointer]
-            if merged_subtask_dict['name'] == curr_subtask_name:
-                page_index = curr_subtask_data['page_index']
-                page_data = json.loads(self.page_db.loc[page_index].to_json())
-                available_subtasks = json.loads(page_data['available_subtasks'])
-                # Iterate through the available subtask list and replace with new ones
-                for i in range(len(available_subtasks)):
-                    if available_subtasks[i]['name'] == curr_subtask_name:
-                        available_subtasks[i] = merged_subtask_dict
-
-                page_data['available_subtasks'] = json.dumps(available_subtasks)
-                self.page_db.loc[page_index] = page_data
-                self.page_db.to_csv(self.page_path, index=False)
-
-                if page_index not in self.page_managers:
-                    self.init_page_manager(page_index)
-                self.page_managers[page_index].update_subtask_info(merged_subtask_dict)
-
-                merged_subtask_params = merged_subtask_dict['parameters']
-                curr_subtask_params = curr_subtask_data['subtask']['parameters']
-                for param_name, _ in merged_subtask_params.items():
-                    if param_name not in curr_subtask_params:
-                        curr_subtask_params[param_name] = None
-
-                original_pointer += 1
-                merged_pointer += 1
-            else:
-                base_subtask_data = original_subtasks_data[original_pointer - 1]
-                base_subtask_actions = base_subtask_data['actions']
-
-                base_subtask_params = base_subtask_data['subtask']['parameters']
-                curr_subtask_params = curr_subtask_data['subtask']['parameters']
-                for param_name, param_value in base_subtask_params.items():
-                    if param_value is None and param_name in curr_subtask_params:
-                        base_subtask_params[param_name] = curr_subtask_params[param_name]
-
-                base_subtask_actions.pop()
-
-                merged_actions = base_subtask_actions + curr_subtask_actions
-                base_subtask_data['actions'] = merged_actions
-
-                original_subtasks_data.pop(original_pointer)
-
-        return original_subtasks_data

@@ -92,7 +92,8 @@ def deriver_node(state: TaskState) -> dict:
 
     # Derive new action using LLM
     examples = next_action.get("examples", []) if next_action else []
-    action, example = derive_agent.derive(current_xml, examples)
+    screenshot_path = state.get("screenshot_path")
+    action, example = derive_agent.derive(current_xml, examples, screenshot_path=screenshot_path)
 
     log(f":::DERIVER::: Derived action: {action}", "green")
 
