@@ -48,7 +48,7 @@ def _generate_and_save_guideline(
     action: dict,
     current_xml: str
 ) -> None:
-    """Generate guideline at exploration time and save to actions.csv + subtasks.csv."""
+    """Generate HOW-to guideline at exploration time and save to actions.csv + subtasks.csv."""
     try:
         guideline = history_agent.generate_guidance(
             action=action,

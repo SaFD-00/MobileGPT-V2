@@ -1,8 +1,10 @@
 """Subtask Graph: Action history generation agent.
 
-Generates human-readable descriptions of what changed after an action.
-
-Example output: "Clicked search icon, keyboard appeared and search interface activated"
+Generates:
+- Description: WHY an action was performed + WHAT changed after it.
+  Example: "To open the search feature, clicked the search icon; keyboard appeared and search interface activated"
+- Guideline: HOW to perform the action on the screen.
+  Example: "Click the magnifying glass icon in the top-right toolbar"
 """
 
 import os
@@ -19,9 +21,9 @@ def generate_description(
     before_screenshot_path: Optional[str] = None,
     after_screenshot_path: Optional[str] = None
 ) -> str:
-    """Generate action history description.
+    """Generate action description (WHY + WHAT changed).
 
-    Describes what changed after performing an action, based on before/after states.
+    Explains why an action was performed and what changed after it, based on before/after states.
 
     Args:
         before_xml: XML representation of screen before action
@@ -31,8 +33,8 @@ def generate_description(
         after_screenshot_path: Path to screenshot after action (optional, for Vision API)
 
     Returns:
-        Human-readable description of what changed (max 50 words)
-        Example: "Clicked search icon, keyboard appeared and search interface activated"
+        Human-readable description of purpose and result (max 50 words)
+        Example: "To open the search feature, clicked the search icon; keyboard appeared and search interface activated"
     """
     log(":::HISTORY AGENT::: Generating action description", "blue")
 
@@ -67,17 +69,17 @@ def generate_description(
 
 
 def generate_guidance(action: dict, screen_xml: str) -> str:
-    """Generate semantic guidance for a single action.
+    """Generate HOW-to guideline for a single action.
 
-    Creates a human-readable explanation of what an action does semantically.
+    Creates a human-readable instruction for how to perform the action on the screen.
 
     Args:
         action: The action to describe (e.g., {"name": "click", "parameters": {...}})
         screen_xml: XML representation of the current screen
 
     Returns:
-        Semantic guidance string
-        Example: "Click the search icon to open the search dialog"
+        HOW-to guideline string describing the UI element and interaction method
+        Example: "Click the magnifying glass icon in the top-right toolbar"
     """
     log(":::HISTORY AGENT::: Generating action guidance", "blue")
 
