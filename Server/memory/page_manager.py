@@ -142,6 +142,27 @@ class PageManager:
 
         return available_subtasks
 
+    def get_subtasks(self) -> list:
+        """Return explored subtasks directly from subtasks.csv.
+
+        Used by planner pipeline (Load step). Only explored subtasks
+        with native guideline field.
+        """
+        if self.subtask_db.empty:
+            return []
+
+        subtasks = self.subtask_db.to_dict(orient='records')
+        for subtask in subtasks:
+            params = subtask.get('parameters', '{}')
+            if isinstance(params, str):
+                try:
+                    subtask['parameters'] = json.loads(params)
+                except (json.JSONDecodeError, TypeError):
+                    subtask['parameters'] = {}
+            subtask.pop('example', None)
+
+        return subtasks
+
     def add_new_action(self, new_action):
         """Add a new action"""
         if 'exploration' not in new_action:

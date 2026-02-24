@@ -324,11 +324,14 @@ class Memory:
 
         return None  # No path found
 
-    def get_all_available_subtasks(self) -> Dict[int, List[dict]]:
-        """Get all available subtasks for all pages.
+    def get_all_explored_subtasks(self) -> Dict[int, List[dict]]:
+        """Get explored subtasks from subtasks.csv for all pages.
+
+        Used by the planner pipeline (Load step). Returns only subtasks
+        that have been explored and registered in subtasks.csv.
 
         Returns:
-            Dict mapping page_index to list of available subtasks
+            Dict mapping page_index to list of explored subtasks
         """
         result = {}
         if os.path.exists(self.page_database_path):
@@ -337,7 +340,11 @@ class Memory:
                 if os.path.isdir(page_path):
                     try:
                         page_index = int(page_dir)
-                        result[page_index] = self.get_available_subtasks(page_index)
+                        if page_index not in self.page_managers:
+                            self.init_page_manager(page_index)
+                        subtasks = self.page_managers[page_index].get_subtasks()
+                        if subtasks:
+                            result[page_index] = subtasks
                     except ValueError:
                         continue
         return result

@@ -215,9 +215,10 @@ def _list_to_page_dict(subtasks_list: List[dict]) -> Dict[int, List[dict]]:
 
 
 def _load_all_subtasks_with_context(memory: Any) -> List[dict]:
-    """Load all subtasks from all pages with page summary context.
+    """Load explored subtasks from all pages with page summary context.
 
     Subtask Graph Step 1: Load
+    Reads directly from subtasks.csv (explored subtasks only).
     Enriches subtasks with page_summary for better filtering and planning.
 
     Args:
@@ -227,7 +228,7 @@ def _load_all_subtasks_with_context(memory: Any) -> List[dict]:
         List of subtask dicts with page_index and page_summary
     """
     all_subtasks = []
-    raw_subtasks = memory.get_all_available_subtasks()
+    raw_subtasks = memory.get_all_explored_subtasks()
 
     for page_idx, subtasks in raw_subtasks.items():
         # Get page summary for context
