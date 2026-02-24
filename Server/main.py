@@ -23,11 +23,9 @@ load_dotenv()
 # Agent-specific model configuration
 os.environ["TASK_AGENT_GPT_VERSION"] = "gpt-5.2"
 os.environ["APP_AGENT_GPT_VERSION"] = "gpt-5.2"
-os.environ["SELECT_AGENT_HISTORY_GPT_VERSION"] = "gpt-5.2"
 os.environ["EXPLORE_AGENT_GPT_VERSION"] = "gpt-5.2"
 os.environ["SELECT_AGENT_GPT_VERSION"] = "gpt-5.2"
 os.environ["DERIVE_AGENT_GPT_VERSION"] = "gpt-5.2"
-os.environ["GUIDELINE_AGENT_GPT_VERSION"] = "gpt-5.2"
 os.environ["VERIFY_AGENT_GPT_VERSION"] = "gpt-5.2"
 os.environ["FILTER_AGENT_GPT_VERSION"] = "gpt-5.2"
 os.environ["HISTORY_AGENT_GPT_VERSION"] = "gpt-5.2"

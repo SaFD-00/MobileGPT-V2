@@ -85,9 +85,6 @@ MobileGPT-V2는 다음 핵심 원칙을 따릅니다:
 | **filter_agent** | Module | 지시어, 전체 서브태스크 | 필터링된 서브태스크 | `filter_subtasks()` |
 | **step_verify_agent** | Module | subtasks, path, graph | pass/warn/fail 결정 | `verify_load()`, `verify_filter()`, `verify_plan()` |
 | **verify_agent** | Module | expected_page, current_page, page_summary | 결정 | `verify_path()`, `verify_with_path()` |
-| **action_summarize_agent** | Module | 액션 히스토리 | 요약 문자열 | `summarize_actions()` |
-| **param_fill_agent** | Module | 지시어, 서브태스크, 컨텍스트 | 채워진 파라미터 | `parm_fill_subtask()` |
-| **subtask_merge_agent** | Module | 서브태스크 히스토리 | 병합된 서브태스크 | `merge_subtasks()` |
 | **app_agent** | Module | 패키지 이름, 앱 목록 | 앱 정보 | `get_package_info()` |
 
 ### 2.2 에이전트 간 통신 (Inter-Agent Communication)

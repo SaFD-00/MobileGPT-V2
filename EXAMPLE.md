@@ -1761,9 +1761,6 @@ class ExploreState(TypedDict, total=False):
 | **DeriveAgent** (task) | Class | `prompts/derive_agent_prompt.py` → `get_prompts()` | `DERIVE_AGENT_GPT_VERSION` | O | 구체적 액션 도출 (7종) |
 | **TaskAgent** | Class | `prompts/task_agent_prompt.py` | `TASK_AGENT_GPT_VERSION` | X | 사용자 지시어 분석/태스크 구조화 |
 | **app_agent** | Module | `prompts/app_agent_prompt.py` | `APP_AGENT_GPT_VERSION` | X | 앱 패키지 정보 조회/예측 |
-| **action_summarize_agent** | Module | `prompts/action_summarize_prompt.py` | `ACTION_SUMMARIZE_AGENT_GPT_VERSION` | X | 액션 히스토리 요약 |
-| **param_fill_agent** | Module | `prompts/param_fill_agent_prompt.py` | `PARAMETER_FILLER_AGENT_GPT_VERSION` | X | subtask 파라미터 자동 채우기 |
-| **subtask_merge_agent** | Module | `prompts/subtask_merge_prompt.py` | `SUBTASK_MERGE_AGENT_GPT_VERSION` | X | 중복 subtask 병합 |
 | **step_verify_agent** | Module | `prompts/step_verify_prompt.py` | *(LLM 미사용, 규칙 기반)* | X | 4-Step 각 단계별 경량 검증 |
 | *(node_expand)* | - | `prompts/node_expand_prompt.py` | - | X | 노드 확장 (내부용) |
 
@@ -1789,12 +1786,6 @@ FILTER_AGENT_GPT_VERSION=gpt-5.2        # filter_agent: 관련 subtask 필터링
 PLANNER_AGENT_GPT_VERSION=gpt-5.2       # PlannerAgent: 목표 분석 & 경로 계획
 HISTORY_AGENT_GPT_VERSION=gpt-5.2       # history_agent: 액션 설명/가이던스 생성
 SUMMARY_AGENT_GPT_VERSION=gpt-5.2       # summary_agent: 페이지 요약 생성
-
-# ============================================================================
-# 레거시/미사용 (main.py에 설정되나 코드에서 직접 참조하지 않음)
-# ============================================================================
-SELECT_AGENT_HISTORY_GPT_VERSION=gpt-5.2    # (미사용)
-GUIDELINE_AGENT_GPT_VERSION=gpt-5.2         # (미사용 - guideline_agent 제거됨)
 
 # ============================================================================
 # API 및 서버 설정
