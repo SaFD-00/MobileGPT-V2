@@ -406,9 +406,9 @@ Response (JSON object mapping subtask name to trigger_ui_index):
 
 > **프롬프트 출처**: `Server/agents/prompts/summary_agent_prompt.py`
 >
-> **호출 위치**: `discover_node.py` → `summary_agent.generate_summary()`
+> **호출 위치**: `discover_node.py` → `summary_agent.generate_summary()` (모듈 함수)
 >
-> **LLM 모델**: `EXPLORE_AGENT_GPT_VERSION`
+> **LLM 모델**: `SUMMARY_AGENT_GPT_VERSION`
 >
 > **Vision**: 스크린샷 제공 시 활용
 >
@@ -488,11 +488,11 @@ This page displays the Google Calendar monthly view for February 2026, showing s
 
 > **프롬프트 출처**: `Server/agents/prompts/history_agent_prompt.py`
 >
-> **호출 위치**: `discover_node.py` → `_process_action_history()` → `history_agent.generate_description()` / `history_agent.generate_guidance()`
+> **호출 위치**: `discover_node.py` → `_process_action_history()` → `history_agent.generate_description()` / `history_agent.generate_guidance()` (모듈 함수)
 >
-> **LLM 모델**: `EXPLORE_AGENT_GPT_VERSION`
+> **LLM 모델**: `HISTORY_AGENT_GPT_VERSION`
 >
-> **Vision**: before/after 스크린샷 제공 시 활용
+> **Vision**: before/after 스크린샷 제공 시 활용 (`before_screenshot_path`, `after_screenshot_path` 모두 지원)
 >
 > **생성 시점**: subtask 탐색 완료 후, 다음 페이지 discover 시
 
@@ -718,16 +718,16 @@ traversal_path: [0] → []  (pop)
 
 ### subtasks.csv (Page 0)
 
-| name | description | parameters | trigger_ui_index | start_page | end_page | guideline | combined_guidance |
-|------|-------------|------------|------------------|------------|----------|-----------|-------------------|
-| create_new_event | Create a new calendar event... | `{"event_title":"...","event_time":"..."}` | 10 | 0 | 2 | | Click the floating action button to open the new event creation form. |
-| search_events | Search for specific events... | `{"search_query":"..."}` | 3 | 0 | 3 | | Click the search icon to open the search interface. |
-| navigate_calendar_menu | Open the side menu... | `{}` | 1 | 0 | 1 | | Click the menu button to open the navigation drawer. |
+| name | description | parameters | trigger_ui_index | start_page | end_page | guideline |
+|------|-------------|------------|------------------|------------|----------|-----------|
+| create_new_event | Create a new calendar event... | `{"event_title":"...","event_time":"..."}` | 10 | 0 | 2 | Click the floating action button to open the new event creation form. |
+| search_events | Search for specific events... | `{"search_query":"..."}` | 3 | 0 | 3 | Click the search icon to open the search interface. |
+| navigate_calendar_menu | Open the side menu... | `{}` | 1 | 0 | 1 | Click the menu button to open the navigation drawer. |
 
 ### actions.csv (Page 0)
 
-| subtask_name | trigger_ui_index | step | action | description | guidance |
-|--------------|------------------|------|--------|-------------|----------|
+| subtask_name | trigger_ui_index | step | action | description | guideline |
+|--------------|------------------|------|--------|-------------|-----------|
 | create_new_event | 10 | 0 | `{"name":"click","parameters":{"index":10}}` | Clicked the new event button, navigated to the event creation screen... | Click the floating action button to open the new event creation form. |
 | navigate_calendar_menu | 1 | 0 | `{"name":"click","parameters":{"index":1}}` | Clicked the menu icon, side navigation drawer appeared... | Click the menu button to open the navigation drawer. |
 
@@ -747,7 +747,7 @@ traversal_path: [0] → []  (pop)
           "name": "click",
           "parameters": {"index": 10},
           "description": "Clicked the new event button, navigated to the event creation screen...",
-          "guidance": "Click the floating action button to open the new event creation form."
+          "guideline": "Click the floating action button to open the new event creation form."
         }
       ],
       "explored": true
@@ -762,7 +762,7 @@ traversal_path: [0] → []  (pop)
           "name": "click",
           "parameters": {"index": 3},
           "description": "Clicked search icon, search bar appeared with keyboard...",
-          "guidance": "Click the search icon to open the search interface."
+          "guideline": "Click the search icon to open the search interface."
         }
       ],
       "explored": true
@@ -777,7 +777,7 @@ traversal_path: [0] → []  (pop)
           "name": "click",
           "parameters": {"index": 1},
           "description": "Clicked menu icon, navigation drawer appeared...",
-          "guidance": "Click the menu button to open the navigation drawer."
+          "guideline": "Click the menu button to open the navigation drawer."
         }
       ],
       "explored": true
@@ -792,7 +792,7 @@ traversal_path: [0] → []  (pop)
           "name": "click",
           "parameters": {"index": 15},
           "description": "Clicked settings option, settings page appeared...",
-          "guidance": "Click the settings option to open calendar settings."
+          "guideline": "Click the settings option to open calendar settings."
         }
       ],
       "explored": true
@@ -1614,6 +1614,7 @@ class TaskState(TypedDict, total=False):
     path_step_index: int                      # 현재 경로 step
 
     # 적응형 재계획
+    expected_page_index: Optional[int]        # 액션 후 예상 페이지
     replan_count: int                         # 재계획 시도 횟수
     replan_needed: bool                       # 재계획 필요 플래그
     max_replan: int                           # 최대 재계획 (기본: 5)
@@ -1657,16 +1658,20 @@ class ExploreState(TypedDict, total=False):
     last_explored_page_index: Optional[int]
     last_explored_ui_index: Optional[int]
     last_explored_subtask_name: Optional[str]
+    last_explored_action: Optional[dict]      # 마지막 탐색 액션
+    last_explored_screen: Optional[str]       # 마지막 탐색 화면
 
     # 액션 히스토리
-    action_history: List[dict]                # 액션 히스토리
+    action_history: List[dict]                # 서브태스크 탐색 중 누적
     before_xml: Optional[str]                 # 액션 전 XML
     before_screenshot_path: Optional[str]     # 액션 전 스크린샷
 
     # 라우팅/결과
     next_agent: str
+    last_action_was_back: bool                # 마지막 액션이 back이었는지
     action: Optional[dict]
     status: str
+    is_new_screen: bool                       # 새 화면 여부
 ```
 
 ### CSV 스키마
@@ -1691,8 +1696,7 @@ class ExploreState(TypedDict, total=False):
 | trigger_ui_index | int | 트리거 UI 인덱스 |
 | start_page | int | 시작 페이지 |
 | end_page | int | 도착 페이지 (-1: 미탐색/외부앱) |
-| guideline | str | 수행 지침 |
-| combined_guidance | str | 통합 액션 가이던스 |
+| guideline | str | 수행 지침 (통합 가이던스 포함) |
 | example | JSON | 학습된 예시 |
 
 **actions.csv** (페이지별):
@@ -1704,7 +1708,7 @@ class ExploreState(TypedDict, total=False):
 | step | int | 시퀀스 번호 |
 | action | JSON | 액션 파라미터 |
 | description | str | 변경 내용 |
-| guidance | str | 시맨틱 의미 |
+| guideline | str | 시맨틱 의미 |
 | start_page | int | 액션 시작 페이지 |
 | end_page | int | 액션 후 페이지 |
 
@@ -1724,7 +1728,7 @@ class ExploreState(TypedDict, total=False):
           "name": "click",
           "parameters": {"index": 10},
           "description": "Clicked the new event button...",
-          "guidance": "Click the FAB to open event form."
+          "guideline": "Click the FAB to open event form."
         }
       ],
       "explored": true
@@ -1737,48 +1741,65 @@ class ExploreState(TypedDict, total=False):
 
 ## 3.2 에이전트-프롬프트 매핑 테이블
 
-| 에이전트 | 프롬프트 파일 | LLM 모델 환경변수 | Vision | 용도 |
-|----------|-------------|-------------------|--------|------|
-| **ExploreAgent** (Step 1) | `prompts/subtask_extraction_prompt.py` | `EXPLORE_AGENT_GPT_VERSION` | O | 화면에서 subtask 추출 |
-| **ExploreAgent** (Step 2) | `prompts/trigger_ui_selection_prompt.py` | `EXPLORE_AGENT_GPT_VERSION` | O | 각 subtask의 trigger UI 선택 |
-| **SummaryAgent** | `prompts/summary_agent_prompt.py` | `EXPLORE_AGENT_GPT_VERSION` | O | 페이지 요약 |
-| **HistoryAgent** (desc) | `prompts/history_agent_prompt.py` | `EXPLORE_AGENT_GPT_VERSION` | O | 액션 설명 (변경 내용) |
-| **HistoryAgent** (guide) | `prompts/history_agent_prompt.py` | `EXPLORE_AGENT_GPT_VERSION` | X | 시맨틱 가이던스 |
-| **DeriveAgent** (explore) | `prompts/derive_agent_prompt.py` → `get_exploration_prompts()` | `DERIVE_AGENT_GPT_VERSION` | X | Exploration 모드 액션 도출 |
-| **FilterAgent** | `prompts/filter_agent_prompt.py` | `SELECT_AGENT_GPT_VERSION` | X | 관련 subtask 필터링 |
-| **PlannerAgent** | `prompts/planner_agent_prompt.py` | `SELECT_AGENT_GPT_VERSION` | X | 목표 분석 & 경로 계획 |
-| **SelectAgent** | `prompts/select_agent_prompt.py` | `SELECT_AGENT_GPT_VERSION` | O | 다음 subtask 선택 |
-| **VerifyAgent** | `agents/verify_agent.py` (인라인) | `VERIFY_AGENT_GPT_VERSION` | X | 경로 검증 (should_proceed) |
-| **DeriveAgent** (task) | `prompts/derive_agent_prompt.py` → `get_prompts()` | `DERIVE_AGENT_GPT_VERSION` | O | 구체적 액션 도출 (7종) |
+> **구현 형태**: Class = 클래스 인스턴스, Module = 모듈 함수
+
+| 에이전트 | 구현 형태 | 프롬프트 파일 | LLM 모델 환경변수 | Vision | 용도 |
+|----------|-----------|-------------|-------------------|--------|------|
+| **ExploreAgent** (Step 1) | Class | `prompts/subtask_extraction_prompt.py` | `EXPLORE_AGENT_GPT_VERSION` | O | 화면에서 subtask 추출 |
+| **ExploreAgent** (Step 2) | Class | `prompts/trigger_ui_selection_prompt.py` | `EXPLORE_AGENT_GPT_VERSION` | O | 각 subtask의 trigger UI 선택 |
+| **summary_agent** | Module | `prompts/summary_agent_prompt.py` | `SUMMARY_AGENT_GPT_VERSION` | O | 페이지 요약 |
+| **history_agent** (desc) | Module | `prompts/history_agent_prompt.py` | `HISTORY_AGENT_GPT_VERSION` | O | 액션 설명 (before/after 스크린샷) |
+| **history_agent** (guide) | Module | `prompts/history_agent_prompt.py` | `HISTORY_AGENT_GPT_VERSION` | X | 시맨틱 가이던스 |
+| **DeriveAgent** (explore) | Class | `prompts/derive_agent_prompt.py` → `get_exploration_prompts()` | `DERIVE_AGENT_GPT_VERSION` | X | Exploration 모드 액션 도출 |
+| **filter_agent** | Module | `prompts/filter_agent_prompt.py` | `FILTER_AGENT_GPT_VERSION` | X | 관련 subtask 필터링 |
+| **PlannerAgent** | Class | `prompts/planner_agent_prompt.py` | `PLANNER_AGENT_GPT_VERSION` | X | 목표 분석 & 경로 계획 |
+| **SelectAgent** | Class | `prompts/select_agent_prompt.py` | `SELECT_AGENT_GPT_VERSION` | O | 다음 subtask 선택 |
+| **verify_agent** | Module | `agents/verify_agent.py` (인라인) | `VERIFY_AGENT_GPT_VERSION` | X | 경로 검증 (should_proceed) |
+| **DeriveAgent** (task) | Class | `prompts/derive_agent_prompt.py` → `get_prompts()` | `DERIVE_AGENT_GPT_VERSION` | O | 구체적 액션 도출 (7종) |
+| **TaskAgent** | Class | `prompts/task_agent_prompt.py` | `TASK_AGENT_GPT_VERSION` | X | 사용자 지시어 분석/태스크 구조화 |
+| **app_agent** | Module | `prompts/app_agent_prompt.py` | `APP_AGENT_GPT_VERSION` | X | 앱 패키지 정보 조회/예측 |
+| **action_summarize_agent** | Module | `prompts/action_summarize_prompt.py` | `ACTION_SUMMARIZE_AGENT_GPT_VERSION` | X | 액션 히스토리 요약 |
+| **param_fill_agent** | Module | `prompts/param_fill_agent_prompt.py` | `PARAMETER_FILLER_AGENT_GPT_VERSION` | X | subtask 파라미터 자동 채우기 |
+| **subtask_merge_agent** | Module | `prompts/subtask_merge_prompt.py` | `SUBTASK_MERGE_AGENT_GPT_VERSION` | X | 중복 subtask 병합 |
+| **step_verify_agent** | Module | `prompts/step_verify_prompt.py` | *(LLM 미사용, 규칙 기반)* | X | 4-Step 각 단계별 경량 검증 |
+| *(node_expand)* | - | `prompts/node_expand_prompt.py` | - | X | 노드 확장 (내부용) |
 
 ---
 
 ## 3.3 환경 변수
 
 ```bash
-# LLM 모델 설정 (기본값: gpt-5.2)
-TASK_AGENT_GPT_VERSION=gpt-5.2          # 태스크 에이전트
-EXPLORE_AGENT_GPT_VERSION=gpt-5.2       # 탐색 에이전트 (Step 1, 2, Summary, History)
-VERIFY_AGENT_GPT_VERSION=gpt-5.2        # 검증 에이전트
-SELECT_AGENT_GPT_VERSION=gpt-5.2        # 선택/필터/플래너 에이전트
-DERIVE_AGENT_GPT_VERSION=gpt-5.2        # 액션 도출 에이전트
-APP_AGENT_GPT_VERSION=gpt-5.2           # 앱 예측 에이전트
+# ============================================================================
+# 핵심 에이전트 모델 (main.py에서 설정)
+# ============================================================================
+TASK_AGENT_GPT_VERSION=gpt-5.2          # TaskAgent: 지시어 분석/태스크 구조화
+EXPLORE_AGENT_GPT_VERSION=gpt-5.2       # ExploreAgent: subtask 추출, trigger UI 선택
+SELECT_AGENT_GPT_VERSION=gpt-5.2        # SelectAgent: 다음 subtask 선택
+DERIVE_AGENT_GPT_VERSION=gpt-5.2        # DeriveAgent: 구체적 액션 도출
+VERIFY_AGENT_GPT_VERSION=gpt-5.2        # verify_agent: 경로 검증 (should_proceed)
+APP_AGENT_GPT_VERSION=gpt-5.2           # app_agent: 앱 패키지 정보 조회
 
-# 추가 에이전트 모델
-SELECT_AGENT_HISTORY_GPT_VERSION=gpt-5.2
-PARAMETER_FILLER_AGENT_GPT_VERSION=gpt-5.2
-ACTION_SUMMARIZE_AGENT_GPT_VERSION=gpt-5.2
-SUBTASK_MERGE_AGENT_GPT_VERSION=gpt-5.2
-GUIDELINE_AGENT_GPT_VERSION=gpt-5.2
-FILTER_AGENT_GPT_VERSION=gpt-5.2
-HISTORY_AGENT_GPT_VERSION=gpt-5.2
-PLANNER_AGENT_GPT_VERSION=gpt-5.2
-SUMMARY_AGENT_GPT_VERSION=gpt-5.2
+# ============================================================================
+# 모듈 함수 에이전트 모델
+# ============================================================================
+FILTER_AGENT_GPT_VERSION=gpt-5.2        # filter_agent: 관련 subtask 필터링
+PLANNER_AGENT_GPT_VERSION=gpt-5.2       # PlannerAgent: 목표 분석 & 경로 계획
+HISTORY_AGENT_GPT_VERSION=gpt-5.2       # history_agent: 액션 설명/가이던스 생성
+SUMMARY_AGENT_GPT_VERSION=gpt-5.2       # summary_agent: 페이지 요약 생성
+PARAMETER_FILLER_AGENT_GPT_VERSION=gpt-5.2  # param_fill_agent: 파라미터 자동 채우기
+ACTION_SUMMARIZE_AGENT_GPT_VERSION=gpt-5.2  # action_summarize_agent: 액션 요약
+SUBTASK_MERGE_AGENT_GPT_VERSION=gpt-5.2     # subtask_merge_agent: subtask 병합
 
-# OpenAI API
+# ============================================================================
+# 레거시/미사용 (main.py에 설정되나 코드에서 직접 참조하지 않음)
+# ============================================================================
+SELECT_AGENT_HISTORY_GPT_VERSION=gpt-5.2    # (미사용)
+GUIDELINE_AGENT_GPT_VERSION=gpt-5.2         # (미사용 - guideline_agent 제거됨)
+
+# ============================================================================
+# API 및 서버 설정
+# ============================================================================
 OPENAI_API_KEY=your-api-key             # 필수
-
-# 서버 설정
-HOST=0.0.0.0                            # 서버 바인드 주소
-PORT=12345                              # 서버 포트
+HOST=0.0.0.0                            # 서버 바인드 주소 (기본값)
+PORT=12345                              # 서버 포트 (기본값)
 ```

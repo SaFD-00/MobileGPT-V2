@@ -35,7 +35,7 @@ MobileGPT-V2는 분산 클라이언트-서버 아키텍처를 구현합니다:
 │  │  └───────────────────────────────────┘  │    └─────────────────┘         │
 │  │                                         │                                │
 │  │  ┌───────────────────────────────────┐  │                                │
-│  │  │        Memory Manager             │  │  ← 메모리 관리자               │
+│  │  │        Memory (메모리 시스템)      │  │  ← 메모리 관리자               │
 │  │  │  ┌─────────┐ ┌───────┐ ┌───────┐  │  │                                │
 │  │  │  │Subtask │ │ Pages │ │Subtask│  │  │                                │
 │  │  │  │ Graph  │ │+sumry │ │+guide │  │  │                                │
@@ -63,18 +63,32 @@ MobileGPT-V2는 다음 핵심 원칙을 따릅니다:
 
 ### 2.1 에이전트 정의 (Agent Definitions)
 
-| 에이전트 | 입력 | 출력 | 핵심 함수 |
-|----------|------|------|-----------|
-| **ExploreAgent** | XML, 스크린샷 | 서브태스크, TriggerUI | `explore()` |
-| **HistoryAgent** | 이전/이후 XML, 액션 | 설명, 가이던스 | `generate_description()` |
-| **SummaryAgent** | XML, 서브태스크 | 페이지 요약 | `generate_summary()` |
-| **FilterAgent** | 지시어, 전체 서브태스크 | 필터링된 서브태스크 | `filter_subtasks()` |
-| **PlannerAgent** | 지시어, Subtask Graph, filtered_names | planned_path (with is_transit) | `plan()` |
-| **StepVerifyAgent** | subtasks, path, graph | pass/warn/fail 결정 | `verify_load()`, `verify_filter()`, `verify_plan()` |
-| **SelectAgent** | available_subtasks | selected_subtask | `select()` |
-| **DeriveAgent** | 서브태스크, XML | 액션 JSON | `derive()` |
-| **VerifyAgent** | expected_page, current_page, page_summary | 결정 | `verify_path()`, `verify_planned_path()` |
-| **MemoryManager** | XML | page_index, 서브태스크 | `search_node()` |
+> **구현 형태**: Class = 상태를 가진 클래스 인스턴스, Module = 독립 함수 (stateless)
+
+#### 핵심 에이전트 (Core Agents)
+
+| 에이전트 | 구현 형태 | 입력 | 출력 | 핵심 함수 |
+|----------|-----------|------|------|-----------|
+| **ExploreAgent** | Class | XML, 스크린샷 | 서브태스크, TriggerUI | `explore()` |
+| **PlannerAgent** | Class | 지시어, Subtask Graph, filtered_names | planned_path (with is_transit) | `plan()` |
+| **SelectAgent** | Class | available_subtasks, qa_history | (response, new_action) tuple | `select()` |
+| **DeriveAgent** | Class | 서브태스크, XML | 액션 JSON | `derive()` |
+| **TaskAgent** | Class | 사용자 지시어 | 태스크 구조체 | `get_task()` |
+| **Memory** | Class | XML | page_index, 서브태스크 | `search_node()` |
+
+#### 모듈 함수 에이전트 (Module Function Agents)
+
+| 모듈 | 구현 형태 | 입력 | 출력 | 핵심 함수 |
+|------|-----------|------|------|-----------|
+| **history_agent** | Module | 이전/이후 XML, 액션, 스크린샷 | 설명, 가이던스 | `generate_description()`, `generate_guidance()` |
+| **summary_agent** | Module | XML, 서브태스크 | 페이지 요약 | `generate_summary()` |
+| **filter_agent** | Module | 지시어, 전체 서브태스크 | 필터링된 서브태스크 | `filter_subtasks()` |
+| **step_verify_agent** | Module | subtasks, path, graph | pass/warn/fail 결정 | `verify_load()`, `verify_filter()`, `verify_plan()` |
+| **verify_agent** | Module | expected_page, current_page, page_summary | 결정 | `verify_path()`, `verify_with_path()` |
+| **action_summarize_agent** | Module | 액션 히스토리 | 요약 문자열 | `summarize_actions()` |
+| **param_fill_agent** | Module | 지시어, 서브태스크, 컨텍스트 | 채워진 파라미터 | `parm_fill_subtask()` |
+| **subtask_merge_agent** | Module | 서브태스크 히스토리 | 병합된 서브태스크 | `merge_subtasks()` |
+| **app_agent** | Module | 패키지 이름, 앱 목록 | 앱 정보 | `get_package_info()` |
 
 ### 2.2 에이전트 간 통신 (Inter-Agent Communication)
 
@@ -86,20 +100,29 @@ class TaskState(TypedDict, total=False):
     session_id: str
     instruction: str
 
-    # 메모리 (Memory)
-    memory: Memory
+    # 메모리 참조 (Memory reference)
+    memory: Any  # Memory 인스턴스
     page_index: int
     current_xml: str
+    hierarchy_xml: str
+    encoded_xml: str
 
     # 서브태스크 추적 (Subtask tracking)
     selected_subtask: Optional[dict]
+    rejected_subtasks: List[dict]  # 거부된 서브태스크 (재선택용)
     available_subtasks: List[dict]
 
+    # 검증 결과 (Verification results)
+    next_page_index: Optional[int]
+    next_page_subtasks: List[dict]
+    verification_passed: Optional[bool]  # True/False/None
+
     # 경로 계획 (Path planning)
-    planned_path: List[PlannedPathStep]  # is_transit 플래그 포함
+    planned_path: Optional[List[PlannedPathStep]]  # is_transit 플래그 포함
     path_step_index: int
 
     # 적응형 재계획 (Adaptive replanning)
+    expected_page_index: Optional[int]  # 액션 후 예상 페이지
     replan_count: int
     replan_needed: bool
     max_replan: int  # 기본값: 5
@@ -110,6 +133,11 @@ class TaskState(TypedDict, total=False):
     # 출력 (Output)
     action: Optional[dict]
     status: str
+    iteration: int  # 재선택 루프 카운트
+
+    # 4-Step 워크플로우 (Load → Filter → Plan → Execute)
+    all_subtasks_list: List[dict]   # Step 1: Load 결과
+    filtered_subtasks: List[dict]   # Step 2: Filter 결과
 ```
 
 ### 2.3 상태 관리 (State Management - LangGraph)
@@ -123,7 +151,7 @@ START
 ┌─────────────┐
 │ supervisor  │◄──────────────────────────────────────────┐  ← 라우팅 컨트롤러
 └──────┬──────┘                                           │
-       │ route_next_agent()  ← 다음 에이전트 결정         │
+       │ supervisor_node()  ← 다음 에이전트 결정            │
        ▼                                                  │
   ┌────┴────┬─────────┬──────────┬──────────┐            │
   ▼         ▼         ▼          ▼          ▼            │
@@ -134,32 +162,51 @@ memory   planner   selector   verifier   deriver → END   │
                       └───────────────────────────────────┘
 ```
 
-**라우팅 로직** (supervisor_node.py):
+**라우팅 로직** (supervisor.py → `supervisor_node()`):
 
 ```python
-def route_next_agent(state: TaskState) -> str:
-    if state.get("page_index") is None:
-        return "memory"      # Recall 단계
+def supervisor_node(state: TaskState) -> dict:
+    # 1. 최대 반복 체크 (무한 루프 방지, MAX_ITERATIONS=5)
+    if iteration >= MAX_ITERATIONS:
+        return {"next_agent": "FINISH"}
 
-    if state.get("planned_path") is None:
-        return "planner"     # Plan 단계
+    # 2. 종료 상태 체크
+    if status in ["no_matching_page", "no_subtasks", "action_derived",
+                  "max_replan_reached", ...]:
+        return {"next_agent": "FINISH"}
 
-    if state.get("replan_needed"):
-        return "planner"     # 재계획
+    # 3. 경로 SKIP 처리 (verify_planned_path 결과)
+    if status == "path_verified_skip":
+        return {"next_agent": "selector"}  # 새 step으로
 
-    if state.get("selected_subtask") is None:
-        return "selector"    # Select 단계
+    # 4. 적응형 재계획 (Adaptive Replanning)
+    if replan_needed:
+        if replan_count < max_replan:
+            return {"next_agent": "planner"}  # 재계획
+        else:
+            return {"next_agent": "FINISH"}   # 최대 재계획 도달
 
-    if state.get("verification_passed") is None:
-        return "verifier"    # Verify 단계
+    # 5. 검증 완료 처리
+    if verification_passed is True:
+        # planned_path 현재 step을 completed로 마킹 후 다음 step으로 진행
+        return {"next_agent": "deriver"}
 
-    if state.get("verification_passed"):
-        return "deriver"     # Derive 단계
+    if verification_passed is False:
+        # 거부된 subtask 기록 후 재선택
+        return {"next_agent": "selector", "iteration": iteration + 1}
 
-    if state.get("replan_count", 0) < 5:
-        return "planner"     # 계획 재시도
+    # 6. 선택된 subtask가 있지만 미검증
+    if selected_subtask and verification_passed is None:
+        return {"next_agent": "verifier"}
 
-    return "FINISH"
+    # 7. 경로 계획
+    if available_subtasks and not selected_subtask:
+        if planned_path is None:
+            return {"next_agent": "planner"}  # 경로 생성
+        return {"next_agent": "selector"}     # 경로 존재, 선택
+
+    # 8. 초기 상태 → 메모리 조회
+    return {"next_agent": "memory"}
 ```
 
 ---
@@ -305,7 +352,7 @@ Subtask Graph은 학습된 앱 네비게이션을 나타내는 핵심 데이터 
           "name": "click",
           "parameters": {"index": 5},
           "description": "설정 아이콘 클릭, 설정 메뉴 표시됨",
-          "guidance": "설정 아이콘을 클릭하여 설정 메뉴 열기"
+          "guideline": "설정 아이콘을 클릭하여 설정 메뉴 열기"
         }
       ],
       "explored": true
@@ -320,13 +367,13 @@ Subtask Graph은 학습된 앱 네비게이션을 나타내는 핵심 데이터 
           "name": "click",
           "parameters": {"index": 12},
           "description": "언어 옵션 클릭, 언어 선택기 표시됨",
-          "guidance": "언어 옵션을 클릭하여 언어 선택"
+          "guideline": "언어 옵션을 클릭하여 언어 선택"
         },
         {
           "name": "click",
           "parameters": {"index": 3},
           "description": "English 선택, 확인 다이얼로그 표시됨",
-          "guidance": "목록에서 원하는 언어 선택"
+          "guideline": "목록에서 원하는 언어 선택"
         }
       ],
       "explored": true
@@ -576,6 +623,8 @@ MobileGPT-V2는 Vision API 통합을 통해 UI 인식을 향상시킵니다:
 | 에이전트 | Vision 사용 | 향상 효과 |
 |----------|-------------|----------|
 | **ExploreAgent** | 서브태스크 추출 | 시각적 UI 요소 인식 |
+| **history_agent** | 액션 설명 (before/after 스크린샷) | 변경 전후 시각적 비교 |
+| **summary_agent** | 페이지 요약 | 시각적 레이아웃 인식 |
 | **SelectAgent** | 서브태스크 선택 | 시각적 컨텍스트 인식 |
 | **DeriveAgent** | 액션 도출 | 요소 위치 힌트 |
 
@@ -607,11 +656,15 @@ Vision API 메시지는 Chat Completions 형식을 따릅니다:
 
 ```python
 def query_with_vision(messages, model="gpt-5.2",
-                      screenshot_path=None,
+                      screenshot_path=None,       # 단일 이미지 (하위 호환)
+                      screenshot_paths=None,      # 다중 이미지 지원
                       is_list=False,
-                      image_detail="high"):
-    if screenshot_path and os.path.exists(screenshot_path):
-        messages = _add_image_to_messages(messages, screenshot_path, image_detail)
+                      image_detail="high",
+                      parse_json=True):            # False: 텍스트 응답
+    # screenshot_paths가 제공되면 screenshot_path보다 우선
+    paths_to_use = screenshot_paths or ([screenshot_path] if screenshot_path else [])
+    if paths_to_use:
+        messages = _add_images_to_messages(messages, paths_to_use, image_detail)
 
     return query(messages, model=model, is_list=is_list)
 ```
@@ -645,7 +698,7 @@ memory/{app_name}/
     │       start_page, end_page, parameters, example
     ├── actions.csv              # 액션 시퀀스
     │   └── subtask_name, trigger_ui_index, step,
-    │       start_page, end_page, action, description, guidance, example
+    │       start_page, end_page, action, description, guideline, example
     └── screen/                  # 스크린샷
 ```
 
@@ -697,7 +750,7 @@ def search_node(self, parsed_xml, hierarchy_xml, encoded_xml) -> Tuple[int, floa
 _sessions = {
     session_id: {
         "state": ExploreState,      # LangGraph 상태
-        "memory": Memory,            # 메모리 매니저 인스턴스
+        "memory": Memory,            # Memory 클래스 인스턴스
         "handler": MessageHandler    # 메시지 핸들러
     }
 }
@@ -973,27 +1026,37 @@ public static void performCustomAction(
 
 ### 10.1 TaskState
 
+> **출처**: `Server/graphs/state.py`
+
 ```python
 class TaskState(TypedDict, total=False):
     # 세션 (Session)
     session_id: str
     instruction: str
 
-    # 메모리 참조 (Memory references)
-    memory: Any
+    # 메모리 참조 (Memory reference)
+    memory: Any  # Memory 인스턴스
     page_index: int
     current_xml: str
+    hierarchy_xml: str
+    encoded_xml: str
 
     # 서브태스크 추적 (Subtask tracking)
     selected_subtask: Optional[dict]
-    rejected_subtasks: List[dict]
+    rejected_subtasks: List[dict]  # 거부된 서브태스크 (재선택용)
     available_subtasks: List[dict]
+
+    # 검증 결과 (Verification results)
+    next_page_index: Optional[int]
+    next_page_subtasks: List[dict]
+    verification_passed: Optional[bool]  # True/False/None
 
     # 경로 계획 (Path planning)
     planned_path: Optional[List[PlannedPathStep]]
     path_step_index: int
 
     # 적응형 재계획 (Adaptive replanning)
+    expected_page_index: Optional[int]  # 액션 후 예상 페이지
     replan_count: int
     replan_needed: bool
     max_replan: int  # 기본값: 5
@@ -1004,10 +1067,16 @@ class TaskState(TypedDict, total=False):
     # 출력 (Output)
     action: Optional[dict]
     status: str
-    iteration: int
+    iteration: int  # 재선택 루프 카운트
+
+    # 4-Step 워크플로우 (Load → Filter → Plan → Execute)
+    all_subtasks_list: List[dict]   # Step 1: Load 결과
+    filtered_subtasks: List[dict]   # Step 2: Filter 결과
 ```
 
 ### 10.2 ExploreState
+
+> **출처**: `Server/graphs/state.py`
 
 ```python
 class ExploreState(TypedDict, total=False):
@@ -1018,11 +1087,14 @@ class ExploreState(TypedDict, total=False):
 
     # 현재 화면 (Current screen)
     current_xml: str
+    hierarchy_xml: str
+    encoded_xml: str
     page_index: int
+    screenshot_path: Optional[str]  # Vision API용
 
     # 탐색 추적 (Exploration tracking)
     visited_pages: Set[int]
-    explored_subtasks: Dict
+    explored_subtasks: Dict  # {page: [(subtask_name, trigger_ui), ...]}
     exploration_stack: List  # DFS
     exploration_queue: List  # BFS
     unexplored_subtasks: Dict  # GREEDY
@@ -1032,18 +1104,30 @@ class ExploreState(TypedDict, total=False):
     back_edges: Dict
 
     # 경로 추적 (Path tracking)
-    traversal_path: List
-    navigation_plan: List
+    traversal_path: List  # 백트래킹 경로
+
+    # 메모리/에이전트 (Memory and agents)
+    memory: Any  # Memory 인스턴스
+    explore_agent: Any  # ExploreAgent 인스턴스
 
     # 마지막 액션 추적 (Last action tracking)
     last_explored_page_index: Optional[int]
     last_explored_ui_index: Optional[int]
     last_explored_subtask_name: Optional[str]
+    last_explored_action: Optional[dict]
+    last_explored_screen: Optional[str]
 
     # 라우팅 및 출력 (Routing and output)
     next_agent: str
+    last_action_was_back: bool
     action: Optional[dict]
     status: str
+    is_new_screen: bool
+
+    # 액션 히스토리 추적 (Action History Tracking)
+    action_history: List[dict]  # 서브태스크 탐색 중 누적
+    before_xml: Optional[str]
+    before_screenshot_path: Optional[str]
 ```
 
 ### 10.3 action_history 구조 (Action History Structure)
@@ -1070,19 +1154,28 @@ action_history = [
 
 ```
 Server/tests/
-├── unit/           # 단위 테스트
-│   ├── agents/     # 에이전트 테스트
-│   ├── memory/     # 메모리 시스템 테스트
-│   └── utils/      # 유틸리티 테스트
-├── integration/    # 통합 테스트
-│   ├── graphs/     # 그래프 워크플로우 테스트
-│   └── server/     # 서버 통합 테스트
-├── mocks/          # Mock 객체
+├── unit/                  # 단위 테스트
+│   ├── agents/            # 에이전트 테스트
+│   │   ├── test_explore_agent.py
+│   │   └── test_verify_agent.py
+│   ├── graphs/            # 그래프 노드 테스트
+│   │   └── nodes/
+│   │       ├── test_discover_node.py
+│   │       ├── test_explore_action_node.py
+│   │       ├── test_explore_supervisor.py
+│   │       └── test_verifier_node.py
+│   └── memory/            # 메모리 시스템 테스트
+│       ├── test_memory_manager.py
+│       └── test_page_manager.py
+├── integration/           # 통합 테스트
+│   ├── test_exploration_integration.py
+│   └── test_explore_graph.py
+├── mocks/                 # Mock 객체
 │   ├── mock_llm.py
 │   └── mock_memory.py
-└── fixtures/       # 테스트 데이터
-    ├── xml/        # 샘플 XML
-    └── responses/  # 샘플 LLM 응답
+└── fixtures/              # 테스트 데이터
+    ├── state_factories.py  # 테스트용 상태 팩토리
+    └── xml_samples.py      # 샘플 XML 데이터
 ```
 
 ### 11.2 테스트 실행
