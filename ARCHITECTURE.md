@@ -127,6 +127,9 @@ class TaskState(TypedDict, total=False):
     replan_needed: bool
     max_replan: int  # 기본값: 5
 
+    # Vision 지원 (Vision support)
+    screenshot_path: Optional[str]  # Vision API용 (None = text-only)
+
     # 라우팅 (Routing)
     next_agent: str
 
@@ -616,7 +619,28 @@ planned_path = [
 
 ## 5. Vision 통합 (Vision Integration)
 
-### 5.1 스크린샷 분석 (Screenshot Analysis)
+### 5.1 Vision 모드 선택 (Vision Mode Toggle)
+
+MobileGPT-V2는 CLI에서 Vision 모드를 선택할 수 있습니다:
+
+| 모드 | CLI 옵션 | 동작 |
+|------|----------|------|
+| **Vision+Text** (기본) | `--vision` | 스크린샷을 LLM에 전송하여 시각적 UI 인식 |
+| **Text-only** | `--no-vision` | 스크린샷 저장은 유지, LLM에는 XML만 전송 |
+
+**데이터 흐름**:
+
+```
+Android Client → Screenshot → Server (저장)
+                                  ├── --vision:    screenshot_path → LangGraph State → Agents
+                                  └── --no-vision: screenshot_path = None → Agents (텍스트만)
+```
+
+**구현 원리**: 서버가 `vision_enabled` 플래그에 따라 LangGraph State에 `screenshot_path`를 주입하거나 `None`으로 설정합니다. 모든 에이전트는 이미 `screenshot_path is None` 체크를 포함하므로, 추가 코드 없이 자동으로 텍스트 전용 모드로 동작합니다.
+
+**적용 범위**: Task 모드(`server.py`)와 Auto-Explore 모드(`server_auto_explore.py`) 모두 지원합니다.
+
+### 5.2 스크린샷 분석 (Screenshot Analysis)
 
 MobileGPT-V2는 Vision API 통합을 통해 UI 인식을 향상시킵니다:
 
@@ -628,7 +652,7 @@ MobileGPT-V2는 Vision API 통합을 통해 UI 인식을 향상시킵니다:
 | **SelectAgent** | 서브태스크 선택 | 시각적 컨텍스트 인식 |
 | **DeriveAgent** | 액션 도출 | 요소 위치 힌트 |
 
-### 5.2 API 형식 (API Format)
+### 5.3 API 형식 (API Format)
 
 Vision API 메시지는 Chat Completions 형식을 따릅니다:
 
@@ -1060,6 +1084,9 @@ class TaskState(TypedDict, total=False):
     replan_count: int
     replan_needed: bool
     max_replan: int  # 기본값: 5
+
+    # Vision 지원 (Vision support)
+    screenshot_path: Optional[str]  # Vision API용 (None = text-only)
 
     # 라우팅 (Routing)
     next_agent: str

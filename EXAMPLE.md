@@ -1619,6 +1619,9 @@ class TaskState(TypedDict, total=False):
     replan_needed: bool                       # 재계획 필요 플래그
     max_replan: int                           # 최대 재계획 (기본: 5)
 
+    # Vision 지원
+    screenshot_path: Optional[str]            # Vision API용 (None = text-only)
+
     # 4-Step Workflow
     all_subtasks_list: List[dict]             # Step 1: Load 결과
     filtered_subtasks: List[dict]             # Step 2: Filter 결과
@@ -1786,9 +1789,6 @@ FILTER_AGENT_GPT_VERSION=gpt-5.2        # filter_agent: 관련 subtask 필터링
 PLANNER_AGENT_GPT_VERSION=gpt-5.2       # PlannerAgent: 목표 분석 & 경로 계획
 HISTORY_AGENT_GPT_VERSION=gpt-5.2       # history_agent: 액션 설명/가이던스 생성
 SUMMARY_AGENT_GPT_VERSION=gpt-5.2       # summary_agent: 페이지 요약 생성
-PARAMETER_FILLER_AGENT_GPT_VERSION=gpt-5.2  # param_fill_agent: 파라미터 자동 채우기
-ACTION_SUMMARIZE_AGENT_GPT_VERSION=gpt-5.2  # action_summarize_agent: 액션 요약
-SUBTASK_MERGE_AGENT_GPT_VERSION=gpt-5.2     # subtask_merge_agent: subtask 병합
 
 # ============================================================================
 # 레거시/미사용 (main.py에 설정되나 코드에서 직접 참조하지 않음)
