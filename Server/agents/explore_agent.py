@@ -5,9 +5,7 @@ from agents.prompts import subtask_extraction_prompt
 from agents.prompts import trigger_ui_selection_prompt
 from memory.memory_manager import Memory
 from utils.parsing_utils import get_trigger_ui_attributes, get_extra_ui_attributes
-from utils.utils import query, query_with_vision, log
-
-import xml.etree.ElementTree as ET
+from utils.utils import query_with_vision, log
 
 
 class ExploreAgent:

@@ -2,7 +2,6 @@ import shutil
 from datetime import datetime
 import json
 import os
-import re
 import xml.etree.ElementTree as ET
 
 from utils.utils import log

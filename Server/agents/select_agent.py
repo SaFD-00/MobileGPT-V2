@@ -3,7 +3,7 @@ import os
 
 from agents.prompts import select_agent_prompt
 from memory.memory_manager import Memory
-from utils.utils import query, query_with_vision, log, parse_completion_rate
+from utils.utils import query, query_with_vision, log
 
 
 class SelectAgent:

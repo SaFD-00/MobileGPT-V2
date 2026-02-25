@@ -6,7 +6,7 @@ Provides lightweight verification at each step of the workflow:
 - Plan verification: Check plan feasibility
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from utils.utils import log
 

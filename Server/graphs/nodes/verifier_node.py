@@ -8,8 +8,6 @@ Implements adaptive replanning logic:
 - REPLAN: Unexpected page, trigger replanning to Planner node
 """
 
-from typing import Any
-
 from agents.verify_agent import verify_path, verify_with_path, PathVerificationResult
 from graphs.state import TaskState
 from utils.utils import log

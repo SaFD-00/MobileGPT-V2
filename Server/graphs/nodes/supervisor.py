@@ -1,7 +1,5 @@
 """Supervisor node for routing decisions in the task graph."""
 
-from typing import Any
-
 from graphs.state import TaskState
 from utils.utils import log
 

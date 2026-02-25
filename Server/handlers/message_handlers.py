@@ -1,10 +1,10 @@
 """Reusable message handlers for server communication."""
 
 import os
-from typing import Optional, Tuple, List
+from typing import Tuple, List
 
 from utils.utils import log
-from utils.network import recv_text_line, recv_xml, save_screenshot, send_json_response
+from utils.network import recv_text_line, recv_xml, save_screenshot
 
 
 class MessageType:
@@ -64,22 +64,6 @@ def handle_package_name(client_socket, app_agent) -> Tuple[str, str]:
     log(f"App name: {app_name}", "blue")
     return package_name, app_name
 
-
-def handle_qa_response(client_socket, mobile_gpt) -> Optional[dict]:
-    """Handle Q&A response message (type 'A' in task mode).
-
-    Args:
-        client_socket: Connected client socket
-        mobile_gpt: MobileGPT instance
-
-    Returns:
-        Action dict if determined, None otherwise
-    """
-    qa_string = recv_text_line(client_socket)
-    info_name, question, answer = qa_string.split("\\", 2)
-
-    log(f"QA received ({question}: {answer})", "blue")
-    return mobile_gpt.set_qa_answer(info_name, question, answer)
 
 
 def handle_screenshot(

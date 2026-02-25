@@ -1,7 +1,5 @@
 """Deriver node for action derivation (wraps DeriveAgent)."""
 
-from typing import Any
-
 from agents.derive_agent import DeriveAgent
 from graphs.state import TaskState
 from utils.utils import log

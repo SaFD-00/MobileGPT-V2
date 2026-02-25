@@ -1,7 +1,5 @@
 """Supervisor node for routing decisions in the explore graph."""
 
-from typing import Any
-
 from graphs.state import ExploreState
 from utils.utils import log
 

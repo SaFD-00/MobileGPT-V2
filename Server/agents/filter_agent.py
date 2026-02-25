@@ -7,7 +7,7 @@ Filters subtasks relevant to user instruction, implementing Step 2 of the
 
 import json
 import os
-from typing import Any, List, Optional
+from typing import Any, List
 
 from agents.prompts import filter_agent_prompt
 from utils.utils import query, log

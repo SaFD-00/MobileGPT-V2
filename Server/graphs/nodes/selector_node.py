@@ -1,6 +1,6 @@
 """Selector node for subtask selection (wraps SelectAgent)."""
 
-from typing import Any, Optional
+from typing import Optional
 
 from agents.select_agent import SelectAgent
 from graphs.state import TaskState

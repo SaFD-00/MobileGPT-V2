@@ -3,7 +3,7 @@
 import json
 import os
 import socket
-from typing import Optional, Tuple
+from typing import Tuple
 
 
 def get_local_ip() -> str:

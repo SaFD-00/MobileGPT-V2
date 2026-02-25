@@ -9,7 +9,7 @@ from typing import List, Tuple
 
 from pydantic import BaseModel, Field
 
-from utils.utils import log, query
+from utils.utils import query
 
 
 class VerifyDecision(BaseModel):

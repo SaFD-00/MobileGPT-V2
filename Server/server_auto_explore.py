@@ -20,7 +20,7 @@ from handlers.message_handlers import (
 )
 from memory.memory_manager import Memory
 from screenParser.Encoder import xmlEncoder
-from utils.network import get_local_ip, recv_xml, recv_xml_with_package, send_json_response
+from utils.network import get_local_ip, recv_xml_with_package, send_json_response
 from utils.utils import log
 
 

@@ -7,7 +7,7 @@ Subtask Graph 4-Step Workflow Implementation:
 4. Execute: Handled by selector/verifier nodes
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from agents.planner_agent import PlannerAgent, replan_from_current
 from agents import filter_agent

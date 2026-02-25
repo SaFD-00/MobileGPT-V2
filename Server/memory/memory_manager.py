@@ -1,13 +1,11 @@
 import json
 import os
-from collections import defaultdict
 from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 
 from memory.page_manager import PageManager
-from memory.node_manager import NodeManager
 from utils import parsing_utils
 from utils.action_utils import generalize_action
 from utils.utils import get_openai_embedding, log, safe_literal_eval, cosine_similarity
