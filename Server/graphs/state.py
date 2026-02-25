@@ -152,6 +152,7 @@ class ExploreState(TypedDict, total=False):
     back_edges: Dict  # Back action edges {from: [to, ...]}
     unexplored_subtasks: Dict  # {page: [subtask_info, ...]}
     traversal_path: List  # Current path for backtracking
+    navigation_plan: List  # Multi-step navigation plan [(page, action_type, subtask_name), ...]
 
     # Memory and agents
     memory: Any  # Memory instance
