@@ -174,8 +174,18 @@ cd MobileGPT-V2
 pip install -r requirements.txt
 
 # 환경 변수 설정
-export OPENAI_API_KEY="your-api-key"
+cp Server/.env.example Server/.env
+# Server/.env 파일을 열어 API 키를 입력
 ```
+
+**필수/선택 환경변수**:
+
+| 변수 | 필수 여부 | 설명 |
+|------|-----------|------|
+| `OPENAI_API_KEY` | **필수** | OpenAI API 호출에 사용 |
+| `GOOGLESEARCH_KEY` | 선택 | Google Search API (향후 확장용) |
+
+> **참고**: 모든 서버 명령은 `Server/` 디렉토리에서 실행합니다. (`cd Server`)
 
 ### 4.3 Android 클라이언트 설정
 
@@ -201,22 +211,49 @@ export OPENAI_API_KEY="your-api-key"
 
 ## 5. 사용 모드 (Usage Modes)
 
+### 5.0 CLI 레퍼런스 (CLI Reference)
+
+진입점: `Server/main.py`
+
+```bash
+cd Server
+python main.py [OPTIONS]
+```
+
+| 옵션 | 타입 | 선택값 | 기본값 | 설명 |
+|------|------|--------|--------|------|
+| `--mode` | str | `task`, `auto_explore` | `task` | 서버 모드 선택 |
+| `--algorithm` | str | `DFS`, `BFS`, `GREEDY` | `GREEDY` | 탐색 알고리즘 (`auto_explore` 모드 전용) |
+| `--port` | int | - | `12345` | TCP 서버 포트 |
+| `--vision` | flag | - | 활성화 | Vision+Text 모드 (기본값) |
+| `--no-vision` | flag | - | - | Text-only 모드 (`--vision`과 상호 배타) |
+
+**최소 실행 커맨드** (기본값: task 모드, port 12345, vision 활성화):
+
+```bash
+python main.py
+```
+
+> **참고**: `--algorithm`은 `--mode auto_explore`일 때만 사용됩니다. Task 모드에서는 무시됩니다.
+
 ### 5.1 Auto-Explore 모드
 
 자율 UI 탐색 및 Subtask Graph 구축:
 
 ```bash
+cd Server
+
+# GREEDY 탐색 (권장, 기본 알고리즘)
+python main.py --mode auto_explore
+
 # DFS 탐색
-python main.py --mode auto_explore --algorithm DFS --port 12345
+python main.py --mode auto_explore --algorithm DFS
 
 # BFS 탐색
-python main.py --mode auto_explore --algorithm BFS --port 12345
+python main.py --mode auto_explore --algorithm BFS
 
-# GREEDY 탐색 (권장)
-python main.py --mode auto_explore --algorithm GREEDY --port 12345
-
-# Text-only 모드 (스크린샷을 LLM에 전송하지 않음)
-python main.py --mode auto_explore --algorithm GREEDY --no-vision
+# 포트 변경 + Text-only 모드
+python main.py --mode auto_explore --port 8080 --no-vision
 ```
 
 ### 5.2 Task 모드
@@ -224,6 +261,12 @@ python main.py --mode auto_explore --algorithm GREEDY --no-vision
 학습된 지식을 사용하여 사용자 태스크 실행:
 
 ```bash
+cd Server
+
+# 기본 실행 (mode=task가 기본값이므로 생략 가능)
+python main.py
+
+# 명시적 지정
 python main.py --mode task --port 12345
 
 # Text-only 모드
@@ -231,6 +274,8 @@ python main.py --mode task --no-vision
 ```
 
 ### 5.3 Vision 모드 옵션
+
+`--vision`과 `--no-vision`은 상호 배타적 옵션입니다 (동시 사용 불가).
 
 | 옵션 | 설명 |
 |------|------|
@@ -311,7 +356,38 @@ os.environ["HISTORY_AGENT_GPT_VERSION"] = "gpt-5.2"    # history_agent
 os.environ["SUMMARY_AGENT_GPT_VERSION"] = "gpt-5.2"    # summary_agent
 ```
 
+> **주의**: 위 환경변수는 `main.py`에서 `os.environ[]`으로 **직접 할당**되므로, `.env` 파일에 동일한 변수를 설정해도 덮어쓰입니다. 모델을 변경하려면 `main.py`를 직접 수정해야 합니다.
+
 > 전체 환경 변수 목록은 [EXAMPLE.md 섹션 3.3](EXAMPLE.md#33-환경-변수)에서 확인할 수 있습니다.
+
+### 7.2 네트워크 설정 (Network Configuration)
+
+| 설정 | 값 | 변경 방법 |
+|------|-----|-----------|
+| Host | `0.0.0.0` (모든 네트워크 인터페이스) | 소스 코드 수정 (`server.py`, `server_auto_explore.py`) |
+| Port | `12345` | `--port` CLI 옵션 |
+| Buffer Size | `4096` bytes | 소스 코드 수정 (CLI 미노출) |
+| Memory Directory | `./memory` | 소스 코드 수정 (CLI 미노출) |
+| Socket 재사용 | `SO_REUSEADDR = 1` | 하드코딩 (자동 활성화) |
+
+> 서버는 시작 시 UDP 소켓을 이용해 실제 로컬 IP를 자동 탐지하여 콘솔에 출력합니다 (`utils/network.py`).
+
+### 7.3 환경변수 전체 목록 (Environment Variables)
+
+| 카테고리 | 변수 | 필수 | 기본값 | 설정 위치 |
+|----------|------|------|--------|-----------|
+| API 키 | `OPENAI_API_KEY` | **필수** | - | `.env` |
+| API 키 | `GOOGLESEARCH_KEY` | 선택 | - | `.env` |
+| 에이전트 모델 | `TASK_AGENT_GPT_VERSION` | 자동 | `gpt-5.2` | `main.py` 하드코딩 |
+| 에이전트 모델 | `APP_AGENT_GPT_VERSION` | 자동 | `gpt-5.2` | `main.py` 하드코딩 |
+| 에이전트 모델 | `EXPLORE_AGENT_GPT_VERSION` | 자동 | `gpt-5.2` | `main.py` 하드코딩 |
+| 에이전트 모델 | `SELECT_AGENT_GPT_VERSION` | 자동 | `gpt-5.2` | `main.py` 하드코딩 |
+| 에이전트 모델 | `DERIVE_AGENT_GPT_VERSION` | 자동 | `gpt-5.2` | `main.py` 하드코딩 |
+| 에이전트 모델 | `VERIFY_AGENT_GPT_VERSION` | 자동 | `gpt-5.2` | `main.py` 하드코딩 |
+| 에이전트 모델 | `FILTER_AGENT_GPT_VERSION` | 자동 | `gpt-5.2` | `main.py` 하드코딩 |
+| 에이전트 모델 | `PLANNER_AGENT_GPT_VERSION` | 자동 | `gpt-5.2` | `main.py` 하드코딩 |
+| 에이전트 모델 | `HISTORY_AGENT_GPT_VERSION` | 자동 | `gpt-5.2` | `main.py` 하드코딩 |
+| 에이전트 모델 | `SUMMARY_AGENT_GPT_VERSION` | 자동 | `gpt-5.2` | `main.py` 하드코딩 |
 
 ---
 
