@@ -158,6 +158,11 @@ def _get_dfs_action(state: ExploreState) -> dict:
     current_xml = state["current_xml"]
     encoded_xml = state.get("encoded_xml", "")
 
+    # Execute navigation plan if exists (for forward navigation)
+    navigation_plan = state.get("navigation_plan", [])
+    if navigation_plan:
+        return _execute_navigation_step(state)
+
     # Get available subtasks for current page
     available_subtasks = memory.get_available_subtasks(page_index)
 
@@ -177,28 +182,44 @@ def _get_dfs_action(state: ExploreState) -> dict:
     while exploration_stack:
         target_page, subtask_info = exploration_stack[-1]
 
-        # Need to navigate back to target page
+        # Need to navigate to target page
         if target_page != page_index:
-            # Can't go back from page 0
-            if page_index == 0:
-                log(f":::DFS::: Cannot go back from page 0, skipping", "yellow")
-                exploration_stack.pop()
-                continue
+            subtask_graph = state.get("subtask_graph", {})
+            back_edges = state.get("back_edges", {})
 
-            # Navigate back
-            new_traversal = traversal_path.copy()
-            if new_traversal and new_traversal[-1] == page_index:
-                new_traversal.pop()
+            # Try to find a path using subtask_graph
+            path = _find_path_to_page(subtask_graph, back_edges, page_index, target_page)
 
-            log(f":::DFS::: Going back from page {page_index} to reach {target_page}", "yellow")
-            return {
-                "action": {"name": "back", "parameters": {}},
-                "exploration_stack": exploration_stack,
-                "traversal_path": new_traversal,
-                "last_action_was_back": True,
-                "status": "navigating_back",
-                "next_agent": "END",
-            }
+            if path:
+                log(f":::DFS::: Found path from {page_index} to {target_page}: {path}", "cyan")
+                return {
+                    "exploration_stack": exploration_stack,
+                    "navigation_plan": path,
+                    "status": "planning_navigation",
+                    "next_agent": "explore_action",
+                }
+
+            # No path found - try going back (except from page 0)
+            if page_index != 0:
+                new_traversal = traversal_path.copy()
+                if new_traversal and new_traversal[-1] == page_index:
+                    new_traversal.pop()
+
+                log(f":::DFS::: No path found, going back from page {page_index} to reach {target_page}", "yellow")
+                return {
+                    "action": {"name": "back", "parameters": {}},
+                    "exploration_stack": exploration_stack,
+                    "traversal_path": new_traversal,
+                    "last_action_was_back": True,
+                    "last_back_from_page": page_index,
+                    "status": "navigating_back",
+                    "next_agent": "END",
+                }
+
+            # At page 0 with no path - skip this item
+            log(f":::DFS::: Cannot reach page {target_page} from page 0, skipping", "yellow")
+            exploration_stack.pop()
+            continue
 
         exploration_stack.pop()
 
@@ -273,6 +294,7 @@ def _get_dfs_action(state: ExploreState) -> dict:
             "action": {"name": "back", "parameters": {}},
             "traversal_path": new_traversal,
             "last_action_was_back": True,
+            "last_back_from_page": page_index,
             "status": "navigating_back",
             "next_agent": "END",
         }
@@ -348,6 +370,7 @@ def _get_bfs_action(state: ExploreState) -> dict:
                         "exploration_queue": exploration_queue,  # Keep queue intact
                         "traversal_path": new_traversal,
                         "last_action_was_back": True,
+                        "last_back_from_page": page_index,
                         "status": "navigating_back",
                         "next_agent": "END",
                     }
@@ -594,20 +617,67 @@ def _execute_navigation_step(state: ExploreState) -> dict:
             "navigation_plan": new_plan,
             "traversal_path": new_traversal,
             "last_action_was_back": True,
+            "last_back_from_page": page_index,
             "status": "navigating",
             "next_agent": "END",
         }
 
-    # Forward action - need to find and click the subtask
-    log(f":::NAVIGATION::: Forward to page via subtask '{subtask_name}'", "cyan")
+    # Forward action - find trigger UI and create click action
+    memory = state["memory"]
+    current_xml = state["current_xml"]
 
-    # For now, use back_edges to navigate forward
-    # This is simplified - in practice would need to execute the subtask
+    trigger_ui_index = _get_transit_trigger_ui(memory, page_index, subtask_name)
+
+    if trigger_ui_index is None:
+        log(f":::NAVIGATION::: Cannot find trigger UI for '{subtask_name}' on page {page_index}", "red")
+        return {
+            "navigation_plan": [],
+            "status": "navigation_aborted",
+            "next_agent": "explore_action",
+        }
+
+    subtask_info = {"name": subtask_name, "trigger_ui_index": trigger_ui_index}
+    action = _create_subtask_action(subtask_info, current_xml, "", memory, page_index)
+
+    if action:
+        new_traversal = traversal_path.copy()
+        new_traversal.append(page_index)
+        log(f":::NAVIGATION::: Forward to page via subtask '{subtask_name}' (trigger_ui={trigger_ui_index})", "cyan")
+        return {
+            "action": action,
+            "navigation_plan": new_plan,
+            "traversal_path": new_traversal,
+            "last_action_was_back": False,
+            "status": "navigating",
+            "next_agent": "END",
+        }
+
+    log(f":::NAVIGATION::: Failed to create action for '{subtask_name}', aborting", "red")
     return {
-        "navigation_plan": new_plan,
-        "status": "navigation_forward",
+        "navigation_plan": [],
+        "status": "navigation_aborted",
         "next_agent": "explore_action",
     }
+
+
+def _get_transit_trigger_ui(memory: Any, page_index: int, subtask_name: str) -> Optional[int]:
+    """Look up trigger_ui_index for a subtask from memory's subtask_graph edges.
+
+    Used during forward navigation to find the UI element that triggers
+    a known subtask transition.
+
+    Args:
+        memory: Memory instance
+        page_index: Current page index
+        subtask_name: Name of the subtask to find
+
+    Returns:
+        trigger_ui_index or None if not found
+    """
+    for edge in memory.subtask_graph.get("edges", []):
+        if edge["from_page"] == page_index and edge["subtask"] == subtask_name:
+            return edge["trigger_ui_index"]
+    return None
 
 
 def _create_subtask_action(

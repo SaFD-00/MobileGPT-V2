@@ -167,6 +167,7 @@ class ExploreState(TypedDict, total=False):
     # Routing
     next_agent: str
     last_action_was_back: bool
+    last_back_from_page: Optional[int]  # Page index where back was pressed (for back_edges tracking)
 
     # Result
     action: Optional[dict]

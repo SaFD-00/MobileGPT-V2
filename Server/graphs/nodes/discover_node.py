@@ -113,6 +113,26 @@ def discover_node(state: ExploreState) -> dict:
                     trigger_ui_index=last_explored_ui
                 )
 
+    # Update state subtask_graph when a new transition is added
+    new_subtask_graph = state.get("subtask_graph", {})
+    if last_explored_page is not None and last_explored_subtask and not last_action_was_back:
+        new_subtask_graph = new_subtask_graph.copy()
+        if last_explored_page not in new_subtask_graph:
+            new_subtask_graph[last_explored_page] = []
+        if (page_index, last_explored_subtask) not in new_subtask_graph[last_explored_page]:
+            new_subtask_graph[last_explored_page].append((page_index, last_explored_subtask))
+
+    # Update state back_edges when a back action was performed
+    new_back_edges = state.get("back_edges", {})
+    last_back_from = state.get("last_back_from_page")
+    if last_action_was_back and last_back_from is not None:
+        new_back_edges = new_back_edges.copy()
+        if last_back_from not in new_back_edges:
+            new_back_edges[last_back_from] = []
+        if page_index not in new_back_edges[last_back_from]:
+            new_back_edges[last_back_from].append(page_index)
+            log(f":::DISCOVER::: Added back_edge: {last_back_from} -> {page_index}", "cyan")
+
     # Initialize page manager
     memory.init_page_manager(page_index)
 
@@ -124,6 +144,7 @@ def discover_node(state: ExploreState) -> dict:
         "last_explored_page_index": None,
         "last_explored_subtask_name": None,
         "last_explored_ui_index": None,
+        "last_back_from_page": None,
     }
 
     if is_new:
@@ -155,6 +176,8 @@ def discover_node(state: ExploreState) -> dict:
             "is_new_screen": False,  # We've now processed it
             "visited_pages": new_visited,
             "unexplored_subtasks": new_unexplored,
+            "subtask_graph": new_subtask_graph,
+            "back_edges": new_back_edges,
             "status": "page_discovered",
             "next_agent": "explore_action",
             "action_history": [],  # Subtask Graph: Reset after processing
@@ -183,6 +206,8 @@ def discover_node(state: ExploreState) -> dict:
         "page_index": page_index,
         "is_new_screen": False,
         "unexplored_subtasks": new_unexplored,
+        "subtask_graph": new_subtask_graph,
+        "back_edges": new_back_edges,
         "status": "page_found",
         "next_agent": "explore_action",
         "action_history": [],  # Subtask Graph: Reset after processing
