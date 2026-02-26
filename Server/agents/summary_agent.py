@@ -10,7 +10,8 @@ import os
 from typing import List, Optional
 
 from agents.prompts import summary_agent_prompt
-from utils.utils import query, query_with_vision, log
+from loguru import logger
+from utils.utils import query, query_with_vision
 
 
 def generate_summary(
@@ -32,7 +33,7 @@ def generate_summary(
         Example: "This page displays the inbox with email list. Users can search,
                  compose, and access settings."
     """
-    log(":::SUMMARY AGENT::: Generating page summary", "blue")
+    logger.info("Generating page summary")
 
     prompts = summary_agent_prompt.get_prompts(
         encoded_xml=encoded_xml,
@@ -43,7 +44,7 @@ def generate_summary(
 
     # Use Vision API if screenshot is available
     if screenshot_path and os.path.exists(screenshot_path):
-        log(f":::SUMMARY AGENT::: Using Vision API with screenshot", "cyan")
+        logger.debug("Using Vision API with screenshot")
         response = query_with_vision(
             prompts,
             model=model,
@@ -51,7 +52,7 @@ def generate_summary(
             parse_json=False
         )
     else:
-        log(":::SUMMARY AGENT::: Using text-only mode (no screenshot)", "yellow")
+        logger.warning("Using text-only mode (no screenshot)")
         response = query(prompts, model=model, parse_json=False)
 
     return response

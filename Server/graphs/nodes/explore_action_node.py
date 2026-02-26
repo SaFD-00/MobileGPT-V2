@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from agents import history_agent
 from graphs.state import ExploreState
-from utils.utils import log
+from loguru import logger
 
 
 def _add_to_action_history(
@@ -68,9 +68,9 @@ def _generate_and_save_guideline(
                 subtask_name=subtask_name,
                 trigger_ui_index=trigger_ui_index
             )
-            log(f":::EXPLORE::: Generated guideline for '{subtask_name}': {guideline[:50]}...", "green")
+            logger.info(f"Generated guideline for '{subtask_name}': {guideline[:50]}...")
     except Exception as e:
-        log(f":::EXPLORE::: Error generating guideline for '{subtask_name}': {e}", "red")
+        logger.error(f"Error generating guideline for '{subtask_name}': {e}")
 
 
 def _ensure_unexplored_subtasks(
@@ -103,7 +103,7 @@ def _ensure_unexplored_subtasks(
         s for s in available
         if (s.get("name"), s.get("trigger_ui_index", -1)) not in explored_set
     ]
-    log(f":::EXPLORE_ACTION::: Defensive init: {len(new_unexplored[page_index])} unexplored subtasks for page {page_index}", "yellow")
+    logger.warning(f"Defensive init: {len(new_unexplored[page_index])} unexplored subtasks for page {page_index}")
     return new_unexplored
 
 
@@ -124,7 +124,7 @@ def explore_action_node(state: ExploreState) -> dict:
     algorithm = state.get("algorithm", "DFS")
     page_index = state["page_index"]
 
-    log(f":::EXPLORE_ACTION::: Algorithm={algorithm}, page={page_index}", "blue")
+    logger.info(f"Algorithm={algorithm}, page={page_index}")
 
     if algorithm == "DFS":
         return _get_dfs_action(state)
@@ -133,7 +133,7 @@ def explore_action_node(state: ExploreState) -> dict:
     elif algorithm == "GREEDY":
         return _get_greedy_action(state)
     else:
-        log(f":::EXPLORE_ACTION::: Unknown algorithm: {algorithm}", "red")
+        logger.error(f"Unknown algorithm: {algorithm}")
         return {
             "action": None,
             "status": "unknown_algorithm",
@@ -191,7 +191,7 @@ def _get_dfs_action(state: ExploreState) -> dict:
             path = _find_path_to_page(subtask_graph, back_edges, page_index, target_page)
 
             if path:
-                log(f":::DFS::: Found path from {page_index} to {target_page}: {path}", "cyan")
+                logger.debug(f"Found path from {page_index} to {target_page}: {path}")
                 return {
                     "exploration_stack": exploration_stack,
                     "navigation_plan": path,
@@ -205,7 +205,7 @@ def _get_dfs_action(state: ExploreState) -> dict:
                 if new_traversal and new_traversal[-1] == page_index:
                     new_traversal.pop()
 
-                log(f":::DFS::: No path found, going back from page {page_index} to reach {target_page}", "yellow")
+                logger.warning(f"No path found, going back from page {page_index} to reach {target_page}")
                 return {
                     "action": {"name": "back", "parameters": {}},
                     "exploration_stack": exploration_stack,
@@ -217,7 +217,7 @@ def _get_dfs_action(state: ExploreState) -> dict:
                 }
 
             # At page 0 with no path - skip this item
-            log(f":::DFS::: Cannot reach page {target_page} from page 0, skipping", "yellow")
+            logger.warning(f"Cannot reach page {target_page} from page 0, skipping")
             exploration_stack.pop()
             continue
 
@@ -231,7 +231,7 @@ def _get_dfs_action(state: ExploreState) -> dict:
             continue
 
         # Start exploring this subtask
-        log(f":::DFS::: Exploring subtask '{subtask_name}' (trigger_ui={trigger_ui})", "cyan")
+        logger.debug(f"Exploring subtask '{subtask_name}' (trigger_ui={trigger_ui})")
 
         # Mark as explored (in-memory)
         new_explored = explored_subtasks.copy()
@@ -280,7 +280,7 @@ def _get_dfs_action(state: ExploreState) -> dict:
     # Stack empty but not at start - go back
     if traversal_path:
         if page_index == 0:
-            log(":::DFS::: Stack empty at page 0, exploration complete", "green")
+            logger.info("Stack empty at page 0, exploration complete")
             return {
                 "action": None,
                 "status": "exploration_complete",
@@ -289,7 +289,7 @@ def _get_dfs_action(state: ExploreState) -> dict:
 
         new_traversal = traversal_path.copy()
         new_traversal.pop()
-        log(f":::DFS::: Stack empty, going back from page {page_index}", "yellow")
+        logger.warning(f"Stack empty, going back from page {page_index}")
         return {
             "action": {"name": "back", "parameters": {}},
             "traversal_path": new_traversal,
@@ -299,7 +299,7 @@ def _get_dfs_action(state: ExploreState) -> dict:
             "next_agent": "END",
         }
 
-    log(":::DFS::: Exploration complete", "green")
+    logger.info("Exploration complete")
     return {
         "action": None,
         "status": "exploration_complete",
@@ -352,7 +352,7 @@ def _get_bfs_action(state: ExploreState) -> dict:
             path = _find_path_to_page(subtask_graph, back_edges, page_index, target_page)
 
             if path:
-                log(f":::BFS::: Found path from {page_index} to {target_page}: {path}", "cyan")
+                logger.debug(f"Found path from {page_index} to {target_page}: {path}")
                 return {
                     "exploration_queue": exploration_queue,
                     "navigation_plan": path,
@@ -362,7 +362,7 @@ def _get_bfs_action(state: ExploreState) -> dict:
             else:
                 # No path found - try going back first
                 if traversal_path:
-                    log(f":::BFS::: No path to page {target_page}, going back", "yellow")
+                    logger.warning(f"No path to page {target_page}, going back")
                     new_traversal = traversal_path.copy()
                     new_traversal.pop()
                     return {
@@ -376,7 +376,7 @@ def _get_bfs_action(state: ExploreState) -> dict:
                     }
                 else:
                     # No traversal path - skip this subtask
-                    log(f":::BFS::: No path and no traversal history, skipping", "yellow")
+                    logger.warning(f"No path and no traversal history, skipping")
                     exploration_queue.pop(0)
                     continue
 
@@ -390,7 +390,7 @@ def _get_bfs_action(state: ExploreState) -> dict:
             continue
 
         # Start exploring
-        log(f":::BFS::: Exploring subtask '{subtask_name}' on page {page_index}", "cyan")
+        logger.debug(f"Exploring subtask '{subtask_name}' on page {page_index}")
 
         # Mark as explored (in-memory)
         new_explored = explored_subtasks.copy()
@@ -435,7 +435,7 @@ def _get_bfs_action(state: ExploreState) -> dict:
                 "before_screenshot_path": state.get("screenshot_path"),
             }
 
-    log(":::BFS::: Exploration complete", "green")
+    logger.info("Exploration complete")
     return {
         "action": None,
         "status": "exploration_complete",
@@ -485,7 +485,7 @@ def _get_greedy_action(state: ExploreState) -> dict:
     if target_page is None:
         # No unexplored found - try going back to discover more
         if traversal_path:
-            log(":::GREEDY::: No unexplored found, going back to explore more", "yellow")
+            logger.warning("No unexplored found, going back to explore more")
             new_traversal = traversal_path.copy()
             new_traversal.pop()
             return {
@@ -496,7 +496,7 @@ def _get_greedy_action(state: ExploreState) -> dict:
                 "status": "navigating_back",
                 "next_agent": "END",
             }
-        log(":::GREEDY::: All subtasks explored", "green")
+        logger.info("All subtasks explored")
         return {
             "action": None,
             "status": "exploration_complete",
@@ -504,11 +504,11 @@ def _get_greedy_action(state: ExploreState) -> dict:
         }
 
     subtask_name = target_subtask.get("name", "")
-    log(f":::GREEDY::: Nearest unexplored is '{subtask_name}' on page {target_page} (distance: {len(path)} actions)", "cyan")
+    logger.debug(f"Nearest unexplored is '{subtask_name}' on page {target_page} (distance: {len(path)} actions)")
 
     # Need to navigate to target page
     if path:
-        log(f":::GREEDY::: Navigating via path: {path}", "cyan")
+        logger.debug(f"Navigating via path: {path}")
         return {
             "navigation_plan": path,
             "unexplored_subtasks": unexplored_subtasks,
@@ -600,7 +600,7 @@ def _execute_navigation_step(state: ExploreState) -> dict:
 
     if action_type == "back":
         if page_index == 0:
-            log(":::NAVIGATION::: Cannot go back from page 0, aborting", "red")
+            logger.error("Cannot go back from page 0, aborting")
             return {
                 "navigation_plan": [],
                 "status": "navigation_aborted",
@@ -611,7 +611,7 @@ def _execute_navigation_step(state: ExploreState) -> dict:
         if new_traversal:
             new_traversal.pop()
 
-        log(f":::NAVIGATION::: Executing back from page {page_index}", "cyan")
+        logger.debug(f"Executing back from page {page_index}")
         return {
             "action": {"name": "back", "parameters": {}},
             "navigation_plan": new_plan,
@@ -629,7 +629,7 @@ def _execute_navigation_step(state: ExploreState) -> dict:
     trigger_ui_index = _get_transit_trigger_ui(memory, page_index, subtask_name)
 
     if trigger_ui_index is None:
-        log(f":::NAVIGATION::: Cannot find trigger UI for '{subtask_name}' on page {page_index}", "red")
+        logger.error(f"Cannot find trigger UI for '{subtask_name}' on page {page_index}")
         return {
             "navigation_plan": [],
             "status": "navigation_aborted",
@@ -642,7 +642,7 @@ def _execute_navigation_step(state: ExploreState) -> dict:
     if action:
         new_traversal = traversal_path.copy()
         new_traversal.append(page_index)
-        log(f":::NAVIGATION::: Forward to page via subtask '{subtask_name}' (trigger_ui={trigger_ui_index})", "cyan")
+        logger.debug(f"Forward to page via subtask '{subtask_name}' (trigger_ui={trigger_ui_index})")
         return {
             "action": action,
             "navigation_plan": new_plan,
@@ -652,7 +652,7 @@ def _execute_navigation_step(state: ExploreState) -> dict:
             "next_agent": "END",
         }
 
-    log(f":::NAVIGATION::: Failed to create action for '{subtask_name}', aborting", "red")
+    logger.error(f"Failed to create action for '{subtask_name}', aborting")
     return {
         "navigation_plan": [],
         "status": "navigation_aborted",
@@ -703,7 +703,7 @@ def _create_subtask_action(
     subtask_name = subtask_info.get("name", "")
 
     if trigger_ui_index < 0:
-        log(f":::ACTION::: No trigger UI for subtask '{subtask_name}'", "yellow")
+        logger.warning(f"No trigger UI for subtask '{subtask_name}'")
         return None
 
     try:
@@ -711,7 +711,7 @@ def _create_subtask_action(
         element = tree.find(f".//*[@index='{trigger_ui_index}']")
 
         if element is None:
-            log(f":::ACTION::: Element with index {trigger_ui_index} not found", "yellow")
+            logger.warning(f"Element with index {trigger_ui_index} not found")
             return None
 
         bounds = element.get("bounds", "")
@@ -721,7 +721,7 @@ def _create_subtask_action(
                 x1, y1, x2, y2 = map(int, matches[:4])
                 center_x, center_y = (x1 + x2) // 2, (y1 + y2) // 2
 
-                log(f":::ACTION::: Created click action at ({center_x}, {center_y})", "green")
+                logger.info(f"Created click action at ({center_x}, {center_y})")
                 return {
                     "name": "click",
                     "parameters": {
@@ -742,7 +742,7 @@ def _create_subtask_action(
         }
 
     except Exception as e:
-        log(f":::ACTION::: Error creating action: {e}", "red")
+        logger.error(f"Error creating action: {e}")
         return None
 
 

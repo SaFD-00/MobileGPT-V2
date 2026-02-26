@@ -2,7 +2,7 @@
 
 from agents.derive_agent import DeriveAgent
 from graphs.state import TaskState
-from utils.utils import log
+from loguru import logger
 
 
 def deriver_node(state: TaskState) -> dict:
@@ -22,7 +22,7 @@ def deriver_node(state: TaskState) -> dict:
     current_xml = state["current_xml"]
 
     if not selected_subtask:
-        log(":::DERIVER::: No subtask selected, cannot derive action", "red")
+        logger.error("No subtask selected, cannot derive action")
         return {
             "action": None,
             "status": "no_subtask_for_derive",
@@ -30,11 +30,11 @@ def deriver_node(state: TaskState) -> dict:
         }
 
     subtask_name = selected_subtask.get("name", "")
-    log(f":::DERIVER::: Deriving action for subtask '{subtask_name}'", "blue")
+    logger.info(f"Deriving action for subtask '{subtask_name}'")
 
     # Handle special subtasks directly
     if subtask_name == "finish":
-        log(":::DERIVER::: Returning finish action", "green")
+        logger.info("Returning finish action")
         return {
             "action": {"name": "finish", "parameters": {}},
             "status": "action_derived",
@@ -51,7 +51,7 @@ def deriver_node(state: TaskState) -> dict:
                 "direction": params.get("direction", "down")
             }
         }
-        log(f":::DERIVER::: Returning scroll action: {scroll_action}", "green")
+        logger.info(f"Returning scroll action: {scroll_action}")
         return {
             "action": scroll_action,
             "status": "action_derived",
@@ -64,7 +64,7 @@ def deriver_node(state: TaskState) -> dict:
             "name": "speak",
             "parameters": params
         }
-        log(f":::DERIVER::: Returning speak action: {speak_action}", "green")
+        logger.info(f"Returning speak action: {speak_action}")
         return {
             "action": speak_action,
             "status": "action_derived",
@@ -81,7 +81,7 @@ def deriver_node(state: TaskState) -> dict:
 
     if next_action and "examples" not in next_action:
         # Use pre-learned action
-        log(f":::DERIVER::: Using pre-learned action: {next_action}", "green")
+        logger.info(f"Using pre-learned action: {next_action}")
         return {
             "action": next_action,
             "status": "action_derived",
@@ -93,7 +93,7 @@ def deriver_node(state: TaskState) -> dict:
     screenshot_path = state.get("screenshot_path")
     action, example = derive_agent.derive(current_xml, examples, screenshot_path=screenshot_path)
 
-    log(f":::DERIVER::: Derived action: {action}", "green")
+    logger.info(f"Derived action: {action}")
 
     return {
         "action": action,

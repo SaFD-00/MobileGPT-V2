@@ -8,7 +8,8 @@ import pandas as pd
 from memory.page_manager import PageManager
 from utils import parsing_utils
 from utils.action_utils import generalize_action
-from utils.utils import get_openai_embedding, log, safe_literal_eval, cosine_similarity
+from loguru import logger
+from utils.utils import get_openai_embedding, safe_literal_eval, cosine_similarity
 
 
 def init_database(path: str, headers: list):
@@ -79,7 +80,7 @@ class Memory:
                 with open(self.subtask_graph_path, 'r') as f:
                     return json.load(f)
             except (json.JSONDecodeError, IOError):
-                log("Failed to load subtask_graph.json, rebuilding...", "yellow")
+                logger.warning("Failed to load subtask_graph.json, rebuilding...")
 
         return self._build_subtask_graph()
 
@@ -88,9 +89,9 @@ class Memory:
         try:
             with open(self.subtask_graph_path, 'w') as f:
                 json.dump(self.subtask_graph, f, indent=2, ensure_ascii=False)
-            log(f"Saved subtask_graph.json with {len(self.subtask_graph.get('edges', []))} edges")
+            logger.info(f"Saved subtask_graph.json with {len(self.subtask_graph.get('edges', []))} edges")
         except IOError as e:
-            log(f"Failed to save subtask_graph.json: {e}", "red")
+            logger.error(f"Failed to save subtask_graph.json: {e}")
 
     def _build_subtask_graph(self) -> dict:
         """Rebuild Subtask Graph from existing subtasks.csv and actions.csv data."""
@@ -132,7 +133,7 @@ class Memory:
                         continue
 
         graph["nodes"].sort()
-        log(f"Built Subtask Graph with {len(graph['nodes'])} nodes and {len(graph['edges'])} edges")
+        logger.info(f"Built Subtask Graph with {len(graph['nodes'])} nodes and {len(graph['edges'])} edges")
         return graph
 
     def _get_action_sequence(self, page_path: str, subtask_name: str,
@@ -205,7 +206,7 @@ class Memory:
 
             self.subtask_graph["edges"].append(edge)
             self._save_subtask_graph()
-            log(f"Added Subtask Graph edge: {from_page} -> {to_page} via '{subtask_name}'")
+            logger.info(f"Added Subtask Graph edge: {from_page} -> {to_page} via '{subtask_name}'")
 
     def delete_subtask(self, page_index: int, subtask_name: str,
                        trigger_ui_index: int = -1, reason: str = "unknown") -> bool:
@@ -224,8 +225,8 @@ class Memory:
         Returns:
             bool: True if deletion was successful
         """
-        log(f":::DELETE::: Deleting subtask '{subtask_name}' from page {page_index} "
-            f"(trigger_ui={trigger_ui_index}, reason={reason})", "yellow")
+        logger.warning(f"Deleting subtask '{subtask_name}' from page {page_index} "
+            f"(trigger_ui={trigger_ui_index}, reason={reason})")
 
         try:
             # 1. Delete/update CSV data through PageManager
@@ -247,11 +248,11 @@ class Memory:
                 trigger_ui_index=trigger_ui_index
             )
 
-            log(f":::DELETE::: Successfully deleted subtask '{subtask_name}' from page {page_index}", "green")
+            logger.info(f"Successfully deleted subtask '{subtask_name}' from page {page_index}")
             return True
 
         except Exception as e:
-            log(f":::DELETE::: Failed to delete subtask: {str(e)}", "red")
+            logger.error(f"Failed to delete subtask: {str(e)}")
             return False
 
     def remove_transition(self, from_page: int, subtask_name: str,
@@ -287,7 +288,7 @@ class Memory:
 
         if edges_removed > 0:
             self._save_subtask_graph()
-            log(f":::DELETE::: Removed {edges_removed} edge(s) from Subtask Graph for subtask '{subtask_name}' at page {from_page}")
+            logger.info(f"Removed {edges_removed} edge(s) from Subtask Graph for subtask '{subtask_name}' at page {from_page}")
 
         return edges_removed > 0
 
@@ -377,7 +378,7 @@ class Memory:
         if page_index in self.page_db.index:
             self.page_db.loc[page_index, 'summary'] = summary
             self.page_db.to_csv(self.page_path, index=False)
-            log(f"Updated page summary for page {page_index}: {summary[:50]}...")
+            logger.info(f"Updated page summary for page {page_index}: {summary[:50]}...")
             return True
         return False
 
@@ -461,7 +462,7 @@ class Memory:
         # Update guideline after all actions are updated
         page_manager.update_guideline(subtask_name)
 
-        log(f"Saved action history for '{subtask_name}' at page {page_index}: {len(history)} entries")
+        logger.info(f"Saved action history for '{subtask_name}' at page {page_index}: {len(history)} entries")
         return success
 
     def update_guideline(self, page_index: int, subtask_name: str,
@@ -629,7 +630,7 @@ class Memory:
         """Return the next action in the current subtask"""
         next_action = self.page_manager.get_next_action(subtask, screen, self.curr_action_step)
         self.curr_action_step += 1
-        log(f":::DERIVE:::", "blue")
+        logger.info("DERIVE")
         return next_action
 
     def save_action(self, subtask: dict, action: dict, example=None) -> None:
@@ -686,7 +687,7 @@ class Memory:
             self.task_db = pd.concat([self.task_db, pd.DataFrame([new_task_path])], ignore_index=True)
 
         self.task_db.to_csv(self.task_db_path, index=False)
-        log(f":::TASK SAVE::: Path saved: {new_task_path}")
+        logger.info(f"Path saved: {new_task_path}")
 
     def mark_subtask_explored(self, page_index: int, subtask_name: str, ui_info: dict = None,
                               action: dict = None, screen: str = None,
@@ -793,8 +794,8 @@ class Memory:
                     subtasks_data.append({"name": subtask, "traversed": False})
                 task_path[int(page_index)] = subtasks_data
 
-            log(f"Known path for the task: {task_name}", "yellow")
-            log(task_path, "yellow")
+            logger.warning(f"Known path for the task: {task_name}")
+            logger.warning(task_path)
 
             return task_path
 
@@ -826,7 +827,7 @@ class Memory:
         candidates = self.hierarchy_db.sort_values('similarity', ascending=False).head(5).to_dict(orient='records')
         if candidates:
             highest_similarity = candidates[0]['similarity']
-            print(highest_similarity)
+            logger.debug(highest_similarity)
             if highest_similarity > 0.95:
                 return candidates[0]['index'], highest_similarity
         return -1, 0.0

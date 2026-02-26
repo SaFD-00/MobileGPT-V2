@@ -13,7 +13,7 @@ from agents.planner_agent import PlannerAgent, replan_from_current
 from agents import filter_agent
 from agents import step_verify_agent
 from graphs.state import TaskState
-from utils.utils import log
+from loguru import logger
 
 
 def planner_node(state: TaskState) -> dict:
@@ -37,7 +37,7 @@ def planner_node(state: TaskState) -> dict:
 
     # Check if Subtask Graph has data
     if not memory.subtask_graph.get("edges"):
-        log(":::PLANNER::: No Subtask Graph edges, fallback to Select mode", "yellow")
+        logger.warning("No Subtask Graph edges, fallback to Select mode")
         return {
             "planned_path": None,
             "path_step_index": 0,
@@ -47,11 +47,11 @@ def planner_node(state: TaskState) -> dict:
     # ============================================================
     # STEP 1: Load - Get all subtasks from all pages
     # ============================================================
-    log(":::PLANNER::: Step 1 - Loading all subtasks", "cyan")
+    logger.debug("Step 1 - Loading all subtasks")
     all_subtasks = _load_all_subtasks_with_context(memory)
 
     if not all_subtasks:
-        log(":::PLANNER::: No subtasks available", "yellow")
+        logger.warning("No subtasks available")
         return {
             "planned_path": None,
             "path_step_index": 0,
@@ -60,12 +60,12 @@ def planner_node(state: TaskState) -> dict:
             "filtered_subtasks": [],
         }
 
-    log(f":::PLANNER::: Loaded {len(all_subtasks)} subtasks from all pages", "cyan")
+    logger.debug(f"Loaded {len(all_subtasks)} subtasks from all pages")
 
     # Step 1 Verification
     load_result = step_verify_agent.verify_load(all_subtasks, memory)
     if load_result["status"] == step_verify_agent.StepVerifyResult.FAIL:
-        log(f":::PLANNER::: Load verification FAILED: {load_result['reason']}", "red")
+        logger.error(f"Load verification FAILED: {load_result['reason']}")
         return {
             "planned_path": None,
             "path_step_index": 0,
@@ -77,13 +77,13 @@ def planner_node(state: TaskState) -> dict:
     # ============================================================
     # STEP 2: Filter - Select subtasks relevant to instruction
     # ============================================================
-    log(":::PLANNER::: Step 2 - Filtering relevant subtasks", "cyan")
+    logger.debug("Step 2 - Filtering relevant subtasks")
     filtered_subtasks = filter_agent.filter_subtasks(
         instruction=instruction,
         all_subtasks=all_subtasks,
         max_results=15  # Keep top 15 most relevant
     )
-    log(f":::PLANNER::: Filtered to {len(filtered_subtasks)} relevant subtasks", "cyan")
+    logger.debug(f"Filtered to {len(filtered_subtasks)} relevant subtasks")
 
     # Extract filtered subtask names for [RELEVANT] markers in planning
     filtered_names = [s.get("name", "") for s in filtered_subtasks] if filtered_subtasks else []
@@ -91,7 +91,7 @@ def planner_node(state: TaskState) -> dict:
     # Step 2 Verification
     filter_result = step_verify_agent.verify_filter(instruction, filtered_subtasks, all_subtasks)
     if filter_result["status"] == step_verify_agent.StepVerifyResult.FAIL:
-        log(":::PLANNER::: Filter verification FAILED, using all subtasks without markers", "yellow")
+        logger.warning("Filter verification FAILED, using all subtasks without markers")
         filtered_names = []  # No markers when filter fails
 
     # Case 1: Replanning after unexpected transition
@@ -99,10 +99,10 @@ def planner_node(state: TaskState) -> dict:
         replan_count = state.get("replan_count", 0) + 1
         max_replan = state.get("max_replan", 5)
 
-        log(f":::PLANNER::: Replanning attempt {replan_count}/{max_replan}", "cyan")
+        logger.debug(f"Replanning attempt {replan_count}/{max_replan}")
 
         if replan_count > max_replan:
-            log(":::PLANNER::: Max replan attempts reached", "red")
+            logger.error("Max replan attempts reached")
             return {
                 "planned_path": None,
                 "replan_needed": False,
@@ -121,7 +121,7 @@ def planner_node(state: TaskState) -> dict:
         )
 
         if new_path:
-            log(f":::PLANNER::: Replanned {len(new_path)} steps from page {current_page}", "green")
+            logger.info(f"Replanned {len(new_path)} steps from page {current_page}")
             return {
                 "planned_path": new_path,
                 "path_step_index": 0,
@@ -133,7 +133,7 @@ def planner_node(state: TaskState) -> dict:
                 "filtered_subtasks": filtered_subtasks,
             }
         else:
-            log(":::PLANNER::: Replan failed, fallback to Select", "yellow")
+            logger.warning("Replan failed, fallback to Select")
             return {
                 "planned_path": None,
                 "path_step_index": 0,
@@ -147,7 +147,7 @@ def planner_node(state: TaskState) -> dict:
     # ============================================================
     # STEP 3: Plan - Create optimal path using Subtask Graph
     # ============================================================
-    log(f":::PLANNER::: Step 3 - Creating plan from page {current_page}", "cyan")
+    logger.debug(f"Step 3 - Creating plan from page {current_page}")
 
     planner = PlannerAgent(instruction)
     planned_path = planner.plan(
@@ -158,15 +158,15 @@ def planner_node(state: TaskState) -> dict:
     )
 
     if planned_path:
-        log(f":::PLANNER::: Planned {len(planned_path)} steps", "green")
+        logger.info(f"Planned {len(planned_path)} steps")
         for i, step in enumerate(planned_path):
             transit_tag = " [TRANSIT]" if step.get("is_transit") else ""
-            log(f"  Step {i+1}: {step['subtask']} @ page {step['page']}{transit_tag}", "cyan")
+            logger.debug(f"  Step {i+1}: {step['subtask']} @ page {step['page']}{transit_tag}")
 
         # Step 3 Verification
         plan_result = step_verify_agent.verify_plan(planned_path, memory.subtask_graph, current_page)
         if plan_result["status"] == step_verify_agent.StepVerifyResult.FAIL:
-            log(":::PLANNER::: Plan verification FAILED, fallback to Select mode", "yellow")
+            logger.warning("Plan verification FAILED, fallback to Select mode")
             planned_path = None  # Will fall through to "no path found" return
 
     if planned_path:
@@ -180,7 +180,7 @@ def planner_node(state: TaskState) -> dict:
             "filtered_subtasks": filtered_subtasks,
         }
     else:
-        log(":::PLANNER::: No path found, fallback to Select mode", "yellow")
+        logger.warning("No path found, fallback to Select mode")
         return {
             "planned_path": None,
             "path_step_index": 0,
@@ -206,7 +206,7 @@ def _list_to_page_dict(subtasks_list: List[dict]) -> Dict[int, List[dict]]:
     for s in subtasks_list:
         page_idx = s.get("page_index")
         if page_idx is None:
-            log(f":::PLANNER::: WARNING - subtask missing page_index: {s.get('name', 'unknown')}", "yellow")
+            logger.warning(f"subtask missing page_index: {s.get('name', 'unknown')}")
             continue
         if page_idx not in page_dict:
             page_dict[page_idx] = []

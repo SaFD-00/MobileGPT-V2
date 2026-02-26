@@ -10,7 +10,7 @@ Implements adaptive replanning logic:
 
 from agents.verify_agent import verify_path, verify_with_path, PathVerificationResult
 from graphs.state import TaskState
-from utils.utils import log
+from loguru import logger
 
 
 def verifier_node(state: TaskState) -> dict:
@@ -31,7 +31,7 @@ def verifier_node(state: TaskState) -> dict:
     available_subtasks = state["available_subtasks"]
 
     if not selected_subtask:
-        log(":::VERIFIER::: No subtask selected, skipping verification", "yellow")
+        logger.warning("No subtask selected, skipping verification")
         return {
             "verification_passed": False,
             "status": "no_subtask_to_verify",
@@ -39,11 +39,11 @@ def verifier_node(state: TaskState) -> dict:
         }
 
     subtask_name = selected_subtask.get("name", "")
-    log(f":::VERIFIER::: Verifying subtask '{subtask_name}'", "blue")
+    logger.info(f"Verifying subtask '{subtask_name}'")
 
     # Handle special subtasks that don't need verification
     if subtask_name in ["finish", "scroll_screen", "speak"]:
-        log(f":::VERIFIER::: Special subtask '{subtask_name}' - auto approved", "green")
+        logger.info(f"Special subtask '{subtask_name}' - auto approved")
         return {
             "verification_passed": True,
             "next_page_index": page_index,
@@ -59,20 +59,20 @@ def verifier_node(state: TaskState) -> dict:
     if planned_path and path_step_index < len(planned_path):
         path_result = verify_planned_path(state)
         if path_result.get("replan_needed"):
-            log(":::VERIFIER::: Path verification -> REPLAN needed", "yellow")
+            logger.warning("Path verification -> REPLAN needed")
             return {**path_result, "next_agent": "planner"}
         if path_result.get("status") == "path_verified_skip":
-            log(":::VERIFIER::: Path verification -> SKIP", "yellow")
+            logger.warning("Path verification -> SKIP")
             return {**path_result, "next_agent": "supervisor"}
 
     # Get destination page for this subtask
     end_page = memory.get_subtask_destination(page_index, subtask_name)
 
-    log(f":::VERIFIER::: Subtask '{subtask_name}' leads to page {end_page}", "blue")
+    logger.info(f"Subtask '{subtask_name}' leads to page {end_page}")
 
     # If destination is unknown, we can't verify - assume it's okay (unexplored path)
     if end_page < 0:
-        log(f":::VERIFIER::: Destination unknown for '{subtask_name}' - auto approved (unexplored)", "yellow")
+        logger.warning(f"Destination unknown for '{subtask_name}' - auto approved (unexplored)")
         return {
             "verification_passed": True,
             "next_page_index": end_page,
@@ -85,7 +85,7 @@ def verifier_node(state: TaskState) -> dict:
     memory.init_page_manager(end_page)
     next_subtasks = memory.get_available_subtasks(end_page)
 
-    log(f":::VERIFIER::: Next screen has {len(next_subtasks)} subtasks", "blue")
+    logger.info(f"Next screen has {len(next_subtasks)} subtasks")
 
     # Get page summaries for verification context
     current_page_summary = memory.get_page_summary(page_index)
@@ -102,7 +102,7 @@ def verifier_node(state: TaskState) -> dict:
     )
 
     if should_proceed:
-        log(f":::VERIFIER::: APPROVED - {reasoning}", "green")
+        logger.info(f"APPROVED - {reasoning}")
         return {
             "verification_passed": True,
             "next_page_index": end_page,
@@ -111,7 +111,7 @@ def verifier_node(state: TaskState) -> dict:
             "next_agent": "deriver",
         }
     else:
-        log(f":::VERIFIER::: REJECTED - {reasoning}", "red")
+        logger.error(f"REJECTED - {reasoning}")
         return {
             "verification_passed": False,
             "next_page_index": end_page,
@@ -146,17 +146,17 @@ def verify_planned_path(state: TaskState) -> dict:
         # No planned path, fall back to standard verification
         return verifier_node(state)
 
-    log(f":::VERIFIER::: Path verification at step {path_step_index}, page {current_page}", "blue")
+    logger.info(f"Path verification at step {path_step_index}, page {current_page}")
 
     result = verify_with_path(planned_path, path_step_index, current_page)
     decision = result["decision"]
     reason = result["reason"]
 
-    log(f":::VERIFIER::: Path decision: {decision} - {reason}", "cyan")
+    logger.debug(f"Path decision: {decision} - {reason}")
 
     if decision == PathVerificationResult.PROCEED:
         # On expected page, continue with standard verification
-        log(":::VERIFIER::: Path PROCEED - continuing execution", "green")
+        logger.info("Path PROCEED - continuing execution")
         return {
             "verification_passed": True,
             "status": "path_verified_proceed",
@@ -165,7 +165,7 @@ def verify_planned_path(state: TaskState) -> dict:
     elif decision == PathVerificationResult.SKIP:
         # Jumped ahead in path, update step index
         new_step_index = result["new_step_index"]
-        log(f":::VERIFIER::: Path SKIP - jumping to step {new_step_index}", "yellow")
+        logger.warning(f"Path SKIP - jumping to step {new_step_index}")
 
         # Mark skipped steps
         updated_path = planned_path.copy()
@@ -183,14 +183,14 @@ def verify_planned_path(state: TaskState) -> dict:
     else:  # REPLAN
         # Unexpected page, need to replan
         if replan_count >= max_replan:
-            log(f":::VERIFIER::: Max replan ({max_replan}) reached", "red")
+            logger.error(f"Max replan ({max_replan}) reached")
             return {
                 "replan_needed": False,
                 "verification_passed": False,
                 "status": "max_replan_reached",
             }
 
-        log(f":::VERIFIER::: Path REPLAN - triggering replanning ({replan_count + 1}/{max_replan})", "yellow")
+        logger.warning(f"Path REPLAN - triggering replanning ({replan_count + 1}/{max_replan})")
         return {
             "replan_needed": True,
             "verification_passed": False,

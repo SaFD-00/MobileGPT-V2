@@ -1,7 +1,7 @@
 """MemoryAgent node for page lookup and subtask loading."""
 
 from graphs.state import TaskState
-from utils.utils import log
+from loguru import logger
 
 
 def memory_node(state: TaskState) -> dict:
@@ -18,7 +18,7 @@ def memory_node(state: TaskState) -> dict:
     hierarchy_xml = state.get("hierarchy_xml", "")
     encoded_xml = state.get("encoded_xml", "")
 
-    log(":::MEMORY_AGENT::: Searching for page...", "blue")
+    logger.info("Searching for page...")
 
     # Search for matching page
     page_index, similarity = memory.search_node(
@@ -26,7 +26,7 @@ def memory_node(state: TaskState) -> dict:
     )
 
     if page_index < 0:
-        log(f":::MEMORY_AGENT::: No matching page found (similarity: {similarity})", "yellow")
+        logger.warning(f"No matching page found (similarity: {similarity})")
         return {
             "page_index": -1,
             "available_subtasks": [],
@@ -36,16 +36,16 @@ def memory_node(state: TaskState) -> dict:
             "next_agent": "FINISH",
         }
 
-    log(f":::MEMORY_AGENT::: Found page {page_index} (similarity: {similarity:.3f})", "green")
+    logger.info(f"Found page {page_index} (similarity: {similarity:.3f})")
 
     # Initialize page manager and get available subtasks
     memory.init_page_manager(page_index)
     available_subtasks = memory.get_available_subtasks(page_index)
 
-    log(f":::MEMORY_AGENT::: Loaded {len(available_subtasks)} available subtasks", "blue")
+    logger.info(f"Loaded {len(available_subtasks)} available subtasks")
 
     if not available_subtasks:
-        log(":::MEMORY_AGENT::: No available subtasks on this page", "yellow")
+        logger.warning("No available subtasks on this page")
         return {
             "page_index": page_index,
             "available_subtasks": [],

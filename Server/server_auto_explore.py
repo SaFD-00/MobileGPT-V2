@@ -21,7 +21,7 @@ from handlers.message_handlers import (
 from memory.memory_manager import Memory
 from screenParser.Encoder import xmlEncoder
 from utils.network import get_local_ip, recv_xml_with_package, send_json_response
-from utils.utils import log
+from loguru import logger
 
 
 class AutoExplorer:
@@ -91,7 +91,7 @@ class AutoExplorer:
     def _log_server_start(self, real_ip: str) -> None:
         """Log server startup information."""
         vision_status = "Vision+Text" if self.vision_enabled else "Text-only"
-        log(f"AutoExplorer is listening on {real_ip}:{self.port} (algorithm: {self.algorithm}, vision: {vision_status})", "red")
+        logger.error(f"AutoExplorer is listening on {real_ip}:{self.port} (algorithm: {self.algorithm}, vision: {vision_status})")
 
     def _accept_clients(self, server: socket.socket) -> None:
         """Accept and handle client connections in separate threads."""
@@ -114,7 +114,7 @@ class AutoExplorer:
         client_address: Tuple[str, int]
     ) -> None:
         """Handle client disconnection."""
-        log(f"Connection closed by {client_address}", 'red')
+        logger.error(f"Connection closed by {client_address}")
         client_socket.close()
 
     def handle_client(
@@ -128,7 +128,7 @@ class AutoExplorer:
             client_socket: Connected client socket
             client_address: Client address tuple (IP, port)
         """
-        print(f"Connected to Client: {client_address}")
+        logger.info(f"Connected to Client: {client_address}")
 
         log_directory = self.memory_directory
         app_agent = AppAgent()
@@ -143,16 +143,16 @@ class AutoExplorer:
         app_name: Optional[str] = None
 
         while True:
-            log(f"Waiting for message... (screen_count: {screen_count})", "magenta")
+            logger.debug(f"Waiting for message... (screen_count: {screen_count})")
             raw_message_type = client_socket.recv(1)
-            log(f"Received 1 byte: {raw_message_type}", "magenta")
+            logger.debug(f"Received 1 byte: {raw_message_type}")
 
             if not raw_message_type:
                 self._handle_disconnection(client_socket, client_address)
                 return
 
             message_type = raw_message_type.decode('utf-8')
-            log(f"Message type: '{message_type}' (screen_count: {screen_count})", "cyan")
+            logger.debug(f"Message type: '{message_type}' (screen_count: {screen_count})")
 
             if message_type == MessageType.APP_LIST:
                 handle_app_list(client_socket, app_agent)
@@ -164,7 +164,7 @@ class AutoExplorer:
 
             elif message_type == MessageType.XML:
                 if not memory or not explore_agent:
-                    log("Error: memory or explore_agent not initialized", "red")
+                    logger.error("Error: memory or explore_agent not initialized")
                     continue
 
                 result = self._handle_xml_exploration(
@@ -176,7 +176,7 @@ class AutoExplorer:
                 screen_count = result
 
             elif message_type == MessageType.SCREENSHOT:
-                log(f"Receiving screenshot for screen #{screen_count}", "blue")
+                logger.info(f"Receiving screenshot for screen #{screen_count}")
                 screenshot_path = handle_screenshot(
                     client_socket, self.buffer_size,
                     log_directory, screen_count
@@ -194,7 +194,7 @@ class AutoExplorer:
                 self._handle_finish(client_socket, screens)
 
             else:
-                log(f"Unknown message type: {message_type}", "red")
+                logger.error(f"Unknown message type: {message_type}")
 
     def _handle_app_init(
         self,
@@ -237,7 +237,7 @@ class AutoExplorer:
             "last_action_was_back": False,
         }
 
-        log(f"Initialized exploration for app '{app_name}' with {self.algorithm} algorithm", "green")
+        logger.info(f"Initialized exploration for app '{app_name}' with {self.algorithm} algorithm")
 
         return log_directory, memory, explore_agent, app_name, session_id
 
@@ -259,22 +259,22 @@ class AutoExplorer:
             Updated screen_count or None to stop
         """
         try:
-            log(f"Receiving XML for screen #{screen_count}", "blue")
+            logger.info(f"Receiving XML for screen #{screen_count}")
             xml_path = f"{log_directory}/xmls/{screen_count}.xml"
             raw_xml, top_package, target_package = recv_xml_with_package(
                 client_socket, self.buffer_size, xml_path
             )
-            log(f"XML received - top: {top_package}, target: {target_package}", "blue")
+            logger.info(f"XML received - top: {top_package}, target: {target_package}")
 
             # Handle empty top_package (no application window found - transition state)
             if not top_package or not raw_xml.strip():
-                log(":::TRANSITION::: No application window found, requesting retry", "yellow")
+                logger.warning("No application window found, requesting retry")
                 send_json_response(client_socket, {"name": "retry", "parameters": {}})
                 return screen_count
 
             # Handle package mismatch (overlay or external app)
             if top_package and target_package and top_package != target_package:
-                log(f":::OTHER_APP::: Detected '{top_package}' instead of '{target_package}'", "yellow")
+                logger.warning(f"Detected '{top_package}' instead of '{target_package}'")
 
                 # Record external app subtask
                 state = self._sessions.get(session_id, {})
@@ -291,12 +291,12 @@ class AutoExplorer:
                 send_json_response(client_socket, {"name": "back", "parameters": {}})
                 return screen_count
 
-            log("XML received, parsing...", "blue")
+            logger.info("XML received, parsing...")
 
             parsed_xml, hierarchy_xml, encoded_xml = screen_parser.encode(
                 raw_xml, screen_count
             )
-            log("XML parsed successfully", "blue")
+            logger.info("XML parsed successfully")
 
             screens.append({
                 "parsed": parsed_xml,
@@ -311,14 +311,14 @@ class AutoExplorer:
             # Load previous session state
             prev_state = self._sessions.get(session_id, {}) if session_id else {}
 
-            log("Starting LangGraph exploration...", "cyan")
-            log(f":::DEBUG::: prev_state explored_subtasks = {prev_state.get('explored_subtasks', {})}", "yellow")
-            log(f":::DEBUG::: prev_state visited_pages = {prev_state.get('visited_pages', set())}", "yellow")
+            logger.debug("Starting LangGraph exploration...")
+            logger.warning(f"prev_state explored_subtasks = {prev_state.get('explored_subtasks', {})}")
+            logger.warning(f"prev_state visited_pages = {prev_state.get('visited_pages', set())}")
 
             # Get screenshot path for Vision API (only when vision is enabled)
             screenshot_path = prev_state.get("last_screenshot_path") if self.vision_enabled else None
             if screenshot_path:
-                log(f":::VISION::: Using screenshot: {screenshot_path}", "magenta")
+                logger.debug(f"Using screenshot: {screenshot_path}")
 
             result = self._explore_graph.invoke({
                 "session_id": session_id,
@@ -354,8 +354,8 @@ class AutoExplorer:
             }, config=config)
 
             # Save exploration state back to session for next invocation
-            log(f":::DEBUG::: result explored_subtasks = {result.get('explored_subtasks', 'NOT_IN_RESULT')}", "yellow")
-            log(f":::DEBUG::: result visited_pages = {result.get('visited_pages', 'NOT_IN_RESULT')}", "yellow")
+            logger.warning(f"result explored_subtasks = {result.get('explored_subtasks', 'NOT_IN_RESULT')}")
+            logger.warning(f"result visited_pages = {result.get('visited_pages', 'NOT_IN_RESULT')}")
             if session_id:
                 self._sessions[session_id] = {
                     "page_index": result.get("page_index", -1),
@@ -384,26 +384,26 @@ class AutoExplorer:
             action = result.get("action")
             status = result.get("status", "unknown")
 
-            log(f"Exploration result: status={status}", "green")
+            logger.info(f"Exploration result: status={status}")
 
             if action is not None:
-                log(f"Auto exploration action: {action}", "cyan")
+                logger.debug(f"Auto exploration action: {action}")
                 send_json_response(client_socket, action)
-                log("Action sent to client, waiting for next message...", "cyan")
+                logger.debug("Action sent to client, waiting for next message...")
                 return screen_count
 
             # Exploration complete
             if status == "exploration_complete":
-                log("Exploration complete, no more actions", "green")
+                logger.info("Exploration complete, no more actions")
                 return None
 
             # No action but not complete - shouldn't happen often
-            log("No action from exploration", "yellow")
+            logger.warning("No action from exploration")
             return screen_count
 
         except Exception as e:
-            log(f"Error processing XML: {str(e)}", "red")
-            log(traceback.format_exc(), "red")
+            logger.error(f"Error processing XML: {str(e)}")
+            logger.error(traceback.format_exc())
             # Send back action to prevent getting stuck
             send_json_response(client_socket, {"name": "back", "parameters": {}})
             return screen_count
@@ -414,7 +414,7 @@ class AutoExplorer:
         screens: List[dict]
     ) -> None:
         """Handle exploration finish message."""
-        log(f"Auto exploration finished. Total screens explored: {len(screens)}", "green")
+        logger.info(f"Auto exploration finished. Total screens explored: {len(screens)}")
         finish_message = {
             "status": "exploration_complete",
             "screens_explored": len(screens)
@@ -441,14 +441,14 @@ class AutoExplorer:
             trigger_ui_index: UI element index that triggered the transition
             external_package: Package name of the external app
         """
-        log(f"Recording external app subtask: {subtask_name} -> {external_package}", "yellow")
+        logger.warning(f"Recording external app subtask: {subtask_name} -> {external_package}")
 
         if page_index not in memory.page_managers:
             memory.init_page_manager(page_index)
 
         page_manager = memory.page_managers.get(page_index)
         if not page_manager:
-            log(f"Failed to get page manager for page {page_index}", "red")
+            logger.error(f"Failed to get page manager for page {page_index}")
             return
 
         # Record to subtasks.csv with end_page=-1
@@ -479,7 +479,7 @@ class AutoExplorer:
             start_page=-1, end_page=-1
         )
 
-        log(f"External app subtask recorded: {subtask_name}", "green")
+        logger.info(f"External app subtask recorded: {subtask_name}")
 
     def _handle_external_app_cleanup(
         self,
@@ -506,13 +506,13 @@ class AutoExplorer:
         detected_pkg = external_info.get("detected_package", "unknown")
         target_pkg = external_info.get("target_package", "unknown")
 
-        log(f":::EXTERNAL_APP::: Detected '{detected_pkg}' while exploring '{target_pkg}'", "yellow")
+        logger.warning(f"Detected '{detected_pkg}' while exploring '{target_pkg}'")
 
         if page_idx is None or subtask is None:
-            log(":::EXTERNAL_APP::: No last explored subtask to cleanup", "yellow")
+            logger.warning("No last explored subtask to cleanup")
             return
 
-        log(f":::EXTERNAL_APP::: Cleaning up subtask '{subtask}' (page={page_idx}, ui_idx={ui_idx})", "yellow")
+        logger.warning(f"Cleaning up subtask '{subtask}' (page={page_idx}, ui_idx={ui_idx})")
 
         # Delete subtask from CSV files and Subtask Graph
         memory.delete_subtask(
@@ -527,4 +527,4 @@ class AutoExplorer:
         self._sessions[session_id]["last_explored_subtask_name"] = None
         self._sessions[session_id]["last_explored_ui_index"] = None
 
-        log(f":::EXTERNAL_APP::: Cleanup complete for subtask '{subtask}'", "green")
+        logger.info(f"Cleanup complete for subtask '{subtask}'")

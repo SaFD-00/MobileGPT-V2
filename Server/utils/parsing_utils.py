@@ -4,7 +4,7 @@ import json
 import os
 import xml.etree.ElementTree as ET
 
-from utils.utils import log
+from loguru import logger
 
 
 def find_parent_node(root, child_index: int) -> (int, ET):
@@ -19,7 +19,7 @@ def find_parent_node(root, child_index: int) -> (int, ET):
     - The parent element of the found child, or None if not found.
     """
     if isinstance(child_index, str):
-        log("index is String!!!!!", "red")
+        logger.error("index is String")
         child_index = int(child_index)
     for parent in root.iter():
         for rank, child in enumerate(parent):
@@ -134,7 +134,7 @@ def get_trigger_ui_attributes(trigger_ui_indexes: dict, screen: str) -> dict:
 
             # Skip if UI element not found in XML
             if ui_attributes is None:
-                log(f"Skipping UI index {ui_index} for subtask '{subtask_name}' - not found in XML", "yellow")
+                logger.warning(f"Skipping UI index {ui_index} for subtask '{subtask_name}' - not found in XML")
                 continue
 
             # Add index info to attributes (needed later when generating actions)
@@ -183,7 +183,7 @@ def get_ui_key_attrib(ui_index: int, screen: str, include_desc=True) -> dict:
 
     # If node not found, return None
     if node is None:
-        log(f"Warning: UI element with index {ui_index} not found in XML", "yellow")
+        logger.warning(f"UI element with index {ui_index} not found in XML")
         return None
 
     its_attributes = {'tag': node.tag, 'id': node.attrib.get('id', 'NONE'),

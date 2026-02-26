@@ -8,7 +8,7 @@ Provides lightweight verification at each step of the workflow:
 
 from typing import Any, List, Optional
 
-from utils.utils import log
+from loguru import logger
 
 
 class StepVerifyResult:
@@ -57,14 +57,14 @@ def verify_load(all_subtasks: List[dict], memory: Any) -> dict:
     }
 
     if total_pages <= 1:
-        log(f":::STEP_VERIFY::: Load WARN - only {total_pages} page(s) with {total_subtasks} subtasks", "yellow")
+        logger.warning(f"Load WARN - only {total_pages} page(s) with {total_subtasks} subtasks")
         return {
             "status": StepVerifyResult.WARN,
             "reason": f"Only {total_pages} page(s) loaded, Subtask Graph may be incomplete",
             "details": details
         }
 
-    log(f":::STEP_VERIFY::: Load PASS - {total_subtasks} subtasks from {total_pages} pages", "green")
+    logger.info(f"Load PASS - {total_subtasks} subtasks from {total_pages} pages")
     return {
         "status": StepVerifyResult.PASS,
         "reason": f"Loaded {total_subtasks} subtasks from {total_pages} pages",
@@ -101,7 +101,7 @@ def verify_filter(
     }
 
     if filtered_count == 0:
-        log(":::STEP_VERIFY::: Filter FAIL - no subtasks passed filter", "red")
+        logger.error("Filter FAIL - no subtasks passed filter")
         return {
             "status": StepVerifyResult.FAIL,
             "reason": "No subtasks passed filter, will fallback to all subtasks",
@@ -110,14 +110,14 @@ def verify_filter(
 
     removal_ratio = details["removal_ratio"]
     if total > 5 and removal_ratio > 0.9:
-        log(f":::STEP_VERIFY::: Filter WARN - {removal_ratio*100:.0f}% removal rate", "yellow")
+        logger.warning(f"Filter WARN - {removal_ratio*100:.0f}% removal rate")
         return {
             "status": StepVerifyResult.WARN,
             "reason": f"High removal rate ({removal_ratio*100:.0f}%), filter may be too aggressive",
             "details": details
         }
 
-    log(f":::STEP_VERIFY::: Filter PASS - {filtered_count}/{total} subtasks kept", "green")
+    logger.info(f"Filter PASS - {filtered_count}/{total} subtasks kept")
     return {
         "status": StepVerifyResult.PASS,
         "reason": f"Filtered {filtered_count} from {total} subtasks",
@@ -147,7 +147,7 @@ def verify_plan(
         dict with 'status', 'reason', 'details'
     """
     if not planned_path:
-        log(":::STEP_VERIFY::: Plan FAIL - empty planned path", "red")
+        logger.error("Plan FAIL - empty planned path")
         return {
             "status": StepVerifyResult.FAIL,
             "reason": "No planned path generated",
@@ -159,7 +159,7 @@ def verify_plan(
     # Check starting page
     first_step_page = planned_path[0].get("page", -1)
     if first_step_page != current_page:
-        log(f":::STEP_VERIFY::: Plan WARN - start page mismatch (expected {current_page}, got {first_step_page})", "yellow")
+        logger.warning(f"Plan WARN - start page mismatch (expected {current_page}, got {first_step_page})")
         return {
             "status": StepVerifyResult.WARN,
             "reason": f"Starting page mismatch: expected {current_page}, path starts at {first_step_page}",
@@ -171,7 +171,7 @@ def verify_plan(
     for step in planned_path:
         page = step.get("page", -1)
         if page in visited_pages:
-            log(f":::STEP_VERIFY::: Plan WARN - circular loop detected at page {page}", "yellow")
+            logger.warning(f"Plan WARN - circular loop detected at page {page}")
             return {
                 "status": StepVerifyResult.WARN,
                 "reason": f"Circular loop detected: page {page} visited twice",
@@ -195,14 +195,14 @@ def verify_plan(
             disconnected_steps.append(i)
 
     if disconnected_steps:
-        log(f":::STEP_VERIFY::: Plan WARN - {len(disconnected_steps)} disconnected step(s)", "yellow")
+        logger.warning(f"Plan WARN - {len(disconnected_steps)} disconnected step(s)")
         return {
             "status": StepVerifyResult.WARN,
             "reason": f"{len(disconnected_steps)} step(s) not connected in Subtask Graph",
             "details": {"path_length": path_length, "disconnected_steps": disconnected_steps}
         }
 
-    log(f":::STEP_VERIFY::: Plan PASS - {path_length} steps, all connected", "green")
+    logger.info(f"Plan PASS - {path_length} steps, all connected")
     return {
         "status": StepVerifyResult.PASS,
         "reason": f"Plan verified: {path_length} connected steps",

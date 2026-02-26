@@ -4,7 +4,7 @@ from typing import Optional
 
 from agents.select_agent import SelectAgent
 from graphs.state import TaskState
-from utils.utils import log
+from loguru import logger
 
 
 def selector_node(state: TaskState) -> dict:
@@ -27,7 +27,7 @@ def selector_node(state: TaskState) -> dict:
     planned_path = state.get("planned_path")
     path_step_index = state.get("path_step_index", 0)
 
-    log(f":::SELECTOR::: Available: {len(available_subtasks)}, Rejected: {len(rejected_subtasks)}", "blue")
+    logger.info(f"Available: {len(available_subtasks)}, Rejected: {len(rejected_subtasks)}")
 
     # Check if we have a planned path and should follow it
     if planned_path and path_step_index < len(planned_path):
@@ -52,10 +52,10 @@ def selector_node(state: TaskState) -> dict:
         priority_subtasks = [s for s in filtered_subtasks if s.get("name") in filtered_names]
         if priority_subtasks:
             filtered_subtasks = priority_subtasks
-            log(f":::SELECTOR::: Using {len(priority_subtasks)} planner-filtered subtasks", "cyan")
+            logger.debug(f"Using {len(priority_subtasks)} planner-filtered subtasks")
 
     if not filtered_subtasks:
-        log(":::SELECTOR::: All subtasks rejected, no options left", "red")
+        logger.error("All subtasks rejected, no options left")
         return {
             "selected_subtask": None,
             "verification_passed": None,
@@ -63,7 +63,7 @@ def selector_node(state: TaskState) -> dict:
             "next_agent": "FINISH",
         }
 
-    log(f":::SELECTOR::: Selecting from {len(filtered_subtasks)} subtasks", "blue")
+    logger.info(f"Selecting from {len(filtered_subtasks)} subtasks")
 
     # Use SelectAgent to choose the best subtask
     select_agent = SelectAgent(memory, instruction)
@@ -79,13 +79,13 @@ def selector_node(state: TaskState) -> dict:
     selected_subtask = response.get("action")
 
     if selected_subtask:
-        log(f":::SELECTOR::: Selected subtask: {selected_subtask.get('name')}", "green")
+        logger.info(f"Selected subtask: {selected_subtask.get('name')}")
     else:
-        log(":::SELECTOR::: No subtask selected", "yellow")
+        logger.warning("No subtask selected")
 
     # Add new action if created
     if new_action:
-        log(f":::SELECTOR::: New action created: {new_action.get('name')}", "cyan")
+        logger.debug(f"New action created: {new_action.get('name')}")
 
     return {
         "selected_subtask": selected_subtask,
@@ -118,18 +118,18 @@ def _select_from_planned_path(
     current_step = planned_path[path_step_index]
     planned_subtask_name = current_step.get("subtask", "")
 
-    log(f":::SELECTOR::: Following planned path step {path_step_index}: '{planned_subtask_name}'", "cyan")
+    logger.debug(f"Following planned path step {path_step_index}: '{planned_subtask_name}'")
 
     # Check if planned subtask is rejected
     rejected_names = {s.get("name") for s in rejected_subtasks}
     if planned_subtask_name in rejected_names:
-        log(f":::SELECTOR::: Planned subtask '{planned_subtask_name}' was rejected, falling back", "yellow")
+        logger.warning(f"Planned subtask '{planned_subtask_name}' was rejected, falling back")
         return None
 
     # Find the planned subtask in available subtasks
     for subtask in available_subtasks:
         if subtask.get("name") == planned_subtask_name:
-            log(f":::SELECTOR::: Selected planned subtask: {planned_subtask_name}", "green")
+            logger.info(f"Selected planned subtask: {planned_subtask_name}")
 
             # Update path step status
             updated_path = planned_path.copy()
@@ -144,5 +144,5 @@ def _select_from_planned_path(
                 "next_agent": "verifier",
             }
 
-    log(f":::SELECTOR::: Planned subtask '{planned_subtask_name}' not found on this page, falling back", "yellow")
+    logger.warning(f"Planned subtask '{planned_subtask_name}' not found on this page, falling back")
     return None

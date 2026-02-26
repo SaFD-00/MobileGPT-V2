@@ -74,6 +74,7 @@ MobileGPT-V2는 다음 핵심 원칙을 따릅니다:
 | **SelectAgent** | Class | available_subtasks, qa_history | (response, new_action) tuple | `select()` |
 | **DeriveAgent** | Class | 서브태스크, XML | 액션 JSON | `derive()` |
 | **TaskAgent** | Class | 사용자 지시어 | 태스크 구조체 | `get_task()` |
+| **AppAgent** | Class | 지시어, 앱 목록 | 패키지 이름, 앱 이름 | `predict_app()`, `update_app_list()` |
 | **Memory** | Class | XML | page_index, 서브태스크 | `search_node()` |
 
 #### 모듈 함수 에이전트 (Module Function Agents)
@@ -85,7 +86,6 @@ MobileGPT-V2는 다음 핵심 원칙을 따릅니다:
 | **filter_agent** | Module | 지시어, 전체 서브태스크 | 필터링된 서브태스크 | `filter_subtasks()` |
 | **step_verify_agent** | Module | subtasks, path, graph | pass/warn/fail 결정 | `verify_load()`, `verify_filter()`, `verify_plan()` |
 | **verify_agent** | Module | expected_page, current_page, page_summary | 결정 | `verify_path()`, `verify_with_path()` |
-| **app_agent** | Module | 패키지 이름, 앱 목록 | 앱 정보 | `get_package_info()` |
 
 ### 2.2 에이전트 간 통신 (Inter-Agent Communication)
 
@@ -418,8 +418,8 @@ Auto-Explore는 잠재적으로 위험한 액션을 자동으로 필터링합니
 ```python
 # ExploreState에 포함
 action_history: List[dict]           # 액션 히스토리 리스트
-before_xml: str                       # 액션 실행 전 XML
-before_screenshot_path: str           # 액션 실행 전 스크린샷 경로
+before_xml: Optional[str]             # 액션 실행 전 XML
+before_screenshot_path: Optional[str] # 액션 실행 전 스크린샷 경로
 ```
 
 **처리 흐름**:
@@ -1129,6 +1129,7 @@ class ExploreState(TypedDict, total=False):
 
     # 경로 추적 (Path tracking)
     traversal_path: List  # 백트래킹 경로
+    navigation_plan: List  # 멀티스텝 네비게이션 계획 [(page, action_type, subtask_name), ...]
 
     # 메모리/에이전트 (Memory and agents)
     memory: Any  # Memory 인스턴스
@@ -1144,6 +1145,7 @@ class ExploreState(TypedDict, total=False):
     # 라우팅 및 출력 (Routing and output)
     next_agent: str
     last_action_was_back: bool
+    last_back_from_page: Optional[int]  # back 누른 페이지 (back_edges 추적용)
     action: Optional[dict]
     status: str
     is_new_screen: bool

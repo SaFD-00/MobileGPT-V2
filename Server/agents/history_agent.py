@@ -11,7 +11,8 @@ import os
 from typing import Optional
 
 from agents.prompts import history_agent_prompt
-from utils.utils import query, query_with_vision, log
+from loguru import logger
+from utils.utils import query, query_with_vision
 
 
 def generate_description(
@@ -36,7 +37,7 @@ def generate_description(
         Human-readable description of purpose and result (max 50 words)
         Example: "To open the search feature, clicked the search icon; keyboard appeared and search interface activated"
     """
-    log(":::HISTORY AGENT::: Generating action description", "blue")
+    logger.info("Generating action description")
 
     prompts = history_agent_prompt.get_prompts(
         before_xml=before_xml,
@@ -54,7 +55,7 @@ def generate_description(
     model = os.getenv("HISTORY_AGENT_GPT_VERSION", "gpt-5.2")
 
     if screenshot_paths:
-        log(f":::HISTORY AGENT::: Using Vision API with {len(screenshot_paths)} screenshot(s)", "cyan")
+        logger.debug(f"Using Vision API with {len(screenshot_paths)} screenshot(s)")
         response = query_with_vision(
             prompts,
             model=model,
@@ -62,7 +63,7 @@ def generate_description(
             parse_json=False
         )
     else:
-        log(":::HISTORY AGENT::: Using text-only mode (no screenshots)", "yellow")
+        logger.warning("Using text-only mode (no screenshots)")
         response = query(prompts, model=model, parse_json=False)
 
     return response
@@ -81,7 +82,7 @@ def generate_guidance(action: dict, screen_xml: str) -> str:
         HOW-to guideline string describing the UI element and interaction method
         Example: "Click the magnifying glass icon in the top-right toolbar"
     """
-    log(":::HISTORY AGENT::: Generating action guidance", "blue")
+    logger.info("Generating action guidance")
 
     prompts = history_agent_prompt.get_guidance_prompts(
         action=action,

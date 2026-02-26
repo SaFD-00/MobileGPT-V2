@@ -5,20 +5,10 @@ import numpy as np
 import json
 import pandas as pd
 
-from termcolor import colored
+from loguru import logger
 from openai import OpenAI
 from typing import List, Optional
 from ast import literal_eval
-
-
-def log(msg, color='white'):
-    if not color:
-        print(msg)
-        return
-
-    colored_log = colored(msg, color, attrs=['bold'])
-    print(colored_log)
-    print()
 
 
 def safe_literal_eval(x):
@@ -84,8 +74,8 @@ def query(messages, model="gpt-5.2", is_list=False, parse_json=True):
     client = OpenAI()
 
     for message in messages:
-        log("--------------------------")
-        log(_format_content_for_log(message["content"]), 'yellow')
+        logger.debug("-" * 26)
+        logger.debug(_format_content_for_log(message["content"]))
 
     # Models with fixed temperature (o1, o3, gpt-5.2) don't support temperature parameter
     if _is_fixed_temperature_model(model):
@@ -102,7 +92,7 @@ def query(messages, model="gpt-5.2", is_list=False, parse_json=True):
             max_completion_tokens=4096,
         )
     result = response.choices[0].message.content
-    log(result, 'green')
+    logger.debug(result)
 
     # Return raw text when JSON parsing is not needed
     if not parse_json:
@@ -113,9 +103,9 @@ def query(messages, model="gpt-5.2", is_list=False, parse_json=True):
         return json.loads(json_formatted_response)
     else:
         # Return type-appropriate default value when JSON parsing fails
-        log(f":::QUERY WARNING::: Failed to parse JSON from response. Returning empty {'list' if is_list else 'dict'}.", "yellow")
+        logger.warning(f"Failed to parse JSON from response. Returning empty {'list' if is_list else 'dict'}.")
         if result:
-            log(f":::QUERY WARNING::: Response preview: {result[:200]}...", "yellow")
+            logger.warning(f"Response preview: {result[:200]}...")
         return [] if is_list else {}
 
 
@@ -244,7 +234,7 @@ def query_with_vision(messages, model: str = "gpt-5.2",
 
     # Convert to Vision API format if screenshots are available
     if paths_to_use:
-        log(f":::VISION::: Adding {len(paths_to_use)} screenshot(s)", "magenta")
+        logger.debug(f"Adding {len(paths_to_use)} screenshot(s)")
         messages = _add_images_to_messages(messages, paths_to_use, image_detail)
 
     # Use existing query logic

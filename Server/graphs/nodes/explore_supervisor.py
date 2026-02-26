@@ -1,7 +1,7 @@
 """Supervisor node for routing decisions in the explore graph."""
 
 from graphs.state import ExploreState
-from utils.utils import log
+from loguru import logger
 
 
 def explore_supervisor_node(state: ExploreState) -> dict:
@@ -25,38 +25,38 @@ def explore_supervisor_node(state: ExploreState) -> dict:
     action = state.get("action")
     status = state.get("status", "")
 
-    log(f":::EXPLORE_SUPERVISOR::: page={page_index}, is_new={is_new_screen}, status={status}", "magenta")
+    logger.debug(f"page={page_index}, is_new={is_new_screen}, status={status}")
 
     # Check for terminal states
     if status == "exploration_complete":
-        log(":::EXPLORE_SUPERVISOR::: Exploration complete -> FINISH", "green")
+        logger.info("Exploration complete -> FINISH")
         return {
             "next_agent": "FINISH",
         }
 
     # Action ready - end exploration iteration
     if action is not None:
-        log(f":::EXPLORE_SUPERVISOR::: Action ready -> END", "green")
+        logger.info(f"Action ready -> END")
         return {
             "next_agent": "END",
         }
 
     # Need to discover screen
     if page_index < 0:
-        log(":::EXPLORE_SUPERVISOR::: Page unknown -> discover", "blue")
+        logger.info("Page unknown -> discover")
         return {
             "next_agent": "discover",
         }
 
     # New screen needs learning
     if is_new_screen:
-        log(":::EXPLORE_SUPERVISOR::: New screen -> discover", "blue")
+        logger.info("New screen -> discover")
         return {
             "next_agent": "discover",
         }
 
     # Ready to determine action
-    log(":::EXPLORE_SUPERVISOR::: Ready for action -> explore_action", "blue")
+    logger.info("Ready for action -> explore_action")
     return {
         "next_agent": "explore_action",
     }

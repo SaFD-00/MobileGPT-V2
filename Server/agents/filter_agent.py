@@ -10,7 +10,8 @@ import os
 from typing import Any, List
 
 from agents.prompts import filter_agent_prompt
-from utils.utils import query, log
+from loguru import logger
+from utils.utils import query
 
 
 def filter_subtasks(
@@ -37,10 +38,10 @@ def filter_subtasks(
     Returns:
         List of filtered subtasks relevant to the instruction
     """
-    log(f":::FILTER AGENT::: Filtering {len(all_subtasks)} subtasks for instruction", "blue")
+    logger.info(f"Filtering {len(all_subtasks)} subtasks for instruction")
 
     if not all_subtasks:
-        log(":::FILTER AGENT::: No subtasks to filter", "yellow")
+        logger.warning("No subtasks to filter")
         return []
 
     prompts = filter_agent_prompt.get_prompts(
@@ -54,7 +55,7 @@ def filter_subtasks(
 
     # Parse response
     filtered = _parse_filter_response(response, all_subtasks)
-    log(f":::FILTER AGENT::: Filtered to {len(filtered)} relevant subtasks", "green")
+    logger.info(f"Filtered to {len(filtered)} relevant subtasks")
 
     return filtered[:max_results]
 

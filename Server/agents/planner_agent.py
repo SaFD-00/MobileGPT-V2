@@ -8,7 +8,8 @@ import os
 from typing import Dict, List, Optional
 
 from agents.prompts import planner_agent_prompt
-from utils.utils import log, query
+from loguru import logger
+from utils.utils import query
 
 
 class PlannerAgent:
@@ -36,32 +37,32 @@ class PlannerAgent:
         Returns:
             List of planned path steps, or None if no path found
         """
-        log(f":::PLANNER::: Planning path from page {current_page}", "cyan")
+        logger.debug(f"Planning path from page {current_page}")
 
         # Check if Subtask Graph has enough data
         if not subtask_graph.get("edges"):
-            log(":::PLANNER::: Subtask Graph empty, falling back to Select", "yellow")
+            logger.warning("Subtask Graph empty, falling back to Select")
             return None
 
         # Step 1: Analyze goal to identify target subtasks/pages
         goal_analysis = self._analyze_goal(all_subtasks, filtered_names)
         if not goal_analysis:
-            log(":::PLANNER::: Could not analyze goal", "yellow")
+            logger.warning("Could not analyze goal")
             return None
 
         target_subtasks = goal_analysis.get("target_subtasks", [])
         final_subtask = goal_analysis.get("final_subtask")
 
-        log(f":::PLANNER::: Goal analysis: targets={target_subtasks}, final={final_subtask}", "cyan")
+        logger.debug(f"Goal analysis: targets={target_subtasks}, final={final_subtask}")
 
         if not target_subtasks and not final_subtask:
-            log(":::PLANNER::: No target subtasks identified", "yellow")
+            logger.warning("No target subtasks identified")
             return None
 
         # Step 2: Find pages containing target subtasks
         target_pages = self._find_target_pages(target_subtasks, all_subtasks)
         if not target_pages:
-            log(":::PLANNER::: Target subtasks not found in any page", "yellow")
+            logger.warning("Target subtasks not found in any page")
             return None
 
         # Step 3: Find path to nearest target page using BFS
@@ -75,13 +76,13 @@ class PlannerAgent:
                     best_target = target_page
 
         if best_path is None:
-            log(f":::PLANNER::: No Subtask Graph path from {current_page} to targets {target_pages}", "yellow")
+            logger.warning(f"No Subtask Graph path from {current_page} to targets {target_pages}")
             return None
 
         # Step 4: Convert edges to planned_path steps (with transit detection)
         planned_path = self._build_planned_path(best_path, final_subtask, goal_analysis, filtered_names)
 
-        log(f":::PLANNER::: Planned {len(planned_path)} steps to page {best_target}", "green")
+        logger.info(f"Planned {len(planned_path)} steps to page {best_target}")
         return planned_path
 
     def _analyze_goal(self, all_subtasks: Dict[int, List[dict]],

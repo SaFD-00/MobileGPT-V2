@@ -1,7 +1,7 @@
 """Supervisor node for routing decisions in the task graph."""
 
 from graphs.state import TaskState
-from utils.utils import log
+from loguru import logger
 
 MAX_ITERATIONS = 5  # Maximum reselection attempts
 
@@ -36,13 +36,13 @@ def supervisor_node(state: TaskState) -> dict:
     replan_count = state.get("replan_count", 0)
     max_replan = state.get("max_replan", 5)
 
-    log(f":::SUPERVISOR::: iteration={iteration}, status={status}, verified={verification_passed}", "magenta")
+    logger.debug(f"iteration={iteration}, status={status}, verified={verification_passed}")
     if planned_path is not None:
-        log(f":::SUPERVISOR::: path_step={path_step_index}/{len(planned_path)}, replan={replan_needed}", "magenta")
+        logger.debug(f"path_step={path_step_index}/{len(planned_path)}, replan={replan_needed}")
 
     # Check max iterations (prevent infinite loops)
     if iteration >= MAX_ITERATIONS:
-        log(f":::SUPERVISOR::: Max iterations ({MAX_ITERATIONS}) reached, stopping", "red")
+        logger.error(f"Max iterations ({MAX_ITERATIONS}) reached, stopping")
         return {
             "status": "max_iterations_reached",
             "next_agent": "FINISH",
@@ -52,14 +52,14 @@ def supervisor_node(state: TaskState) -> dict:
     if status in ["no_matching_page", "no_subtasks", "no_available_subtask",
                   "action_derived", "no_subtask_to_verify", "no_subtask_for_derive",
                   "max_replan_reached"]:
-        log(f":::SUPERVISOR::: Terminal status '{status}', finishing", "yellow")
+        logger.warning(f"Terminal status '{status}', finishing")
         return {
             "next_agent": "FINISH",
         }
 
     # Subtask Graph: Handle path SKIP (verify_planned_path returned skip)
     if status == "path_verified_skip":
-        log(":::SUPERVISOR::: Path SKIP -> SelectAgent for new step", "cyan")
+        logger.debug("Path SKIP -> SelectAgent for new step")
         return {
             "selected_subtask": None,
             "verification_passed": None,
@@ -71,12 +71,12 @@ def supervisor_node(state: TaskState) -> dict:
     # =========================================================================
     if replan_needed:
         if replan_count < max_replan:
-            log(f":::SUPERVISOR::: Replan needed ({replan_count + 1}/{max_replan}) -> PlannerAgent", "yellow")
+            logger.warning(f"Replan needed ({replan_count + 1}/{max_replan}) -> PlannerAgent")
             return {
                 "next_agent": "planner",
             }
         else:
-            log(f":::SUPERVISOR::: Max replan ({max_replan}) reached, finishing", "red")
+            logger.error(f"Max replan ({max_replan}) reached, finishing")
             return {
                 "status": "max_replan_reached",
                 "next_agent": "FINISH",
@@ -89,7 +89,7 @@ def supervisor_node(state: TaskState) -> dict:
     # Verification completed
     if verification_passed is True:
         # "should go" -> proceed to DeriveAgent
-        log(":::SUPERVISOR::: Verification PASSED -> DeriveAgent", "green")
+        logger.info("Verification PASSED -> DeriveAgent")
 
         # Update path step if using planned_path
         updates = {"next_agent": "deriver"}
@@ -104,7 +104,7 @@ def supervisor_node(state: TaskState) -> dict:
 
     if verification_passed is False:
         # "shouldn't go" -> reselect with rejection
-        log(":::SUPERVISOR::: Verification FAILED -> Reselect", "yellow")
+        logger.warning("Verification FAILED -> Reselect")
 
         rejected_subtasks = state.get("rejected_subtasks", [])
         if selected_subtask:
@@ -120,7 +120,7 @@ def supervisor_node(state: TaskState) -> dict:
 
     # Subtask selected but not verified yet
     if selected_subtask and verification_passed is None:
-        log(":::SUPERVISOR::: Subtask selected, needs verification -> VerifyAgent", "blue")
+        logger.info("Subtask selected, needs verification -> VerifyAgent")
         return {
             "next_agent": "verifier",
         }
@@ -132,19 +132,19 @@ def supervisor_node(state: TaskState) -> dict:
     if available_subtasks and not selected_subtask:
         # If no planned_path exists yet, try to create one
         if planned_path is None:
-            log(":::SUPERVISOR::: No path yet, attempting planning -> PlannerAgent", "cyan")
+            logger.debug("No path yet, attempting planning -> PlannerAgent")
             return {
                 "next_agent": "planner",
             }
 
         # If planned_path exists (even if empty/failed), go to selector
-        log(":::SUPERVISOR::: Subtasks available, need selection -> SelectAgent", "blue")
+        logger.info("Subtasks available, need selection -> SelectAgent")
         return {
             "next_agent": "selector",
         }
 
     # Initial state - need to load page/state
-    log(":::SUPERVISOR::: Initial state -> MemoryAgent", "blue")
+    logger.info("Initial state -> MemoryAgent")
     return {
         "next_agent": "memory",
     }

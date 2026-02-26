@@ -4,13 +4,11 @@ import sys
 
 from dotenv import load_dotenv
 
-from server import Server
-from server_auto_explore import AutoExplorer
-
-# os.chdir('./MobileGPT_server')
 sys.path.append('.')
-
 load_dotenv()
+
+from utils.logging import setup_logging
+from loguru import logger
 
 # ============================================================================
 # GPT Model Configuration (GPT-5.2 Only)
@@ -72,23 +70,29 @@ def main():
 
     args = parser.parse_args()
 
+    # Setup logging
+    log_file = os.path.join('./memory', 'server.log')
+    os.makedirs('./memory', exist_ok=True)
+    setup_logging(log_file)
+
+    logger.info("MobileGPT-V2 starting...")
+    logger.info(f"  Mode: {args.mode}")
+    logger.info(f"  Port: {args.port}")
+    logger.info(f"  Vision: {args.vision}")
+    if args.mode == 'auto_explore':
+        logger.info(f"  Algorithm: {args.algorithm}")
+
+    from server import Server
+    from server_auto_explore import AutoExplorer
+
     server_ip = "0.0.0.0"
     server_port = args.port
 
-    # Server mode selection
-    # - task: Execute tasks using LangGraph multi-agent system
-    # - auto_explore: Automatic UI exploration using LangGraph algorithms
-
     if args.mode == 'task':
-        # LangGraph-based task execution with intelligent subtask selection
         server = Server(host=server_ip, port=server_port, vision_enabled=args.vision)
         server.open()
 
     elif args.mode == 'auto_explore':
-        # Exploration algorithm (all use LangGraph):
-        # - DFS: Depth-first search, explores one path fully then backtracks
-        # - BFS: Breadth-first search, explores all UI at same level first
-        # - GREEDY: App-wide shortest path to nearest unexplored (recommended)
         auto_explorer = AutoExplorer(
             host=server_ip,
             port=server_port,

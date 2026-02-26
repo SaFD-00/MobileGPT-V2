@@ -4,7 +4,7 @@ from typing import Any, List, Optional
 
 from agents import history_agent, summary_agent
 from graphs.state import ExploreState
-from utils.utils import log
+from loguru import logger
 
 
 def discover_node(state: ExploreState) -> dict:
@@ -32,15 +32,15 @@ def discover_node(state: ExploreState) -> dict:
     explored_subtasks = state.get("explored_subtasks", {})
     last_action_was_back = state.get("last_action_was_back", False)
 
-    log(f":::DISCOVER::: visited_pages = {visited_pages}", "yellow")
-    log(f":::DISCOVER::: explored_subtasks = {explored_subtasks}", "yellow")
+    logger.warning(f"visited_pages = {visited_pages}")
+    logger.warning(f"explored_subtasks = {explored_subtasks}")
 
     # Get last explored info for end_page update
     last_explored_page = state.get("last_explored_page_index")
     last_explored_subtask = state.get("last_explored_subtask_name")
     last_explored_ui = state.get("last_explored_ui_index")
 
-    log(":::DISCOVER::: Searching for page...", "blue")
+    logger.info("Searching for page...")
 
     # Search for matching page
     page_index, similarity = memory.search_node(
@@ -49,7 +49,7 @@ def discover_node(state: ExploreState) -> dict:
 
     if page_index < 0:
         # New screen - explore and register
-        log(f":::DISCOVER::: No matching page found (similarity: {similarity}), exploring new screen", "yellow")
+        logger.warning(f"No matching page found (similarity: {similarity}), exploring new screen")
 
         explore_result = explore_agent.explore(
             encoded_xml, hierarchy_xml, current_xml,
@@ -62,7 +62,7 @@ def discover_node(state: ExploreState) -> dict:
         )
 
         if page_index < 0:
-            log(":::DISCOVER::: Failed to register new screen", "red")
+            logger.error("Failed to register new screen")
             return {
                 "page_index": -1,
                 "is_new_screen": False,
@@ -70,7 +70,7 @@ def discover_node(state: ExploreState) -> dict:
                 "next_agent": "FINISH",
             }
 
-    log(f":::DISCOVER::: Found page {page_index} (similarity: {similarity:.3f})", "green")
+    logger.info(f"Found page {page_index} (similarity: {similarity:.3f})")
 
     # Update end_page for last explored subtask (if any)
     # This happens after action execution when we know the destination page
@@ -82,7 +82,7 @@ def discover_node(state: ExploreState) -> dict:
                 trigger_ui_index=last_explored_ui,
                 end_page=page_index
             )
-            log(f":::DISCOVER::: Updated end_page={page_index} for subtask '{last_explored_subtask}'", "cyan")
+            logger.debug(f"Updated end_page={page_index} for subtask '{last_explored_subtask}'")
 
             # Subtask Graph: Add transition edge
             # Get action sequence from the last explored action
@@ -96,13 +96,13 @@ def discover_node(state: ExploreState) -> dict:
                 trigger_ui_index=last_explored_ui,
                 action_sequence=action_sequence
             )
-            log(f":::DISCOVER::: Added Subtask Graph transition: {last_explored_page} -> {page_index} via '{last_explored_subtask}'", "cyan")
+            logger.debug(f"Added Subtask Graph transition: {last_explored_page} -> {page_index} via '{last_explored_subtask}'")
 
             # Subtask Graph: Generate descriptions for action history
             # (guideline is already generated at exploration time in explore_action_node)
             action_history = state.get("action_history", [])
             if action_history:
-                log(f":::DISCOVER::: Processing {len(action_history)} actions for description generation", "cyan")
+                logger.debug(f"Processing {len(action_history)} actions for description generation")
                 _process_action_history(
                     action_history=action_history,
                     after_xml=current_xml,
@@ -131,7 +131,7 @@ def discover_node(state: ExploreState) -> dict:
             new_back_edges[last_back_from] = []
         if page_index not in new_back_edges[last_back_from]:
             new_back_edges[last_back_from].append(page_index)
-            log(f":::DISCOVER::: Added back_edge: {last_back_from} -> {page_index}", "cyan")
+            logger.debug(f"Added back_edge: {last_back_from} -> {page_index}")
 
     # Initialize page manager
     memory.init_page_manager(page_index)
@@ -148,7 +148,7 @@ def discover_node(state: ExploreState) -> dict:
     }
 
     if is_new:
-        log(f":::DISCOVER::: New page {page_index}, will register subtasks", "cyan")
+        logger.debug(f"New page {page_index}, will register subtasks")
         # Add to visited set
         new_visited = visited_pages.copy()
         new_visited.add(page_index)
@@ -157,7 +157,7 @@ def discover_node(state: ExploreState) -> dict:
         new_unexplored = state.get("unexplored_subtasks", {}).copy()
         available_subtasks = memory.get_available_subtasks(page_index)
         new_unexplored[page_index] = available_subtasks
-        log(f":::DISCOVER::: Initialized {len(available_subtasks)} unexplored subtasks for page {page_index}", "cyan")
+        logger.debug(f"Initialized {len(available_subtasks)} unexplored subtasks for page {page_index}")
 
         # Subtask Graph: Generate page summary for new pages
         try:
@@ -167,9 +167,9 @@ def discover_node(state: ExploreState) -> dict:
                 screenshot_path=screenshot_path
             )
             memory.update_page_summary(page_index, page_summary)
-            log(f":::DISCOVER::: Generated summary for page {page_index}: {page_summary[:50]}...", "green")
+            logger.info(f"Generated summary for page {page_index}: {page_summary[:50]}...")
         except Exception as e:
-            log(f":::DISCOVER::: Error generating page summary: {e}", "red")
+            logger.error(f"Error generating page summary: {e}")
 
         return {
             "page_index": page_index,
@@ -184,7 +184,7 @@ def discover_node(state: ExploreState) -> dict:
             **clear_last_explored,
         }
 
-    log(f":::DISCOVER::: Existing page {page_index}", "blue")
+    logger.info(f"Existing page {page_index}")
 
     # Initialize unexplored_subtasks if not present (for GREEDY algorithms)
     unexplored_subtasks = state.get("unexplored_subtasks", {})
@@ -198,7 +198,7 @@ def discover_node(state: ExploreState) -> dict:
             if (s.get("name"), s.get("trigger_ui_index", -1)) not in explored_set
         ]
         new_unexplored[page_index] = unexplored_list
-        log(f":::DISCOVER::: Initialized {len(unexplored_list)} unexplored subtasks for existing page {page_index}", "cyan")
+        logger.debug(f"Initialized {len(unexplored_list)} unexplored subtasks for existing page {page_index}")
     else:
         new_unexplored = unexplored_subtasks
 
@@ -243,7 +243,7 @@ def _process_action_history(
         trigger_ui_index: Trigger UI index of the subtask
     """
     if action_history and not action_history[0].get("before_xml"):
-        log(":::DISCOVER::: Warning: first action missing before_xml, skipping history generation", "yellow")
+        logger.warning("first action missing before_xml, skipping history generation")
         return
 
     for i, entry in enumerate(action_history):
@@ -272,7 +272,7 @@ def _process_action_history(
                 before_screenshot_path=before_screenshot,
                 after_screenshot_path=current_after_screenshot
             )
-            log(f":::DISCOVER::: Generated description for step {step}: {description[:50]}...", "green")
+            logger.info(f"Generated description for step {step}: {description[:50]}...")
 
             # Save description only (guideline is already set at exploration time)
             memory.update_action_description(
@@ -285,4 +285,4 @@ def _process_action_history(
             )
 
         except Exception as e:
-            log(f":::DISCOVER::: Error generating description for step {step}: {e}", "red")
+            logger.error(f"Error generating description for step {step}: {e}")

@@ -3,7 +3,8 @@ import os
 
 from agents.prompts import select_agent_prompt
 from memory.memory_manager import Memory
-from utils.utils import query, query_with_vision, log
+from loguru import logger
+from utils.utils import query, query_with_vision
 
 
 class SelectAgent:
@@ -29,7 +30,7 @@ class SelectAgent:
             response: Selection result response
             new_action: Newly created action (if any)
         """
-        log(f":::SELECT:::", "blue")
+        logger.info("SELECT started")
         has_screenshot = screenshot_path is not None
         select_prompts = select_agent_prompt.get_prompts(
             self.instruction, available_subtasks, subtask_history,

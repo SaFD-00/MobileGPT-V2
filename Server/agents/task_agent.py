@@ -4,7 +4,8 @@ import os
 import pandas as pd
 
 from agents.prompts import task_agent_prompt
-from utils.utils import query, log
+from loguru import logger
+from utils.utils import query
 
 
 class TaskAgent:
@@ -58,4 +59,4 @@ class TaskAgent:
             self.database.loc[index_to_update, 'parameters'] = task['parameters']
         else:
             # Handle the case when no matching task is found
-            log("No matching task found to update", "red")
+            logger.error("No matching task found to update")

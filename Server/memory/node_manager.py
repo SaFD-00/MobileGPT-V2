@@ -5,7 +5,8 @@ import xml.etree.ElementTree as ET
 
 from agents.prompts import node_expand_prompt
 from utils.parsing_utils import find_matching_node, get_trigger_ui_attributes, get_extra_ui_attributes
-from utils.utils import log, query
+from loguru import logger
+from utils.utils import query
 
 
 class NodeManager:
@@ -54,7 +55,7 @@ class NodeManager:
                 if final_match_case == "SUPERSET":
                     node_expansion_data = copy.deepcopy(self.node_expansion_backup)
 
-        log(f":::EXPLORE:::", "blue")
+        logger.info("EXPLORE")
 
         if final_page_index >= 0:
             new_subtasks = []
@@ -108,13 +109,13 @@ class NodeManager:
                                   subtask['name'] in not_supported_subtask_names]
 
         if num_remaining_uis == 0 and pct_subtask_supported == 1.0:
-            print("EQSET")  # Perfectly identical screen
+            logger.debug("EQSET")  # Perfectly identical screen
             return supported_subtasks, "EQSET"
         elif num_remaining_uis == 0 and pct_subtask_supported > 0:
-            print("SUBSET")  # Current screen is a subset of the stored screen
+            logger.debug("SUBSET")  # Current screen is a subset of the stored screen
             return supported_subtasks, "SUBSET"
         elif num_remaining_uis > 0 and pct_subtask_supported >= self.match_threshold:
-            print("SUPERSET")  # Current screen contains more UIs than the stored screen
+            logger.debug("SUPERSET")  # Current screen contains more UIs than the stored screen
             self.node_expansion_backup = copy.deepcopy(
                 (self.html_xml, self.parsed_xml, page_node, not_supported_subtasks, new_trigger_uis_for_subtasks,
                  self.remaining_ui_indexes))

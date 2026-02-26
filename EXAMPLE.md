@@ -1760,7 +1760,7 @@ class ExploreState(TypedDict, total=False):
 | **verify_agent** | Module | `agents/verify_agent.py` (인라인) | `VERIFY_AGENT_GPT_VERSION` | X | 경로 검증 (should_proceed) |
 | **DeriveAgent** (task) | Class | `prompts/derive_agent_prompt.py` → `get_prompts()` | `DERIVE_AGENT_GPT_VERSION` | O | 구체적 액션 도출 (7종) |
 | **TaskAgent** | Class | `prompts/task_agent_prompt.py` | `TASK_AGENT_GPT_VERSION` | X | 사용자 지시어 분석/태스크 구조화 |
-| **app_agent** | Module | `prompts/app_agent_prompt.py` | `APP_AGENT_GPT_VERSION` | X | 앱 패키지 정보 조회/예측 |
+| **AppAgent** | Class | `prompts/app_agent_prompt.py` | `APP_AGENT_GPT_VERSION` | X | 앱 예측, 패키지 관리, 앱 DB 유지 |
 | **step_verify_agent** | Module | `prompts/step_verify_prompt.py` | *(LLM 미사용, 규칙 기반)* | X | 4-Step 각 단계별 경량 검증 |
 | *(node_expand)* | - | `prompts/node_expand_prompt.py` | - | X | 노드 확장 (내부용) |
 

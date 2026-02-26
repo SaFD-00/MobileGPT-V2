@@ -3,7 +3,7 @@
 import os
 from typing import Tuple, List
 
-from utils.utils import log
+from loguru import logger
 from utils.network import recv_text_line, recv_xml, save_screenshot
 
 
@@ -28,7 +28,7 @@ def handle_app_list(client_socket, app_agent) -> List[str]:
     Returns:
         List of package names
     """
-    log("App list received", "blue")
+    logger.info("App list received")
 
     package_string = recv_text_line(client_socket)
     package_list = package_string.split("##")
@@ -48,10 +48,10 @@ def handle_package_name(client_socket, app_agent) -> Tuple[str, str]:
         Tuple of (package_name, app_name)
     """
     package_name = recv_text_line(client_socket)
-    log(f"Package name: {package_name}", "blue")
+    logger.info(f"Package name: {package_name}")
 
     if not package_name:
-        log("Package name is empty", "red")
+        logger.error("Package name is empty")
         return "", ""
 
     app_name = app_agent.get_app_name(package_name)
@@ -61,7 +61,7 @@ def handle_package_name(client_socket, app_agent) -> Tuple[str, str]:
         app_agent.update_app_list([package_name])
         app_name = app_agent.get_app_name(package_name)
 
-    log(f"App name: {app_name}", "blue")
+    logger.info(f"App name: {app_name}")
     return package_name, app_name
 
 
@@ -85,7 +85,7 @@ def handle_screenshot(
     """
     save_path = os.path.join(log_directory, "screenshots", f"{screen_count}.jpg")
     save_screenshot(client_socket, buffer_size, save_path)
-    log(f"Screenshot saved: {save_path}", "green")
+    logger.info(f"Screenshot saved: {save_path}")
     return save_path
 
 
@@ -130,7 +130,7 @@ def handle_external_app(client_socket) -> dict:
     import json
 
     payload_str = recv_text_line(client_socket)
-    log(f":::EXTERNAL_APP::: Detected: {payload_str}", "yellow")
+    logger.warning(f"External app detected: {payload_str}")
 
     try:
         payload = json.loads(payload_str)
@@ -140,5 +140,5 @@ def handle_external_app(client_socket) -> dict:
             "timestamp": payload.get("timestamp", 0)
         }
     except json.JSONDecodeError:
-        log(":::EXTERNAL_APP::: Failed to parse payload", "red")
+        logger.error("Failed to parse external app payload")
         return {}

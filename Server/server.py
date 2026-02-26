@@ -19,7 +19,7 @@ from handlers.message_handlers import (
 from memory.memory_manager import Memory
 from screenParser.Encoder import xmlEncoder
 from utils.network import get_local_ip, recv_text_line, send_json_response
-from utils.utils import log
+from loguru import logger
 
 
 class Server:
@@ -82,13 +82,8 @@ class Server:
 
     def _log_server_start(self, real_ip: str) -> None:
         """Log server startup with connection instructions."""
-        vision_status = "Vision+Text" if self.vision_enabled else "Text-only"
-        log("--------------------------------------------------------")
-        log(
-            f"Server is listening on {real_ip}:{self.port} (vision: {vision_status})\n"
-            f"Input this IP address into the app. : [{real_ip}]",
-            "red"
-        )
+        logger.info(f"Server listening on {real_ip}:{self.port}")
+        logger.info(f"Config: vision={self.vision_enabled}")
 
     def _accept_clients(self, server: socket.socket) -> None:
         """Accept and handle client connections in separate threads."""
@@ -111,7 +106,7 @@ class Server:
         client_address: Tuple[str, int]
     ) -> None:
         """Handle client disconnection."""
-        log(f"Connection closed by {client_address}", 'red')
+        logger.info(f"Connection closed by {client_address}")
         client_socket.close()
 
     def handle_client(
@@ -125,7 +120,7 @@ class Server:
             client_socket: Connected client socket
             client_address: Client address tuple (IP, port)
         """
-        print(f"Connected to client: {client_address}")
+        logger.info(f"Client connected: {client_address}")
 
         app_agent = AppAgent()
         task_agent = TaskAgent()
@@ -164,7 +159,7 @@ class Server:
 
             elif message_type == MessageType.XML:
                 if not memory or not instruction:
-                    log("Error: instruction or memory not initialized", "red")
+                    logger.error("Instruction or memory not initialized")
                     continue
                 screen_count = self._handle_xml(
                     client_socket, screen_parser, memory, instruction,
@@ -187,7 +182,7 @@ class Server:
         Returns:
             Tuple of (log_directory, memory, instruction, session_id)
         """
-        log("Instruction is received", "blue")
+        logger.info("Instruction received")
 
         instruction = recv_text_line(client_socket)
         task, is_new_task = task_agent.get_task(instruction)
@@ -214,7 +209,7 @@ class Server:
         memory = Memory(target_app, instruction, task['name'])
         session_id = str(uuid.uuid4())
 
-        log(f"Initialized memory for app '{target_app}' with instruction: {instruction}", "green")
+        logger.info(f"Initialized memory for '{target_app}': {instruction}")
 
         return log_directory, memory, instruction, session_id
 
@@ -245,7 +240,7 @@ class Server:
         # Run LangGraph task execution
         config = {"configurable": {"thread_id": session_id}}
 
-        log("Starting LangGraph task execution...", "cyan")
+        logger.debug("Starting LangGraph task execution...")
         result = self._task_graph.invoke({
             "session_id": session_id,
             "instruction": instruction,
@@ -263,13 +258,13 @@ class Server:
         status = result.get("status", "unknown")
         iterations = result.get("iteration", 0)
 
-        log(f"Task execution complete: status={status}, iterations={iterations}", "green")
+        logger.info(f"Task complete: status={status}, iterations={iterations}")
 
         if action is not None:
-            log(f"Action: {action}", "cyan")
+            logger.debug(f"Action: {action}")
             send_json_response(client_socket, action)
         else:
-            log("No action derived", "yellow")
+            logger.warning("No action derived")
 
         return screen_count + 1
 
@@ -284,6 +279,6 @@ class Server:
         """
         qa_string = recv_text_line(client_socket)
         info_name, question, answer = qa_string.split("\\", 2)
-        log(f"QA is received ({question}: {answer})", "blue")
+        logger.info(f"QA received ({question}: {answer})")
         # Q&A responses are handled within the inference graph context
         # No immediate action is sent back

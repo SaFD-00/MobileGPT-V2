@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 from copy import deepcopy
 
 from utils import parsing_utils
-from utils.utils import log
+from loguru import logger
 
 
 def generalize_action(action: dict, subtask: dict, screen) -> dict:
@@ -192,7 +192,7 @@ def generalize_action_to_screen(action: dict, screen: str, subtask_args: dict) -
     # Return action as-is if UI index does not exist on the current screen
     target_ui_list = ui_tree.findall(f".//*[@index='{target_ui_index}']")
     if not target_ui_list:
-        log(f"Warning: UI index '{target_ui_index}' not found in screen, skipping generalization", "yellow")
+        logger.warning(f"UI index '{target_ui_index}' not found in screen, skipping generalization")
         return action
     target_ui = target_ui_list[0]
 

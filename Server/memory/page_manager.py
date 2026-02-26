@@ -4,7 +4,7 @@ import os
 import pandas as pd
 
 from utils.action_utils import adapt_action
-from utils.utils import log
+from loguru import logger
 
 
 def init_database(path: str, headers: list):
@@ -211,7 +211,7 @@ class PageManager:
             self.save_subtask(subtask_data, {}, guideline,
                              trigger_ui_index=trigger_ui_index,
                              start_page=start_page, end_page=end_page)
-            log(f"Subtask '{subtask_name}' marked as explored and registered in subtasks.csv")
+            logger.info(f"Subtask '{subtask_name}' marked as explored and registered in subtasks.csv")
 
             # === Save action to actions.csv ===
             if action is not None and screen is not None:
@@ -244,7 +244,7 @@ class PageManager:
                 self.save_action(subtask_name, trigger_ui_index, 1, finish_action, {},
                                 start_page=end_page, end_page=end_page)
 
-                log(f"Action saved for subtask '{subtask_name}' (trigger_ui={trigger_ui_index}) in actions.csv")
+                logger.info(f"Action saved for subtask '{subtask_name}' (trigger_ui={trigger_ui_index}) in actions.csv")
 
     def _generate_guideline_from_ui(self, ui_info: dict) -> str:
         """Generate a guideline string from UI information"""
@@ -352,7 +352,7 @@ class PageManager:
         self.save_action(subtask_name, trigger_ui_index, finish_step, finish_action, {},
                         start_page=last_end_page, end_page=last_end_page)
 
-        log(f"Saved {len(actions) + 1} actions for subtask '{subtask_name}' (trigger_ui={trigger_ui_index}) in actions.csv")
+        logger.info(f"Saved {len(actions) + 1} actions for subtask '{subtask_name}' (trigger_ui={trigger_ui_index}) in actions.csv")
 
     def mark_subtask_fully_explored(self, subtask_name: str):
         """Mark as explored after all trigger UIs of a subtask have been explored"""
@@ -360,7 +360,7 @@ class PageManager:
         if condition.any():
             self.available_subtask_db.loc[condition, 'exploration'] = 'explored'
             self.available_subtask_db.to_csv(self.available_subtask_db_path, index=False)
-            log(f"Marked subtask '{subtask_name}' as fully explored in available_subtasks.csv")
+            logger.info(f"Marked subtask '{subtask_name}' as fully explored in available_subtasks.csv")
 
     def get_subtask_by_name(self, subtask_name: str) -> dict:
         """Get subtask data by name from available_subtasks"""
@@ -403,7 +403,7 @@ class PageManager:
 
             self.subtask_db = pd.concat([self.subtask_db, pd.DataFrame([subtask_data])], ignore_index=True)
             self.subtask_db.to_csv(self.subtask_db_path, index=False)
-            log(f"added new subtask '{subtask_raw['name']}' (trigger_ui={trigger_ui_index}) to the database")
+            logger.info(f"added new subtask '{subtask_raw['name']}' (trigger_ui={trigger_ui_index}) to the database")
 
     def get_next_subtask_data(self, subtask_name: str) -> dict:
         """Return data for a specific subtask"""
@@ -554,7 +554,7 @@ class PageManager:
                         action_data['start_page'] = end_page
 
             updated = True
-            log(f"Updated end_page={end_page} for subtask '{subtask_name}' (trigger_ui={trigger_ui_index})")
+            logger.info(f"Updated end_page={end_page} for subtask '{subtask_name}' (trigger_ui={trigger_ui_index})")
 
         return updated
 
@@ -669,7 +669,7 @@ class PageManager:
                         action_data['guideline'] = guideline
                     break
 
-            log(f"Updated action description for '{subtask_name}' step {step}")
+            logger.info(f"Updated action description for '{subtask_name}' step {step}")
             return True
 
         return False
@@ -714,7 +714,7 @@ class PageManager:
             if not existing.startswith('EXTERNAL_APP:'):
                 self.subtask_db.loc[subtask_condition, 'guideline'] = combined
                 self.subtask_db.to_csv(self.subtask_db_path, index=False)
-                log(f"Updated guideline for '{subtask_name}': {combined[:50]}...")
+                logger.info(f"Updated guideline for '{subtask_name}': {combined[:50]}...")
 
         return combined
 
@@ -747,7 +747,7 @@ class PageManager:
             self.available_subtask_db.loc[condition, 'exploration'] = reason
             self.available_subtask_db.to_csv(self.available_subtask_db_path, index=False)
             deleted_any = True
-            log(f":::DELETE::: Marked subtask '{subtask_name}' as '{reason}' in available_subtasks.csv")
+            logger.info(f"Marked subtask '{subtask_name}' as '{reason}' in available_subtasks.csv")
 
         # === 2. Process subtasks.csv ===
         subtask_condition = (self.subtask_db['name'] == subtask_name)
@@ -761,7 +761,7 @@ class PageManager:
         if rows_before > rows_after:
             self.subtask_db.to_csv(self.subtask_db_path, index=False)
             deleted_any = True
-            log(f":::DELETE::: Deleted {rows_before - rows_after} row(s) from subtasks.csv for '{subtask_name}'")
+            logger.info(f"Deleted {rows_before - rows_after} row(s) from subtasks.csv for '{subtask_name}'")
 
         # === 3. Process actions.csv ===
         action_condition = (self.action_db['subtask_name'] == subtask_name)
@@ -775,7 +775,7 @@ class PageManager:
         if actions_before > actions_after:
             self.action_db.to_csv(self.action_db_path, index=False)
             deleted_any = True
-            log(f":::DELETE::: Deleted {actions_before - actions_after} action(s) from actions.csv for '{subtask_name}'")
+            logger.info(f"Deleted {actions_before - actions_after} action(s) from actions.csv for '{subtask_name}'")
 
             # Also update in-memory action_data
             self.action_data = [

@@ -5,7 +5,8 @@ from agents.prompts import subtask_extraction_prompt
 from agents.prompts import trigger_ui_selection_prompt
 from memory.memory_manager import Memory
 from utils.parsing_utils import get_trigger_ui_attributes, get_extra_ui_attributes
-from utils.utils import query_with_vision, log
+from loguru import logger
+from utils.utils import query_with_vision
 
 
 class ExploreAgent:
@@ -32,14 +33,14 @@ class ExploreAgent:
             Index of the created node
         """
 
-        log(f":::EXPLORE:::", "blue")
+        logger.info("EXPLORE started")
         model = os.getenv("EXPLORE_AGENT_GPT_VERSION", "gpt-5.2")
         has_screenshot = screenshot_path is not None
 
         # ============================================
         # Step 1: Subtask extraction (using Vision API)
         # ============================================
-        log(f":::EXPLORE STEP 1::: Extracting high-level subtasks", "cyan")
+        logger.debug("Extracting high-level subtasks")
         subtask_prompts = subtask_extraction_prompt.get_prompts(
             html_xml, has_screenshot=has_screenshot
         )
@@ -50,7 +51,7 @@ class ExploreAgent:
 
         # Type validation - initialize as empty list if not a list
         if not isinstance(subtasks, list):
-            log(f":::EXPLORE WARNING::: subtasks is not a list (type: {type(subtasks).__name__}), using empty list", "yellow")
+            logger.warning(f"subtasks is not a list (type: {type(subtasks).__name__}), using empty list")
             subtasks = []
 
         # Set default values for required fields + handle safe field
@@ -74,20 +75,20 @@ class ExploreAgent:
                 unsafe_subtasks.append(subtask)
 
         # Log all subtasks (showing both safe/unsafe)
-        log(f":::EXPLORE STEP 1::: Extracted {len(subtasks)} subtasks "
-            f"(safe: {len(safe_subtasks)}, unsafe: {len(unsafe_subtasks)})", "cyan")
-        log(f"All Subtasks: {json.dumps(subtasks, indent=2)}", "blue")
+        logger.debug(f"Extracted {len(subtasks)} subtasks "
+            f"(safe: {len(safe_subtasks)}, unsafe: {len(unsafe_subtasks)})")
+        logger.info(f"All Subtasks: {json.dumps(subtasks, indent=2)}")
 
         # Log warnings for unsafe subtasks
         for unsafe in unsafe_subtasks:
-            log(f":::GUARDRAIL::: Blocked unsafe subtask '{unsafe.get('name')}' "
-                f"(category: {unsafe.get('risk_category')})", "red")
+            logger.error(f"Blocked unsafe subtask '{unsafe.get('name')}' "
+                f"(category: {unsafe.get('risk_category')})")
 
         # Proceed to the next step with only safe subtasks
         subtasks = safe_subtasks
 
         if not subtasks:
-            log(f":::EXPLORE::: No subtasks found, creating empty node", "yellow")
+            logger.warning("No subtasks found, creating empty node")
             # Create an empty node
             new_node_index = self.memory.add_node([], {}, {}, parsed_xml, screen_num)
             self.memory.add_hierarchy_xml(hierarchy_xml, new_node_index)
@@ -96,7 +97,7 @@ class ExploreAgent:
         # ============================================
         # Step 2: TriggerUI selection (using Vision API)
         # ============================================
-        log(f":::EXPLORE STEP 2::: Selecting trigger UIs for {len(subtasks)} subtasks", "cyan")
+        logger.debug(f"Selecting trigger UIs for {len(subtasks)} subtasks")
         trigger_prompts = trigger_ui_selection_prompt.get_prompts(
             html_xml, subtasks, has_screenshot=has_screenshot
         )
@@ -107,10 +108,10 @@ class ExploreAgent:
 
         # Validate trigger_ui_mapping
         if not isinstance(trigger_ui_mapping, dict):
-            log(f":::EXPLORE WARNING::: trigger_ui_mapping is not a dict (type: {type(trigger_ui_mapping).__name__}), using empty dict", "yellow")
+            logger.warning(f"trigger_ui_mapping is not a dict (type: {type(trigger_ui_mapping).__name__}), using empty dict")
             trigger_ui_mapping = {}
 
-        log(f":::EXPLORE STEP 2::: Trigger UI mapping: {json.dumps(trigger_ui_mapping, indent=2)}", "cyan")
+        logger.debug(f"Trigger UI mapping: {json.dumps(trigger_ui_mapping, indent=2)}")
 
         # ============================================
         # Combine Subtask + TriggerUI
@@ -134,11 +135,11 @@ class ExploreAgent:
                 }
                 available_subtasks.append(subtask_entry)
                 subtasks_trigger_uis[subtask_name] = [trigger_ui]
-                log(f":::EXPLORE::: Added subtask '{subtask_name}' with trigger_ui={trigger_ui}", "green")
+                logger.info(f"Added subtask '{subtask_name}' with trigger_ui={trigger_ui}")
             else:
-                log(f":::EXPLORE::: Skipping subtask '{subtask_name}' (no valid trigger_ui)", "yellow")
+                logger.warning(f"Skipping subtask '{subtask_name}' (no valid trigger_ui)")
 
-        log(f":::EXPLORE::: Final available subtasks: {len(available_subtasks)}", "blue")
+        logger.info(f"Final available subtasks: {len(available_subtasks)}")
 
         # Extract trigger UI attributes
         subtasks_trigger_ui_attributes = get_trigger_ui_attributes(subtasks_trigger_uis, parsed_xml)
