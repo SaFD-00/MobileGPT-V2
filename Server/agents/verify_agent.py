@@ -77,7 +77,7 @@ def verify_path(
         next_page_summary=next_page_summary,
     )
 
-    model = os.getenv("VERIFY_AGENT_GPT_VERSION", os.getenv("SELECT_AGENT_GPT_VERSION", "gpt-5.2"))
+    model = os.getenv("VERIFY_AGENT_GPT_VERSION", os.getenv("SELECT_AGENT_GPT_VERSION", "gpt-5.4"))
     response = query(verify_prompts, model=model)
 
     should_proceed = response.get("should_proceed", True)

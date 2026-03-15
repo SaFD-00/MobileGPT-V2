@@ -34,7 +34,7 @@ class ExploreAgent:
         """
 
         logger.info("EXPLORE started")
-        model = os.getenv("EXPLORE_AGENT_GPT_VERSION", "gpt-5.2")
+        model = os.getenv("EXPLORE_AGENT_GPT_VERSION", "gpt-5.4")
         has_screenshot = screenshot_path is not None
 
         # ============================================

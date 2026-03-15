@@ -48,9 +48,9 @@ def generate_numbered_list(data: list) -> str:
 
 
 def _is_fixed_temperature_model(model: str) -> bool:
-    """Check if the model doesn't support temperature parameter (gpt-5.2 series)."""
+    """Check if the model doesn't support temperature parameter (gpt-5.4 series)."""
     model_lower = model.lower()
-    return model_lower.startswith(('gpt-5.2'))
+    return model_lower.startswith(('gpt-5.4'))
 
 
 def _format_content_for_log(content):
@@ -70,14 +70,14 @@ def _format_content_for_log(content):
     return str(content)
 
 
-def query(messages, model="gpt-5.2", is_list=False, parse_json=True):
+def query(messages, model="gpt-5.4", is_list=False, parse_json=True):
     client = OpenAI()
 
     for message in messages:
         logger.debug("-" * 26)
         logger.debug(_format_content_for_log(message["content"]))
 
-    # Models with fixed temperature (o1, o3, gpt-5.2) don't support temperature parameter
+    # Models with fixed temperature (o1, o3, gpt-5.4) don't support temperature parameter
     if _is_fixed_temperature_model(model):
         response = client.chat.completions.create(
             model=model,
@@ -165,7 +165,7 @@ def _add_images_to_messages(messages: list, image_paths: list,
     return new_messages
 
 
-def query_with_vision(messages, model: str = "gpt-5.2",
+def query_with_vision(messages, model: str = "gpt-5.4",
                       screenshot_path: Optional[str] = None,
                       screenshot_paths: Optional[list] = None,
                       is_list: bool = False,
@@ -175,7 +175,7 @@ def query_with_vision(messages, model: str = "gpt-5.2",
 
     Args:
         messages: List of prompt messages
-        model: Model name to use (default: gpt-5.2)
+        model: Model name to use (default: gpt-5.4)
         screenshot_path: Single screenshot file path (Optional, for backward compatibility)
         screenshot_paths: List of screenshot file paths (Optional, for multiple images)
         is_list: Whether the response is a list

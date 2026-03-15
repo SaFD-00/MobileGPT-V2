@@ -40,7 +40,7 @@ def generate_summary(
         available_subtasks=available_subtasks
     )
 
-    model = os.getenv("SUMMARY_AGENT_GPT_VERSION", "gpt-5.2")
+    model = os.getenv("SUMMARY_AGENT_GPT_VERSION", "gpt-5.4")
 
     # Use Vision API if screenshot is available
     if screenshot_path and os.path.exists(screenshot_path):

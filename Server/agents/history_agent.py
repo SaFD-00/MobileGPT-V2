@@ -52,7 +52,7 @@ def generate_description(
     if after_screenshot_path and os.path.exists(after_screenshot_path):
         screenshot_paths.append(after_screenshot_path)
 
-    model = os.getenv("HISTORY_AGENT_GPT_VERSION", "gpt-5.2")
+    model = os.getenv("HISTORY_AGENT_GPT_VERSION", "gpt-5.4")
 
     if screenshot_paths:
         logger.debug(f"Using Vision API with {len(screenshot_paths)} screenshot(s)")
@@ -89,7 +89,7 @@ def generate_guidance(action: dict, screen_xml: str) -> str:
         screen_xml=screen_xml
     )
 
-    model = os.getenv("HISTORY_AGENT_GPT_VERSION", "gpt-5.2")
+    model = os.getenv("HISTORY_AGENT_GPT_VERSION", "gpt-5.4")
     response = query(prompts, model=model, parse_json=False)
 
     return response
