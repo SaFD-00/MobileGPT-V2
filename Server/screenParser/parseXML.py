@@ -109,12 +109,8 @@ def hierarchy_parse(parsed_xml):
             del element.attrib['important']
         if 'index' in element.attrib:
             del element.attrib['index']
-        # if 'description' in element.attrib:
-        #     del element.attrib['description']
         if element.text:
             element.text = ''
-        # if 'class' in element.attrib:
-        #     del element.attrib['class']
         if 'text' in element.attrib:
             del element.attrib['text']
 
@@ -123,21 +119,6 @@ def hierarchy_parse(parsed_xml):
     hierarchy_xml = remove_redundancies(hierarchy_xml)
 
     return hierarchy_xml
-
-
-def delete_option_information(parsed_xml):
-    tree = ET.fromstring(parsed_xml)
-    for element in tree.iter():
-        if 'bounds' in element.attrib:
-            del element.attrib['bounds']
-        if 'important' in element.attrib:
-            del element.attrib['important']
-        if 'class' in element.attrib:
-            del element.attrib['class']
-
-    encoded_xml = ET.tostring(tree, encoding='unicode')
-
-    return encoded_xml
 
 
 def remove_nodes_with_empty_bounds(element):

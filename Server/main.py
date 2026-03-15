@@ -35,7 +35,7 @@ def main():
     parser = argparse.ArgumentParser(description='MobileGPT Server')
     parser.add_argument(
         '--mode',
-        choices=['task', 'auto_explore'],
+        choices=['task', 'auto_explore', 'visualize'],
         default='task',
         help='Server mode (default: task)'
     )
@@ -68,6 +68,13 @@ def main():
         help='Disable Vision mode: text-only (screenshots saved but not sent to LLM)'
     )
 
+    parser.add_argument(
+        '--app',
+        type=str,
+        default=None,
+        help='App package name for visualize mode'
+    )
+
     args = parser.parse_args()
 
     # Setup logging
@@ -81,25 +88,34 @@ def main():
     logger.info(f"  Vision: {args.vision}")
     if args.mode == 'auto_explore':
         logger.info(f"  Algorithm: {args.algorithm}")
+    if args.mode == 'visualize':
+        logger.info(f"  App: {args.app}")
 
-    from server import Server
-    from server_auto_explore import AutoExplorer
+    if args.mode == 'visualize':
+        if not args.app:
+            parser.error("--app is required for visualize mode")
+        from visualization.graph_visualizer import visualize_app
+        output = visualize_app(app_name=args.app)
+        logger.info(f"Visualization saved to: {output}")
+    else:
+        from server import Server
+        from server_auto_explore import AutoExplorer
 
-    server_ip = "0.0.0.0"
-    server_port = args.port
+        server_ip = "0.0.0.0"
+        server_port = args.port
 
-    if args.mode == 'task':
-        server = Server(host=server_ip, port=server_port, vision_enabled=args.vision)
-        server.open()
+        if args.mode == 'task':
+            server = Server(host=server_ip, port=server_port, vision_enabled=args.vision)
+            server.open()
 
-    elif args.mode == 'auto_explore':
-        auto_explorer = AutoExplorer(
-            host=server_ip,
-            port=server_port,
-            algorithm=args.algorithm,
-            vision_enabled=args.vision
-        )
-        auto_explorer.open()
+        elif args.mode == 'auto_explore':
+            auto_explorer = AutoExplorer(
+                host=server_ip,
+                port=server_port,
+                algorithm=args.algorithm,
+                vision_enabled=args.vision
+            )
+            auto_explorer.open()
 
 
 if __name__ == '__main__':

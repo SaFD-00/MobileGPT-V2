@@ -17,6 +17,9 @@ python-dotenv>=1.0.0
 pydantic>=2.7.0
 serpapi>=0.1.5
 
+# Visualization
+pyvis>=0.3.2
+
 # Testing
 pytest>=8.0.0
 pytest-cov>=4.0.0

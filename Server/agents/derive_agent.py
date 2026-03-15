@@ -60,11 +60,6 @@ class DeriveAgent:
         example = self.__exemplify(response, screen)
         return response['action'], example
 
-        # Real-time saving (currently disabled)
-        # self.__generalize_and_save_action(response, screen)
-        # generalized_action = self.__generalize_action(response, screen)
-        # return response['action'], generalized_action
-
     def __exemplify(self, response: dict, screen: str) -> dict:
         """Convert the action into a training example"""
         action = response['action']

@@ -115,38 +115,6 @@ def encode_image_to_base64(image_path: str) -> str:
         return base64.standard_b64encode(image_file.read()).decode("utf-8")
 
 
-def _add_image_to_messages(messages: list, image_path: str,
-                           detail: str = "high") -> list:
-    """Add an image to the last user message
-
-    Chat Completions API Vision format:
-    {"type": "text", "text": "..."}
-    {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,..."}}
-    """
-    new_messages = copy.deepcopy(messages)
-
-    # Find the last user message
-    for i in range(len(new_messages) - 1, -1, -1):
-        if new_messages[i]["role"] == "user":
-            content = new_messages[i]["content"]
-
-            # Encode image to Base64
-            base64_image = encode_image_to_base64(image_path)
-
-            # Convert to Vision API format
-            if isinstance(content, str):
-                new_messages[i]["content"] = [
-                    {"type": "text", "text": content},
-                    {"type": "image_url", "image_url": {
-                        "url": f"data:image/jpeg;base64,{base64_image}",
-                        "detail": detail
-                    }}
-                ]
-            break
-
-    return new_messages
-
-
 def _add_images_to_messages(messages: list, image_paths: list,
                             detail: str = "high") -> list:
     """Add multiple images to the last user message

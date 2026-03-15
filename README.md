@@ -222,11 +222,12 @@ python main.py [OPTIONS]
 
 | 옵션 | 타입 | 선택값 | 기본값 | 설명 |
 |------|------|--------|--------|------|
-| `--mode` | str | `task`, `auto_explore` | `task` | 서버 모드 선택 |
+| `--mode` | str | `task`, `auto_explore`, `visualize` | `task` | 서버 모드 선택 |
 | `--algorithm` | str | `DFS`, `BFS`, `GREEDY` | `GREEDY` | 탐색 알고리즘 (`auto_explore` 모드 전용) |
 | `--port` | int | - | `12345` | TCP 서버 포트 |
 | `--vision` | flag | - | 활성화 | Vision+Text 모드 (기본값) |
 | `--no-vision` | flag | - | - | Text-only 모드 (`--vision`과 상호 배타) |
+| `--app` | str | - | - | 앱 패키지명 (`visualize` 모드 필수) |
 
 **최소 실행 커맨드** (기본값: task 모드, port 12345, vision 활성화):
 
@@ -283,6 +284,34 @@ python main.py --mode task --no-vision
 | `--no-vision` | Text-only 모드: 스크린샷 저장은 유지하되 LLM에 전송하지 않음 |
 
 > **참고**: `--no-vision` 모드에서도 스크린샷은 로그 디렉토리에 저장됩니다.
+
+### 5.4 Visualize 모드
+
+Auto-Explore로 구축된 Subtask Graph를 인터랙티브 HTML로 시각화:
+
+```bash
+cd Server
+
+# 기본 시각화 (브라우저 자동 오픈)
+python main.py --mode visualize --app com.google.android.deskclock
+
+# 독립 실행 (main.py 없이)
+python -m visualization.graph_visualizer --app com.google.android.deskclock
+
+# 브라우저 열지 않기
+python -m visualization.graph_visualizer --app com.google.android.deskclock --no-open
+```
+
+**시각화 요소**:
+
+| 요소 | 표현 |
+|------|------|
+| 노드 (페이지) | 파란색 원, 크기=outgoing subtask 수 비례 |
+| explored 엣지 | 초록 실선, subtask 이름 라벨 |
+| unexplored 엣지 | 빨간 점선 |
+| 툴팁 | 노드: 페이지 요약 / 엣지: action sequence 요약 |
+
+출력 파일: `./memory/{app_name}/subtask_graph.html`
 
 ---
 
@@ -418,6 +447,8 @@ MobileGPT-V2/
 │   │   ├── page_manager.py              # 페이지별 데이터 관리
 │   │   └── node_manager.py              # 노드 관리
 │   ├── handlers/                        # 메시지 핸들러
+│   ├── visualization/                   # Subtask Graph 시각화 (PyVis)
+│   │   └── graph_visualizer.py          # 인터랙티브 HTML 생성
 │   ├── utils/                           # 유틸리티
 │   └── tests/                           # 테스트
 │       ├── unit/                        # 단위 테스트 (agents, graphs, memory)

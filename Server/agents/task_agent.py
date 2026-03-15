@@ -1,4 +1,3 @@
-import json
 import os
 
 import pandas as pd
@@ -41,12 +40,6 @@ class TaskAgent:
             is_new = False
 
         return task, is_new
-
-    # Hard-coded test code
-    # def get_task(self, instruction) -> (dict, bool):
-    #     sample_response = """{"name":"sendGenericMessageToTelegram", "description": "send a generic message to Telegram without specifying a recipient or message content", "parameters":{}, "app": "Telegram"}"""
-    #
-    #     return json.loads(sample_response), True
 
     def update_task(self, task):
         """Update the description and parameters of an existing task"""
